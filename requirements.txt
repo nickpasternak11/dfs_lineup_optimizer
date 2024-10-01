@@ -6,3 +6,4 @@ selenium
 pulp
 requests
 lxml
+tabulate

@@ -1,25 +1,14 @@
-IMAGE_NAME = "dfs_optimizer"
-CONTAINER_NAME = "dfs_optimizer"
+SALARY_SCRAPER_IMAGE_NAME = "salary-scraper"
+LINEUP_OPTIMIZER_IMAGE_NAME = "lineup-optimizer"
 
-# Build the Docker image
-build:
-	docker buildx build -t $(IMAGE_NAME) .
+build-salary-scraper:
+	docker buildx build --target $(SALARY_SCRAPER_IMAGE_NAME) -t $(SALARY_SCRAPER_IMAGE_NAME) .
 
-# Run the container
-run: build
-	docker run --rm $(IMAGE_NAME)
+build-lineup-optimizer:
+	docker buildx build --target $(LINEUP_OPTIMIZER_IMAGE_NAME) -t $(LINEUP_OPTIMIZER_IMAGE_NAME) .
 
-# Stop the running container
-stop:
-	docker stop $(CONTAINER_NAME)
+run-salary-scraper: build-salary-scraper
+	docker run --rm -v "./:/app" $(SALARY_SCRAPER_IMAGE_NAME)
 
-# Remove the container
-remove:
-	docker rm $(CONTAINER_NAME)
-
-# Clean up image
-clean:
-	docker rmi $(IMAGE_NAME)
-
-# Rebuild and run the container
-rebuild: stop remove clean build run
+run-lineup-optimizer: build-lineup-optimizer
+	docker run --rm -v "./:/app" $(LINEUP_OPTIMIZER_IMAGE_NAME)
