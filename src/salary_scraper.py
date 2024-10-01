@@ -44,7 +44,9 @@ def main():
     salary_df["opponent"] = salary_df.opponent.str.replace("@", "")
     salary_df["salary"] = salary_df.salary.str.replace("$", "").str.replace(",", "").astype(int)
 
-    output_path = os.path.join(os.path.dirname(__file__), f"../data/dk_salary_{current_year}_w{current_week}.csv")
+    output_path = os.path.join(
+        os.path.dirname(__file__), f"../data/salaries/dk_salary_{current_year}_w{current_week}.csv"
+    )
     salary_df.to_csv(output_path, index=False)
 
 

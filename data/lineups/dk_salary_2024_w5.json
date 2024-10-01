@@ -1,0 +1,123 @@
+[
+  {
+    "timestamp": "2024-10-01T22:37:16.068534",
+    "lineup": [
+      {
+        "year": 2024,
+        "week": 5,
+        "player": "Jordan Love",
+        "position": "QB",
+        "team": "GB",
+        "opponent": "LAR",
+        "rank": 4,
+        "avg_fpts": 24.3,
+        "proj_fpts": 20.34,
+        "salary": 6500
+      },
+      {
+        "year": 2024,
+        "week": 5,
+        "player": "Alvin Kamara",
+        "position": "RB",
+        "team": "NO",
+        "opponent": "KC",
+        "rank": 3,
+        "avg_fpts": 26.7,
+        "proj_fpts": 19.049999999999997,
+        "salary": 7500
+      },
+      {
+        "year": 2024,
+        "week": 5,
+        "player": "Kenneth Walker",
+        "position": "RB",
+        "team": "SEA",
+        "opponent": "NYG",
+        "rank": 8,
+        "avg_fpts": 26.3,
+        "proj_fpts": 17.84,
+        "salary": 6800
+      },
+      {
+        "year": 2024,
+        "week": 5,
+        "player": "Malik Nabers",
+        "position": "WR",
+        "team": "NYG",
+        "opponent": "SEA",
+        "rank": 4,
+        "avg_fpts": 22.9,
+        "proj_fpts": 18.130000000000003,
+        "salary": 7300
+      },
+      {
+        "year": 2024,
+        "week": 5,
+        "player": "Jayden Reed",
+        "position": "WR",
+        "team": "GB",
+        "opponent": "LAR",
+        "rank": 7,
+        "avg_fpts": 19.4,
+        "proj_fpts": 16.34,
+        "salary": 6500
+      },
+      {
+        "year": 2024,
+        "week": 5,
+        "player": "Darnell Mooney",
+        "position": "WR",
+        "team": "ATL",
+        "opponent": "TB",
+        "rank": 33,
+        "avg_fpts": 10.9,
+        "proj_fpts": 11.08,
+        "salary": 4800
+      },
+      {
+        "year": 2024,
+        "week": 5,
+        "player": "Pat Freiermuth",
+        "position": "TE",
+        "team": "PIT",
+        "opponent": "DAL",
+        "rank": 7,
+        "avg_fpts": 9.7,
+        "proj_fpts": 10.6,
+        "salary": 4200
+      },
+      {
+        "year": 2024,
+        "week": 5,
+        "player": "Tucker Kraft",
+        "position": "TE",
+        "team": "GB",
+        "opponent": "LAR",
+        "rank": 8,
+        "avg_fpts": 7.8,
+        "proj_fpts": 10.319999999999999,
+        "salary": 3500
+      },
+      {
+        "year": 2024,
+        "week": 5,
+        "player": "Broncos",
+        "position": "DST",
+        "team": "DEN",
+        "opponent": "LV",
+        "rank": 2,
+        "avg_fpts": 10.5,
+        "proj_fpts": 7.35,
+        "salary": 2900
+      }
+    ],
+    "params": {
+      "hand_picked_def": [],
+      "use_avg_fpts": true,
+      "weights": {
+        "proj_fpts": 0.9,
+        "avg_fpts": 0.1
+      }
+    }
+  }
+]

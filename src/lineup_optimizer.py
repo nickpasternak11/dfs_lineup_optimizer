@@ -1,4 +1,6 @@
 from datetime import datetime
+import json
+import os
 
 import pandas as pd
 import pulp
@@ -16,7 +18,7 @@ class DFSLineupOptimizer:
     def get_salary_df(self, year: Optional[int] = None, week: Optional[int] = None) -> pd.DataFrame:
         year = self.current_year if year is None else year
         week = self.current_week if week is None else week
-        path_to_csv = f"/app/data/dk_salary_{year}_w{week}.csv"
+        path_to_csv = f"/app/data/salaries/dk_salary_{year}_w{week}.csv"
         return pd.read_csv(path_to_csv)
 
     def get_fantasypros_df(self, year: Optional[int] = None, week: Optional[int] = None) -> pd.DataFrame:
@@ -30,7 +32,7 @@ class DFSLineupOptimizer:
                     df,
                     pd.merge(
                         get_weekly_rankings(pos, year, week),
-                        get_stats(pos, 2024, [1, week - 1])[["player", "avg_fpts"]],
+                        get_stats(pos, year, [1, week - 1])[["player", "avg_fpts"]],
                         how="left",
                     ),
                 ]
@@ -53,8 +55,37 @@ class DFSLineupOptimizer:
         )
         df = df.merge(self.get_salary_df(year=year, week=week))
         df = df[~df.grade.isin(["F", "D", "D-", "D+"])]
-        df = df[["player", "position", "team", "opponent", "rank", "avg_fpts", "proj_fpts", "salary"]]
+        df = df[["year", "week", "player", "position", "team", "opponent", "rank", "avg_fpts", "proj_fpts", "salary"]]
         return df
+
+    def save_lineup(self, selected_lineup: pd.DataFrame, year: int, week: int, params: dict) -> None:
+        # Convert the lineup DataFrame to a dictionary
+        lineup_dict = selected_lineup.to_dict(orient="records")
+
+        # Create the filename
+        filename = f"/app/data/lineups/dk_salary_{year}_w{week}.json"
+
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+        # Check if the file exists
+        if os.path.exists(filename):
+            # If it exists, read the existing data
+            with open(filename, "r") as f:
+                existing_data = json.load(f)
+
+            # Append the new lineup
+            existing_data.append({"timestamp": datetime.now().isoformat(), "lineup": lineup_dict})
+
+            # Write the updated data back to the file
+            with open(filename, "w") as f:
+                json.dump(existing_data, f, indent=2)
+        else:
+            # If the file doesn't exist, create it with the new lineup
+            with open(filename, "w") as f:
+                json.dump(
+                    [{"timestamp": datetime.now().isoformat(), "lineup": lineup_dict, "params": params}], f, indent=2
+                )
 
     def get_lineup_df(
         self,
@@ -105,6 +136,19 @@ class DFSLineupOptimizer:
         # Return the selected players
         selected_players = [df.loc[i, "player"] for i in df.index if selected_vars[i].varValue == 1]
         selected_lineup = df[df["player"].isin(selected_players)]
+
+        # save lineup
+        self.save_lineup(
+            selected_lineup=selected_lineup,
+            year=year,
+            week=week,
+            params={
+                "hand_picked_def": df[(df.position == "DST") & (df.salary == def_salary)].to_dict(orient="records"),
+                "use_avg_fpts": use_avg_fpts,
+                "weights": weights,
+            },
+        )
+
         return selected_lineup
 
 

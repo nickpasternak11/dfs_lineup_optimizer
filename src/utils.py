@@ -1,6 +1,7 @@
 import json
 import re
 from typing import List, Tuple
+from io import StringIO
 
 import bs4 as bs
 import pandas as pd
@@ -21,7 +22,7 @@ def get_current_week(year: int):
         "year": year,
     }
     r = requests.get(url, params=params)
-    df = pd.io.html.read_html(r.text, attrs={"id": "data"})[0].iloc[:, 1:]
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     # Find the first column where all values are NaN to get current week
     first_nan_col = df.columns[df.isna().all()][0] if df.isna().all().any() else None
     return int(first_nan_col)
@@ -34,7 +35,7 @@ def get_weekly_fpts(position: str, year: int, week: int):
         "year": year,
     }
     r = requests.get(url, params=params)
-    df = pd.io.html.read_html(r.text, attrs={"id": "data"})[0].iloc[:, 1:]
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     try:
         df.columns = FPTS_COLUMNS
     except:
@@ -51,7 +52,7 @@ def get_weekly_rankings(position: str, year: int, week: int):
     url = f"https://www.fantasypros.com/nfl/rankings/{'ppr-' if position not in ['QB','DST'] else ''}{position.lower()}.php"
     params = {"year": year, "week": week}
     r = requests.get(url, params=params)
-    cxt = bs.BeautifulSoup(r.text, "html")
+    cxt = bs.BeautifulSoup(r.text, features="lxml")
     script_tags = cxt.find_all("script", attrs={"type": "text/javascript"})
     for script_tag in script_tags:
         script_text = script_tag.text.strip()
@@ -74,7 +75,7 @@ def get_weekly_rankings(position: str, year: int, week: int):
                             {
                                 "player": str(player_name),
                                 "position": str(position),
-                                "season": int(year),
+                                "year": int(year),
                                 "week": int(week),
                                 "rank": int(rank),
                                 "min_rank": int(rank_min),
@@ -95,7 +96,7 @@ def get_weekly_stats(position: str, year: int, week: int, scoring: str = "PPR"):
     url = f"https://www.fantasypros.com/nfl/stats/{position.lower()}.php"
     params = {"year": year, "range": "week", "week": week, "scoring": scoring}
     r = requests.get(url, params=params)
-    df = pd.io.html.read_html(r.text, attrs={"id": "data"})[0].iloc[:, 1:]
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     df.columns = STATS_COLUMN_MAPPINGS[position]
     player = df.player.str.split("(").str[0]
     df["player"] = player
@@ -118,7 +119,7 @@ def get_stats(position: str, year: int, weeks: Tuple[int, int] or List[int, int]
     url = f"https://www.fantasypros.com/nfl/stats/{position.lower()}.php"
     params = {"year": year, "range": range, "start_week": start, "end_week": end, "scoring": scoring}
     r = requests.get(url, params=params)
-    df = pd.io.html.read_html(r.text, attrs={"id": "data"})[0].iloc[:, 1:]
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     df.columns = [
         (
             f"avg_{col}"
@@ -148,10 +149,9 @@ def get_weekly_adv_stats(position: str, year: int, week: int):
         "week": week,
     }
     r = requests.get(url, params=params)
-    df = pd.io.html.read_html(r.text, attrs={"id": "data"})[0].iloc[:, 1:]
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     df.columns = ADV_STATS_COLUMN_MAPPINGS[position]
     player = df.player.str.split("(").str[0].str.strip()
-    team = df.player.str.split("(").str[1].str.strip().str.strip(")").str.strip()
     df["player"] = player
     df["position"] = position
     df["season"] = year
@@ -172,7 +172,7 @@ def get_adv_stats(position: str, year: int, weeks: Tuple[int, int] or List[int, 
     url = f"https://www.fantasypros.com/nfl/advanced-stats-{position.lower()}.php"
     params = {"year": year, "range": range, "start_week": start, "end_week": end, "view": view}
     r = requests.get(url, params=params)
-    df = pd.io.html.read_html(r.text, attrs={"id": "data"})[0].iloc[:, 1:]
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     df.columns = [
         (
             f"avg_{col}"
@@ -187,7 +187,6 @@ def get_adv_stats(position: str, year: int, weeks: Tuple[int, int] or List[int, 
         for col in ADV_STATS_COLUMN_MAPPINGS[position]
     ]
     player = df.player.str.split("(").str[0].str.strip()
-    team = df.player.str.split("(").str[1].str.strip().str.strip(")").str.strip()
     df["player"] = player
     df["position"] = position
     df["season"] = year
@@ -207,7 +206,7 @@ def get_weekly_snap_counts_analysis(position: str, year: int, week: int, scoring
     url = f"https://www.fantasypros.com/nfl/reports/snap-count-analysis/{position.lower()}.php"
     params = {"year": year, "range": "week", "week": week, "scoring": scoring, "snaps": 0}
     r = requests.get(url, params=params)
-    df = pd.io.html.read_html(r.text, attrs={"id": "data"})[0]
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0]
     df.columns = SNAP_COUNTS_COLUMNS
     df["position"] = position
     df["season"] = year
@@ -230,7 +229,7 @@ def get_snap_counts_analysis(
     url = f"https://www.fantasypros.com/nfl/reports/snap-count-analysis/{position.lower()}.php"
     params = {"year": year, "range": range, "start": start, "end": end, "scoring": scoring, "snaps": 0}
     r = requests.get(url, params=params)
-    df = pd.io.html.read_html(r.text, attrs={"id": "data"})[0]
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0]
     df.columns = SNAP_COUNTS_COLUMNS
     df["avg_fpts"] = round(df.fpts / df.games, 1)
     df["position"] = position
@@ -244,12 +243,11 @@ def get_weekly_rz_stats(position: str, year: int, week: int, scoring: str = "PPR
     url = f"https://www.fantasypros.com/nfl/red-zone-stats/{position.lower()}.php"
     params = {"year": year, "range": "week", "week": week, "scoring": scoring}
     r = requests.get(url, params=params)
-    df = pd.io.html.read_html(r.text, attrs={"id": "data"})[0].iloc[:, 1:]
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     df.columns = [
         f"rz_{col}" if col not in ["player", "games", "rost"] else col for col in RZ_COLUMN_MAPPINGS[position]
     ]
     player = df.player.str.split("(").str[0].str.strip()
-    team = df.player.str.split("(").str[1].str.strip().str.strip(")").str.strip()
     df["player"] = player
     df["position"] = position
     df["season"] = year
@@ -270,7 +268,7 @@ def get_rz_stats(position: str, year: int, weeks: Tuple[int, int] or List[int, i
     url = f"https://www.fantasypros.com/nfl/red-zone-stats/{position.lower()}.php"
     params = {"year": year, "range": range, "start_week": start, "end_week": end, "scoring": scoring}
     r = requests.get(url, params=params)
-    df = pd.io.html.read_html(r.text, attrs={"id": "data"})[0].iloc[:, 1:]
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     df.columns = [
         f"rz_{col}" if col not in ["player", "games", "rost"] else col for col in RZ_COLUMN_MAPPINGS[position]
     ]
