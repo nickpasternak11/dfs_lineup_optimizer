@@ -155,10 +155,32 @@ class DFSLineupOptimizer:
 if __name__ == "__main__":
     optimizer = DFSLineupOptimizer()
 
-    # lineup = optimizer.get_lineup_df(use_avg_fpts=True, weights={"proj_fpts": 0.85, "avg_fpts": 0.15})
-    lineup = optimizer.get_lineup_df(use_avg_fpts=True, weights={"proj_fpts": 0.90, "avg_fpts": 0.10})
-    # lineup = optimizer.get_lineup_df()
+    lineup = optimizer.get_lineup_df()
+    print("\nSelected Players:")
+    print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
+    print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
 
+    lineup = optimizer.get_lineup_df(use_avg_fpts=True, weights={"proj_fpts": 0.90, "avg_fpts": 0.10})
+    print("\nSelected Players:")
+    print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
+    print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
+
+    lineup = optimizer.get_lineup_df(use_avg_fpts=True, weights={"proj_fpts": 0.80, "avg_fpts": 0.20})
+    print("\nSelected Players:")
+    print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
+    print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
+
+    lineup = optimizer.get_lineup_df(def_salary=2400)
+    print("\nSelected Players:")
+    print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
+    print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
+
+    lineup = optimizer.get_lineup_df(def_salary=2400, use_avg_fpts=True, weights={"proj_fpts": 0.90, "avg_fpts": 0.10})
+    print("\nSelected Players:")
+    print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
+    print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
+
+    lineup = optimizer.get_lineup_df(def_salary=2400, use_avg_fpts=True, weights={"proj_fpts": 0.80, "avg_fpts": 0.20})
     print("\nSelected Players:")
     print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
     print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
