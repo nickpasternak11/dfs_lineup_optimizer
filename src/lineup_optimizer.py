@@ -56,7 +56,7 @@ def get_lineup(df: pd.DataFrame, def_salary: int = 0, use_avg_fpts: bool = False
     df = df[["player", "position", "team", "opponent", "rank", "avg_fpts", "proj_fpts", "salary"]]
 
     # Constants
-    budget = 50000 if def_salary <= 0 else 5000 - def_salary
+    budget = 50000 if def_salary <= 0 else (50000 - def_salary)
     total_players = 9 if def_salary <= 0 else 8
     QB_limit = 1
     RB_limit = 2
@@ -96,4 +96,6 @@ def get_lineup(df: pd.DataFrame, def_salary: int = 0, use_avg_fpts: bool = False
 
 if __name__ == "__main__":
     df = get_df()
+    # lineup = get_lineup(df=df, use_avg_fpts=True, weights={"proj_fpts": 0.85, "avg_fpts": 0.15})
+    # lineup = get_lineup(df=df, use_avg_fpts=True, weights={"proj_fpts": 0.90, "avg_fpts": 0.10})
     lineup = get_lineup(df=df)
