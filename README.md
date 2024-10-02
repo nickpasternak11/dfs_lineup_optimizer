@@ -98,11 +98,3 @@ dfs-lineup-optimizer/
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Disclaimer
-
-This tool is for educational purposes only. Please check the terms of service for DraftKings and any data sources before use.
