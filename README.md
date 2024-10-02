@@ -21,7 +21,7 @@ git clone https://github.com/username/dfs_lineup_optimizer.git
 cd dfs_lineup_optimizer
 ```
 
-2. Install Python dependencies:
+2. Install Python dependencies, if you want to run code locally:
 
 ```bash
 pip install -r requirements.txt
@@ -51,15 +51,15 @@ Make sure to add the WebDriver to your system's PATH.
 
 ## Usage
 
-### Salary Scraper (Local Execution)
+### Salary Scraper
 
-Run the salary scraper locally to gather the latest salary data:
+To gather the latest salary data using Docker:
 
 ```bash
-python src/salary_scraper.py
+make run-salary-scraper
 ```
 
-### Lineup Optimizer (Docker Execution)
+### Lineup Optimizer
 
 To run the lineup optimizer using Docker:
 
@@ -84,12 +84,15 @@ The lineup optimizer accepts several parameters:
 ```
 dfs-lineup-optimizer/
 ├── src/
+|   ├── configs.py
+|   ├── utils.py
 │   ├── salary_scraper.py
 │   └── lineup_optimizer.py
 ├── data/
 │   ├── salaries/
 │   └── lineups/
 ├── Dockerfile
+├── docker-compose.yml
 ├── Makefile
 ├── requirements.txt
 └── README.md
