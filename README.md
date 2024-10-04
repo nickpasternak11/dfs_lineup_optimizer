@@ -10,8 +10,6 @@ This repository contains a Python-based lineup optimizer for DraftKings NFL dail
 - Allows customization of optimization parameters
 - Outputs optimal weekly lineups
 
-You're right, I should have included those additional requirements. Let's update the README to include instructions for installing Docker, Make, and WebDriver. Here's a revised version of the Installation section:
-
 ## Installation
 
 1. Clone the repository:
@@ -41,7 +39,7 @@ Make is used to simplify the Docker commands. Installation instructions vary by 
 - Mac: Make should be pre-installed. If not, install Xcode Command Line Tools with `xcode-select --install`
 - Ubuntu: Run `sudo apt-get install make`
 
-5. Install WebDriver:
+5. Install WebDriver, if running locally:
 
 WebDriver is required for web scraping. Install the appropriate WebDriver for your preferred browser:
 - [ChromeDriver](https://sites.google.com/a/chromium.org/chromedriver/downloads) for Google Chrome
