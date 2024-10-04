@@ -19,39 +19,25 @@ git clone https://github.com/username/dfs_lineup_optimizer.git
 cd dfs_lineup_optimizer
 ```
 
-2. Install Python dependencies, if you want to run code locally:
-
-```bash
-pip install -r requirements.txt
-```
-
-3. Install Docker:
+2. Install Docker:
 
 Docker is required to run the lineup optimizer. Follow the official Docker installation guide for your operating system:
 - [Install Docker on Windows](https://docs.docker.com/desktop/install/windows-install/)
 - [Install Docker on Mac](https://docs.docker.com/desktop/install/mac-install/)
 - [Install Docker on Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
 
-4. Install Make:
+3. Install Make:
 
 Make is used to simplify the Docker commands. Installation instructions vary by operating system:
 - Windows: Install [Chocolatey](https://chocolatey.org/install) and then run `choco install make`
 - Mac: Make should be pre-installed. If not, install Xcode Command Line Tools with `xcode-select --install`
 - Ubuntu: Run `sudo apt-get install make`
 
-5. Install WebDriver, if running locally:
-
-WebDriver is required for web scraping. Install the appropriate WebDriver for your preferred browser:
-- [ChromeDriver](https://sites.google.com/a/chromium.org/chromedriver/downloads) for Google Chrome
-- [GeckoDriver](https://github.com/mozilla/geckodriver/releases) for Firefox
-
-Make sure to add the WebDriver to your system's PATH.
-
 ## Usage
 
 ### Salary Scraper
 
-To gather the latest salary data using Docker:
+To gather the latest salary data:
 
 ```bash
 make run-salary-scraper
@@ -59,7 +45,7 @@ make run-salary-scraper
 
 ### Lineup Optimizer
 
-To run the lineup optimizer using Docker:
+To run the lineup optimizer:
 
 ```bash
 make run-lineup-optimizer [DST=<defense_team>]
