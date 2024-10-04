@@ -64,8 +64,9 @@ make run-salary-scraper
 To run the lineup optimizer using Docker:
 
 ```bash
-make run-lineup-optimizer
+make run-lineup-optimizer [DST=<defense_team>]
 ```
+By default, the optimizer will find the best value defense availble.
 
 Customize the parameters as needed in `src/lineup_optimizer`
 
