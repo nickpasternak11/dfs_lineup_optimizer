@@ -66,9 +66,7 @@ To run the lineup optimizer using Docker:
 ```bash
 make run-lineup-optimizer [DST=<defense_team>]
 ```
-By default, the optimizer will find the best value defense availble.
-
-Customize the parameters as needed in `src/lineup_optimizer`
+By default, the optimizer will find the best value defense available.
 
 ## Customization
 
@@ -76,7 +74,7 @@ The lineup optimizer accepts several parameters:
 
 - `YEAR`: NFL season year (default: current year)
 - `WEEK`: Week number (default: current week) 
-- `DEF_SALARY`: Salary for defense (default: 0)
+- `DEF`: Desired defense (default: None)
 - `USE_AVG_FPTS`: Use average fantasy points (default: false)
 - `WEIGHTS`: Custom weighting for projections (JSON format)
 
