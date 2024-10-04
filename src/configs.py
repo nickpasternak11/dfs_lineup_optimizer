@@ -1,6 +1,45 @@
 import logging
 
+from enum import Enum
+
+
 log = logging.getLogger("dfs-optimizer")
+
+
+class NFLTeam(Enum):
+    ARIZONA_CARDINALS = "Cardinals"
+    ATLANTA_FALCONS = "Falcons"
+    BALTIMORE_RAVENS = "Ravens"
+    BUFFALO_BILLS = "Bills"
+    CAROLINA_PANTHERS = "Panthers"
+    CHICAGO_BEARS = "Bears"
+    CINCINNATI_BENGALS = "Bengals"
+    CLEVELAND_BROWNS = "Browns"
+    DALLAS_COWBOYS = "Cowboys"
+    DENVER_BRONCOS = "Broncos"
+    DETROIT_LIONS = "Lions"
+    GREEN_BAY_PACKERS = "Packers"
+    HOUSTON_TEXANS = "Texans"
+    INDIANAPOLIS_COLTS = "Colts"
+    JACKSONVILLE_JAGUARS = "Jaguars"
+    KANSAS_CITY_CHIEFS = "Chiefs"
+    LAS_VEGAS_RAIDERS = "Raiders"
+    LOS_ANGELES_CHARGERS = "Chargers"
+    LOS_ANGELES_RAMS = "Rams"
+    MIAMI_DOLPHINS = "Dolphins"
+    MINNESOTA_VIKINGS = "Vikings"
+    NEW_ENGLAND_PATRIOTS = "Patriots"
+    NEW_ORLEANS_SAINTS = "Saints"
+    NEW_YORK_GIANTS = "Giants"
+    NEW_YORK_JETS = "Jets"
+    PHILADELPHIA_EAGLES = "Eagles"
+    PITTSBURGH_STEELERS = "Steelers"
+    SAN_FRANCISCO_49ERS = "49ers"
+    SEATTLE_SEAHAWKS = "Seahawks"
+    TAMPA_BAY_BUCCANEERS = "Buccaneers"
+    TENNESSEE_TITANS = "Titans"
+    WASHINGTON_COMMANDERS = "Commanders"
+
 
 FPTS_COLUMNS = ["player", "position", "team"] + [f"week_{week}" for week in range(1, 19)] + ["avg_fpts", "ttl_fpts"]
 FPTS_COLUMNS_PRE21 = (

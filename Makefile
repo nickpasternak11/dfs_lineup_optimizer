@@ -1,3 +1,5 @@
+export DOCKER_BUILDKIT=1
+
 SALARY_SCRAPER_IMAGE_NAME = "salary-scraper"
 LINEUP_OPTIMIZER_IMAGE_NAME = "lineup-optimizer"
 CURRENT_DIR := $(shell pwd)
@@ -13,6 +15,6 @@ run-salary-scraper: build-salary-scraper
 	docker compose down
 
 run-lineup-optimizer: build-lineup-optimizer
-	docker run --rm -v "$(CURRENT_DIR):/app" $(LINEUP_OPTIMIZER_IMAGE_NAME)
+	docker run --rm -v "$(CURRENT_DIR):/app" -e DST="$(DST)" $(LINEUP_OPTIMIZER_IMAGE_NAME)
 
 run: run-salary-scraper run-lineup-optimizer
