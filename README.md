@@ -74,7 +74,7 @@ The lineup optimizer accepts several parameters:
 
 - `YEAR`: NFL season year (default: current year)
 - `WEEK`: Week number (default: current week) 
-- `DEF`: Desired defense (default: None)
+- `DST`: Desired defense (default: None)
 - `USE_AVG_FPTS`: Use average fantasy points (default: false)
 - `WEIGHTS`: Custom weighting for projections (JSON format)
 
