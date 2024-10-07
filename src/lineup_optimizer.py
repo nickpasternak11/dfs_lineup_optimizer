@@ -57,7 +57,7 @@ class DFSLineupOptimizer:
         )
         df = df.merge(self.get_salary_df(year=year, week=week))
         df = df[["year", "week", "player", "position", "team", "opponent", "rank", "avg_fpts", "proj_fpts", "salary"]]
-        return df
+        return df.fillna(0)
 
     def save_lineup(self, selected_lineup: pd.DataFrame, year: int, week: int, params: dict) -> None:
         # Convert the lineup DataFrame to a dictionary
@@ -166,16 +166,24 @@ class DFSLineupOptimizer:
 
 if __name__ == "__main__":
     optimizer = DFSLineupOptimizer()
+    week = int(os.getenv("WEEK", None))
     dst = os.getenv("DST", None)
-    lineup = optimizer.get_lineup_df(dst=dst)
+
+    lineup = optimizer.get_lineup_df(week=week, dst=dst)
     print("\nSelected Players:")
     print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
     print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
-    lineup = optimizer.get_lineup_df(dst=dst, use_avg_fpts=True, weights={"proj_fpts": 0.90, "avg_fpts": 0.10})
+
+    lineup = optimizer.get_lineup_df(
+        week=week, dst=dst, use_avg_fpts=True, weights={"proj_fpts": 0.90, "avg_fpts": 0.10}
+    )
     print("\nSelected Players:")
     print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
     print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
-    lineup = optimizer.get_lineup_df(dst=dst, use_avg_fpts=True, weights={"proj_fpts": 0.80, "avg_fpts": 0.20})
+
+    lineup = optimizer.get_lineup_df(
+        week=week, dst=dst, use_avg_fpts=True, weights={"proj_fpts": 0.80, "avg_fpts": 0.20}
+    )
     print("\nSelected Players:")
     print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
     print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")

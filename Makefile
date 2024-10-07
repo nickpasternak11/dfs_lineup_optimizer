@@ -15,6 +15,6 @@ run-salary-scraper: build-salary-scraper
 	docker compose down
 
 run-lineup-optimizer: build-lineup-optimizer
-	docker run --rm -v "$(CURRENT_DIR):/app" -e DST="$(DST)" $(LINEUP_OPTIMIZER_IMAGE_NAME)
+	docker run --rm -v "$(CURRENT_DIR):/app" -e WEEK=$(WEEK) -e DST=$(DST) $(LINEUP_OPTIMIZER_IMAGE_NAME)
 
 run: run-salary-scraper run-lineup-optimizer
