@@ -48,7 +48,7 @@ make run-salary-scraper
 To run the lineup optimizer:
 
 ```bash
-make run-lineup-optimizer [DST=<defense_team>]
+make run-lineup-optimizer [WEEK=<week>] [DST=<defense_team>]
 ```
 By default, the optimizer will find the best value defense available.
 
