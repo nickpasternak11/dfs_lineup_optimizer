@@ -34,7 +34,7 @@ class DFSLineupOptimizer:
                     df,
                     pd.merge(
                         get_weekly_rankings(pos, year, week),
-                        get_stats(pos, year, [1, week - 1])[["player", "avg_fpts"]],
+                        get_stats(pos, year, [week - 4, week - 1])[["player", "avg_fpts"]],
                         how="left",
                     ),
                 ]
@@ -55,6 +55,7 @@ class DFSLineupOptimizer:
             ),
             axis=1,
         )
+        df = df[~df.grade.isin(["F", "D-", "D", "D+"])]
         df = df.merge(self.get_salary_df(year=year, week=week))
         df = df[["year", "week", "player", "position", "team", "opponent", "rank", "avg_fpts", "proj_fpts", "salary"]]
         return df.fillna(0)
@@ -64,7 +65,7 @@ class DFSLineupOptimizer:
         lineup_dict = selected_lineup.to_dict(orient="records")
 
         # Create the filename
-        filename = f"/app/data/lineups/dk_salary_{year}_w{week}.json"
+        filename = f"/app/data/lineups/dk_lineup_{year}_w{week}.json"
 
         # Ensure the directory exists
         os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -76,7 +77,7 @@ class DFSLineupOptimizer:
                 existing_data = json.load(f)
 
             # Append the new lineup
-            existing_data.append({"timestamp": datetime.now().isoformat(), "lineup": lineup_dict})
+            existing_data.append({"timestamp": datetime.now().isoformat(), "lineup": lineup_dict, "params": params})
 
             # Write the updated data back to the file
             with open(filename, "w") as f:
@@ -138,7 +139,7 @@ class DFSLineupOptimizer:
         prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "QB") == QB_limit
         prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "RB") >= RB_limit
         prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "WR") >= WR_limit
-        prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "TE") >= TE_limit
+        prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "TE") == TE_limit
         prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "DST") == DST_limit
 
         # Solve the problem
@@ -155,7 +156,7 @@ class DFSLineupOptimizer:
             year=year,
             week=week,
             params={
-                "hand_picked_def": df[(df.position == "DST") & (df.salary == def_salary)].to_dict(orient="records"),
+                "dst": dst,
                 "use_avg_fpts": use_avg_fpts,
                 "weights": weights,
             },
@@ -166,7 +167,7 @@ class DFSLineupOptimizer:
 
 if __name__ == "__main__":
     optimizer = DFSLineupOptimizer()
-    week = int(os.getenv("WEEK", None))
+    week = int(os.getenv("WEEK", None)) if os.getenv("WEEK", None) else None
     dst = os.getenv("DST", None)
 
     lineup = optimizer.get_lineup_df(week=week, dst=dst)
