@@ -94,6 +94,7 @@ class DFSLineupOptimizer:
         year: Optional[int] = None,
         week: Optional[int] = None,
         dst: Optional[NFLTeam] = None,
+        one_te: Optional[bool] = False,
         use_avg_fpts: bool = False,
         weights: dict = {},
     ) -> pd.DataFrame:
@@ -139,7 +140,10 @@ class DFSLineupOptimizer:
         prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "QB") == QB_limit
         prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "RB") >= RB_limit
         prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "WR") >= WR_limit
-        prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "TE") == TE_limit
+        if one_te:
+            prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "TE") == TE_limit
+        else:
+            prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "TE") >= TE_limit
         prob += pulp.lpSum(selected_vars[i] for i in df.index if df.loc[i, "position"] == "DST") == DST_limit
 
         # Solve the problem
@@ -157,6 +161,7 @@ class DFSLineupOptimizer:
             week=week,
             params={
                 "dst": dst,
+                "one_te": one_te,
                 "use_avg_fpts": use_avg_fpts,
                 "weights": weights,
             },
@@ -168,22 +173,23 @@ class DFSLineupOptimizer:
 if __name__ == "__main__":
     optimizer = DFSLineupOptimizer()
     week = int(os.getenv("WEEK", None)) if os.getenv("WEEK", None) else None
+    one_te = os.getenv("ONE_TE", False)
     dst = os.getenv("DST", None)
 
-    lineup = optimizer.get_lineup_df(week=week, dst=dst)
+    lineup = optimizer.get_lineup_df(week=week, dst=dst, one_te=one_te)
     print("\nSelected Players:")
     print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
     print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
 
     lineup = optimizer.get_lineup_df(
-        week=week, dst=dst, use_avg_fpts=True, weights={"proj_fpts": 0.90, "avg_fpts": 0.10}
+        week=week, dst=dst, one_te=one_te, use_avg_fpts=True, weights={"proj_fpts": 0.90, "avg_fpts": 0.10}
     )
     print("\nSelected Players:")
     print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
     print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
 
     lineup = optimizer.get_lineup_df(
-        week=week, dst=dst, use_avg_fpts=True, weights={"proj_fpts": 0.80, "avg_fpts": 0.20}
+        week=week, dst=dst, one_te=one_te, use_avg_fpts=True, weights={"proj_fpts": 0.80, "avg_fpts": 0.20}
     )
     print("\nSelected Players:")
     print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))

@@ -13,6 +13,8 @@ RUN pip install -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
+ENV PYTHONPATH=/app:$PYTHONPATH
+
 FROM base as salary-scraper
 
 CMD ["python", "src/salary_scraper.py"]
@@ -20,3 +22,7 @@ CMD ["python", "src/salary_scraper.py"]
 FROM base as lineup-optimizer
 
 CMD ["python", "src/lineup_optimizer.py"]
+
+FROM base as app
+
+CMD ["python", "src/app.py"]

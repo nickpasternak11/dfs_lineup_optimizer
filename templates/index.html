@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DFS Lineup Optimizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .lineup-summary {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>DFS Lineup Optimizer</h1>
+    <form id="optimizerForm">
+        <label for="week">Week:</label>
+        <input type="number" id="week" name="week">
+        <label for="dst">DST:</label>
+        <input type="text" id="dst" name="dst">
+        <label for="one_te">Limit to One TE?:</label>
+        <input type="checkbox" id="one_te" name="one_te">
+        <button type="submit">Optimize</button>
+    </form>
+    <div id="loader" class="loader"></div>
+    <div id="results"></div>
+
+    <script>
+        const columnOrder = ["year", "week", "player", "position", "team", "opponent", "rank", "avg_fpts", "proj_fpts", "salary"];
+
+        document.getElementById('optimizerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                week: formData.get('week'),
+                dst: formData.get('dst'),
+                one_te: formData.get('one_te') === 'on'
+            };
+
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('results').innerHTML = '';
+
+            try {
+                const response = await axios.post('/optimize', data);
+                displayLineups(response.data);
+            } catch (error) {
+                console.error('Error:', error);
+            } finally {
+                document.getElementById('loader').style.display = 'none';
+            }
+        });
+
+        function displayLineups(lineups) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            lineups.forEach((lineup, index) => {
+                const lineupDiv = document.createElement('div');
+                
+                const totalFpts = lineup.reduce((sum, player) => sum + player.proj_fpts, 0);
+                const summary = document.createElement('div');
+                summary.className = 'lineup-summary';
+                summary.textContent = `Lineup ${index + 1} - Total Projected FPTS: ${totalFpts.toFixed(2)}`;
+                lineupDiv.appendChild(summary);
+
+                const table = document.createElement('table');
+                const headerRow = table.insertRow();
+                columnOrder.forEach(key => {
+                    const th = document.createElement('th');
+                    th.textContent = key;
+                    headerRow.appendChild(th);
+                });
+
+                lineup.forEach(player => {
+                    const row = table.insertRow();
+                    columnOrder.forEach(key => {
+                        const cell = row.insertCell();
+                        cell.textContent = player[key];
+                    });
+                });
+
+                lineupDiv.appendChild(table);
+                resultsDiv.appendChild(lineupDiv);
+            });
+        }
+    </script>
+</body>
+</html>
