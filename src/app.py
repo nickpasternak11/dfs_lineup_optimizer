@@ -24,6 +24,8 @@ def optimize():
             one_te=data.get("one_te"),
             use_avg_fpts=True if weights[1] > 0 else False,
             weights={"proj_fpts": weights[0], "avg_fpts": weights[1]},
+            exclude_players=data.get("excludedPlayers", []),
+            include_players=data.get("includedPlayers", []),
         )
         lineups.append(lineup.to_dict(orient="records"))
 
