@@ -211,20 +211,6 @@ class DFSLineupOptimizer:
         # Return the selected players
         selected_players.extend([opt_df.loc[i, "player"] for i in opt_df.index if selected_vars[i].varValue == 1])
         selected_lineup = df[df["player"].isin(selected_players)]
-
-        # Save lineup
-        self.save_lineup(
-            selected_lineup=selected_lineup,
-            year=year,
-            week=week,
-            params={
-                "dst": dst,
-                "one_te": one_te,
-                "use_avg_fpts": use_avg_fpts,
-                "weights": weights,
-            },
-        )
-
         return selected_lineup
 
 
