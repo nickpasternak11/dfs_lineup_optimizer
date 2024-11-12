@@ -63,7 +63,7 @@ def main():
     output_path = os.path.join(
         os.path.dirname(__file__), f"../data/salaries/dk_salary_{current_year}_w{current_week}.csv"
     )
-    salary_df.to_csv(output_path, index=False)
+    salary_df.drop_duplicates().to_csv(output_path, index=False)
 
 
 if __name__ == "__main__":
