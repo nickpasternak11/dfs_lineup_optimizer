@@ -1,0 +1,50 @@
+services:
+  selenium-web-driver:
+    image: selenium/standalone-chrome:latest
+    container_name: selenium-web-driver
+    ports:
+      - "4444:4444"
+      - "7900:7900"
+    shm_size: "2g"
+    networks:
+      - web_driver_network
+
+  salary-scraper:
+    image: salary-scraper
+    container_name: salary-scraper
+    volumes:
+      - "/dfs_data:/app/data"
+    depends_on:
+      - selenium-web-driver
+    networks:
+      - web_driver_network
+
+  lineup-optimizer:
+    image: lineup-optimizer
+    container_name: lineup-optimizer
+    volumes:
+      - "/dfs_data:/app/data"
+    environment:
+      - WEEK=${WEEK}
+      - DST=${DST}
+      - ONE_TE=${ONE_TE}
+    networks:
+      - web_driver_network
+
+  app:
+    image: app
+    container_name: app
+    volumes:
+      - "/dfs_data:/app/data"
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_APP=src/app.py
+    networks:
+      - web_driver_network
+
+networks:
+  web_driver_network:
+    name: salary_web_scraper_network
+    attachable: true

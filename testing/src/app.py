@@ -1,7 +1,6 @@
 from flask import Flask, jsonify, render_template, request
 
 from lineup_optimizer import DFSLineupOptimizer
-from utils import get_current_week
 
 app = Flask(__name__, template_folder="../templates")
 
@@ -26,6 +25,7 @@ def optimize():
             weights={"proj_fpts": weights[0], "avg_fpts": weights[1]},
             exclude_players=data.get("excludedPlayers", []),
             include_players=data.get("includedPlayers", []),
+            use_stored_data=False,
         )
         lineups.append(lineup.to_dict(orient="records"))
 

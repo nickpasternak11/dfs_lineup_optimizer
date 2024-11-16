@@ -1,0 +1,46 @@
+services:
+  frontend:
+    image: frontend
+    build:
+      context: frontend/.
+      target: service
+    networks:
+      - app_network
+
+  api:
+    image: api
+    build:
+      context: api/.
+      target: service
+    networks:
+      - app_network
+
+  dfs-orchestration:
+    image: dfs-orchestration
+    build:
+      context: system/orchestrator/.
+      target: service
+    networks:
+      - app_network
+
+  dfs-salary-scraper:
+    image: dfs-salary-scraper
+    build:
+      context: system/salary-scraper/.
+      target: service
+    networks:
+      - app_network
+
+  dfs-projection-scraper:
+    image: dfs-projection-scraper
+    build:
+      context: system/projection-scraper/.
+      target: service
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    name: dfs_optimizer_network
+    driver: overlay
+    attachable: true

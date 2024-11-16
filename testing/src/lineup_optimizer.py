@@ -1,4 +1,3 @@
-import json
 import os
 from datetime import datetime
 from typing import List, Optional
@@ -72,38 +71,14 @@ class DFSLineupOptimizer:
                 "salary",
             ]
         ]
-        # hack
-        # df = df[~df.team.isin(["MIN", "LAR"])]
-        return df.fillna(0)
-
-    def save_lineup(self, selected_lineup: pd.DataFrame, year: int, week: int, params: dict) -> None:
-        # Convert the lineup DataFrame to a dictionary
-        lineup_dict = selected_lineup.to_dict(orient="records")
-
-        # Create the filename
-        filename = f"/app/data/lineups/dk_lineup_{year}_w{week}.json"
-
-        # Ensure the directory exists
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-
-        # Check if the file exists
-        if os.path.exists(filename):
-            # If it exists, read the existing data
-            with open(filename, "r") as f:
-                existing_data = json.load(f)
-
-            # Append the new lineup
-            existing_data.append({"timestamp": datetime.now().isoformat(), "lineup": lineup_dict, "params": params})
-
-            # Write the updated data back to the file
-            with open(filename, "w") as f:
-                json.dump(existing_data, f, indent=2)
-        else:
-            # If the file doesn't exist, create it with the new lineup
-            with open(filename, "w") as f:
-                json.dump(
-                    [{"timestamp": datetime.now().isoformat(), "lineup": lineup_dict, "params": params}], f, indent=2
-                )
+        
+        print("Saving projection data..")
+        output_path = os.path.join(
+            os.path.dirname(__file__), f"../data/projections/fp_projection_{year}_w{week}.csv"
+        )
+        df = df.fillna(0)
+        df.drop_duplicates().to_csv(output_path, index=False)
+        return df
 
     def get_lineup_df(
         self,
@@ -115,6 +90,7 @@ class DFSLineupOptimizer:
         weights: dict = {},
         exclude_players: List[str] = [],
         include_players: List[str] = [],
+        use_stored_data: bool = False
     ) -> pd.DataFrame:
         selected_players = []
         budget = 50000
@@ -124,7 +100,7 @@ class DFSLineupOptimizer:
         # Get data
         year = self.current_year if year is None else year
         week = self.current_week if week is None else week
-        df = self.get_fantasypros_df(year=year, week=week)
+        df = pd.read_csv(f"/app/data/projections/fp_projection_{year}_w{week}.csv") if use_stored_data else self.get_fantasypros_df(year=year, week=week)
 
         # If specified, factor in avg_fpts
         if use_avg_fpts:
