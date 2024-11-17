@@ -27,8 +27,8 @@ function LineupOptimizer() {
             week: week ? parseInt(week) : null,
             dst: dst || null,
             one_te: oneTe,
-            excludedPlayers,
-            includedPlayers
+            excluded_players: excludedPlayers,
+            included_players: includedPlayers
         };
         try {
             const response = await axios.post(`${BASE_URL_API}/optimize`, data);
