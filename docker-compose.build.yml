@@ -39,6 +39,15 @@ services:
     networks:
       - app_network
 
+  selenium-web-driver:
+    image: selenium/standalone-chrome:latest
+    ports:
+      - "4444:4444"
+      - "7900:7900"
+    shm_size: "2g"
+    networks:
+      - app_network
+
 networks:
   app_network:
     name: dfs_optimizer_network
