@@ -6,12 +6,12 @@ from time import sleep
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from configs import log
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
-
 from utils import get_current_week
-from configs import log
 
 
 class SalaryScraper:
@@ -53,8 +53,19 @@ class SalaryScraper:
             sleep(3)
             slate_select = Select(browser.find_element(by=By.ID, value="slate-select"))
             sleep(2)
-            slate_select.select_by_visible_text("Thu-Mon")
-            sleep(3)
+
+            try:
+                slate_select.select_by_visible_text("Thu-Mon")
+                sleep(3)
+            except NoSuchElementException:
+                log.warning("No 'Thu-Mon' option was found.")
+                try:
+                    slate_select.select_by_visible_text("Fri-Mon")
+                    sleep(3)
+                except NoSuchElementException:
+                    log.error("Neither 'Thu-Mon' nor 'Fri-Mon' options were found.")
+                    return
+
             html = browser.page_source
             soup = BeautifulSoup(html, "html.parser")
             table = soup.find("table", id="prj-main-table")
