@@ -1,5 +1,6 @@
+from datetime import datetime
 from app.configs.configs import log
-from app.db.optimize import DFSLineupOptimizer
+from app.db.optimize import DFSLineupOptimizer, get_current_week
 from app.helpers.api_router import APIRouter
 from app.models.requests.optimize import OptimizeRequest
 from app.models.responses.optimize import OptimizeResponse
@@ -15,13 +16,18 @@ router = APIRouter()
     description="Endpoint for getting optimized DFS lineups with parameters.",
 )
 async def optimize(data: OptimizeRequest):
-    log.debug("request=%s", data)
-    optimizer = DFSLineupOptimizer()
+    log.info(data)
+    # get year and week data
+    year = datetime.now().year
+    week = get_current_week(year=year) if data.week is None else data.week
+    log.info("year=%s, week=%s", year, week)
+    # get optimizer class object
+    optimizer = DFSLineupOptimizer(year=year, week=week)
     lineups = []
     for weights in [(1, 0), (0.9, 0.1), (0.8, 0.2)]:
+        log.info("weights=%s", weights)
         try:
             lineup = optimizer.get_lineup_df(
-                week=data.week if data.week else optimizer.current_week,
                 dst=data.dst,
                 one_te=data.one_te,
                 use_avg_fpts=True if weights[1] > 0 else False,
@@ -31,7 +37,6 @@ async def optimize(data: OptimizeRequest):
                 use_stored_data=True,
             )
             lineups.append(lineup.to_dict(orient="records"))
-            log.debug("lineup=%s", lineup)
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return lineups

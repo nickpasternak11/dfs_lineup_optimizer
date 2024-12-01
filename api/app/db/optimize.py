@@ -9,21 +9,23 @@ from pulp import PULP_CBC_CMD
 
 
 class DFSLineupOptimizer:
-    def __init__(self):
-        self.current_year = datetime.now().year
-        self.current_week = get_current_week(year=self.current_year)
+    def __init__(self, year: Optional[int] = None, week: Optional[int] = None):
+        self.current_year = datetime.now().year if year is None else year
+        self.current_week = get_current_week(year=self.current_year) if week is None else week
 
-    def get_salary_df(self, year: Optional[int] = None, week: Optional[int] = None) -> pd.DataFrame:
-        year = self.current_year if year is None else year
-        week = self.current_week if week is None else week
-        path_to_csv = f"/app/data/salaries/dk_salary_{year}_w{week}.csv"
+    def get_salary_df(self) -> pd.DataFrame:
+        path_to_csv = f"/app/data/salaries/dk_salary_{self.current_year}_w{self.current_week}.csv"
         return pd.read_csv(path_to_csv)
 
-    def get_fantasypros_df(self, year: Optional[int] = None, week: Optional[int] = None) -> pd.DataFrame:
-        year = self.current_year if year is None else year
-        week = self.current_week if week is None else week
-        df = pd.DataFrame()
+    def get_projections_df(self, use_stored_data: bool = False) -> pd.DataFrame:
+        year = self.current_year
+        week = self.current_week
 
+        if use_stored_data:
+            log.info("Using stored data")
+            return pd.read_csv(f"/app/data/projections/fp_projection_{year}_w{week}.csv")
+        
+        df = pd.DataFrame()
         for pos in ["QB", "RB", "WR", "TE", "DST"]:
             df = pd.concat(
                 [
@@ -52,7 +54,7 @@ class DFSLineupOptimizer:
             axis=1,
         )
         df = df[~df.grade.isin(["F", "D-", "D", "D+"])]
-        df = df.merge(self.get_salary_df(year=year, week=week))
+        df = df.merge(self.get_salary_df())
         df = df[
             [
                 "year",
@@ -77,8 +79,6 @@ class DFSLineupOptimizer:
 
     def get_lineup_df(
         self,
-        year: Optional[int] = None,
-        week: Optional[int] = None,
         dst: Optional[NFLTeam] = None,
         one_te: Optional[bool] = False,
         use_avg_fpts: bool = False,
@@ -93,13 +93,7 @@ class DFSLineupOptimizer:
         QB_limit, RB_limit, WR_limit, TE_limit, DST_limit = 1, 2, 3, 1, 1
 
         # Get data
-        year = self.current_year if year is None else year
-        week = self.current_week if week is None else week
-        df = (
-            pd.read_csv(f"/app/data/projections/fp_projection_{year}_w{week}.csv")
-            if use_stored_data
-            else self.get_fantasypros_df(year=year, week=week)
-        )
+        df = self.get_projections_df(use_stored_data=use_stored_data)
 
         # If specified, factor in avg_fpts
         if use_avg_fpts:
