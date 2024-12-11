@@ -1,17 +1,17 @@
 services:
-  frontend:
-    image: frontend
+  dfs-frontend:
+    image: dfs-frontend
     labels:
       logging: "promtail"
     ports:
       - "3000:80"
     depends_on:
-      - api
+      - dfs-api
     networks:
       - app_network
 
-  api:
-    image: api
+  dfs-api:
+    image: dfs-api
     labels:
       logging: "promtail"
     volumes:

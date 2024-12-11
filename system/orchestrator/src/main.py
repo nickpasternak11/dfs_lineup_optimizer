@@ -23,10 +23,10 @@ class ScraperOrchestrator:
                 schedule.every().__getattribute__(day).at(time, "America/New_York").do(self.run_projection_scraper)
 
     def run_salary_scraper(self):
-        self.run_container("salary-scraper")
+        self.run_container("dfs-salary-scraper")
 
     def run_projection_scraper(self):
-        self.run_container("projection-scraper")
+        self.run_container("dfs-projection-scraper")
 
     def run_container(self, container_name):
         try:

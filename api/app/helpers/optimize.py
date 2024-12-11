@@ -1,3 +1,5 @@
+import os
+import glob
 import json
 import re
 from io import StringIO
@@ -9,16 +11,14 @@ import requests
 from app.configs.configs import STATS_COLUMN_MAPPINGS
 
 
-def get_current_week(year: int):
-    url = "https://www.fantasypros.com/nfl/reports/leaders/"
-    params = {
-        "year": year,
-    }
-    r = requests.get(url, params=params)
-    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
-    # Find the first column where all values are NaN to get current week
-    first_nan_col = df.columns[df.isna().all()][0] if df.isna().all().any() else None
-    return int(first_nan_col)
+def get_latest_week() -> int:
+    pattern = "/app/data/salaries/dk_salary_*_w*.csv"
+    files = glob.glob(pattern)
+    if not files:
+        return 1
+    latest_file = max(files, key=os.path.getctime)
+    week_number = latest_file.split("_w")[-1].split(".")[0]
+    return int(week_number)
 
 
 def get_weekly_rankings(position: str, year: int, week: int):

@@ -4,14 +4,14 @@ from typing import List, Optional
 import pandas as pd
 import pulp
 from app.configs.configs import NFLTeam, log
-from app.helpers.optimize import get_current_week, get_stats, get_weekly_rankings
+from app.helpers.optimize import get_latest_week, get_stats, get_weekly_rankings
 from pulp import PULP_CBC_CMD
 
 
 class DFSLineupOptimizer:
     def __init__(self, year: Optional[int] = None, week: Optional[int] = None):
         self.current_year = datetime.now().year if year is None else year
-        self.current_week = get_current_week(year=self.current_year) if week is None else week
+        self.current_week = get_latest_week() if week is None else week
 
     def get_salary_df(self) -> pd.DataFrame:
         path_to_csv = f"/app/data/salaries/dk_salary_{self.current_year}_w{self.current_week}.csv"
@@ -24,7 +24,7 @@ class DFSLineupOptimizer:
         if use_stored_data:
             log.info("Using stored data")
             return pd.read_csv(f"/app/data/projections/fp_projection_{year}_w{week}.csv")
-        
+
         df = pd.DataFrame()
         for pos in ["QB", "RB", "WR", "TE", "DST"]:
             df = pd.concat(
@@ -77,14 +77,14 @@ class DFSLineupOptimizer:
         df.drop_duplicates().to_csv(output_path, index=False)
         return df
 
-    def get_lineup_df(
+    def optimize(
         self,
         dst: Optional[NFLTeam] = None,
         one_te: Optional[bool] = False,
         use_avg_fpts: bool = False,
         weights: dict = {},
-        exclude_players: List[str] = [],
-        include_players: List[str] = [],
+        excluded_players: List[str] = [],
+        included_players: List[str] = [],
         use_stored_data: bool = False,
     ) -> pd.DataFrame:
         selected_players = []
@@ -100,14 +100,14 @@ class DFSLineupOptimizer:
             df["proj_fpts"] = round(df["proj_fpts"] * weights["proj_fpts"] + df["avg_fpts"] * weights["avg_fpts"], 1)
 
         # Handle excluded players
-        df = df[~df["player"].isin(exclude_players)]
+        df = df[~df["player"].isin(excluded_players)]
 
         # Handle selected DST
         if dst:
             defense_row = df[(df["position"] == "DST") & (df["player"].str.contains(dst, case=False))]
             if not defense_row.empty:
                 dst_player = defense_row["player"].values[0]
-                if (dst_player not in exclude_players) and (dst_player not in include_players):
+                if (dst_player not in excluded_players) and (dst_player not in included_players):
                     selected_players.append(dst_player)
                     budget -= defense_row["salary"].values[0]
                     total_players -= 1
@@ -116,7 +116,7 @@ class DFSLineupOptimizer:
                 raise ValueError(f"Defense '{dst}' not found.")
 
         # Handle included players
-        for player in include_players:
+        for player in included_players:
             player_row = df[df["player"] == player]
             if not player_row.empty:
                 selected_players.append(player)
@@ -181,3 +181,26 @@ class DFSLineupOptimizer:
         selected_players.extend([opt_df.loc[i, "player"] for i in opt_df.index if selected_vars[i].varValue == 1])
         selected_lineup = df[df["player"].isin(selected_players)]
         return selected_lineup
+
+    def get_optimal_lineups(
+        self,
+        dst: Optional[NFLTeam] = None,
+        one_te: Optional[bool] = False,
+        excluded_players: List[str] = [],
+        included_players: List[str] = [],
+        use_stored_data: bool = False,
+    ) -> List[dict]:
+        lineups = []
+        for weights in [(1, 0), (0.9, 0.1), (0.8, 0.2)]:
+            log.info("weights=%s", weights)
+            lineup = self.optimize(
+                dst=dst,
+                one_te=one_te,
+                use_avg_fpts=True if weights[1] > 0 else False,
+                weights={"proj_fpts": weights[0], "avg_fpts": weights[1]},
+                excluded_players=excluded_players,
+                included_players=included_players,
+                use_stored_data=use_stored_data,
+            )
+            lineups.append(lineup.to_dict(orient="records"))
+        return lineups

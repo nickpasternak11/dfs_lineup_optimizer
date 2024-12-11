@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './LineupOptimizer.css';
@@ -20,8 +20,7 @@ function LineupOptimizer() {
 
     const columnOrder = ["year", "week", "player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary"];
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const submitData = async () => {
         setLoading(true);
         const data = {
             week: week ? parseInt(week) : null,
@@ -39,6 +38,11 @@ function LineupOptimizer() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        submitData();
     };
 
     const toggleExclude = (playerName) => {
@@ -62,6 +66,10 @@ function LineupOptimizer() {
             }
         });
     };
+
+    useEffect(() => {
+        submitData();
+    }, []);
 
     return (
         <div className="container">

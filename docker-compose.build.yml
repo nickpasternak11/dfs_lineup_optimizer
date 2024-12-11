@@ -1,14 +1,14 @@
 services:
-  frontend:
-    image: frontend
+  dfs-frontend:
+    image: dfs-frontend
     build:
       context: frontend/.
       target: service
     networks:
       - app_network
 
-  api:
-    image: api
+  dfs-api:
+    image: dfs-api
     build:
       context: api/.
       target: service

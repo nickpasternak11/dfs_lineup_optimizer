@@ -1,6 +1,5 @@
-from datetime import datetime
 from app.configs.configs import log
-from app.db.optimize import DFSLineupOptimizer, get_current_week
+from app.db.optimize import DFSLineupOptimizer
 from app.helpers.api_router import APIRouter
 from app.models.responses.projections import GetProjectionsResponse
 from app.models.requests.projections import GetProjectionsRequest
@@ -17,11 +16,7 @@ router = APIRouter()
 )
 async def get_projections(data: GetProjectionsRequest):
     log.info(data)
-    # get year and week data
-    year = datetime.now().year
-    week = get_current_week(year=year) if data.week is None else data.week
-    log.info("year=%s, week=%s", year, week)
-    optimizer = DFSLineupOptimizer(year=year, week=week)
+    optimizer = DFSLineupOptimizer(week=data.week)
     try:
         df = optimizer.get_projections_df(use_stored_data=True)
         return df.to_dict(orient="records")
