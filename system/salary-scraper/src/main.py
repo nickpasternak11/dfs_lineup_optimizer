@@ -1,4 +1,3 @@
-import os
 from datetime import datetime
 from io import StringIO
 from time import sleep
@@ -58,13 +57,23 @@ class SalaryScraper:
                 slate_select.select_by_visible_text("Thu-Mon")
                 sleep(3)
             except NoSuchElementException:
-                log.warning("No 'Thu-Mon' option was found.")
+                log.error("No 'Thu-Mon' option was found.")
                 try:
                     slate_select.select_by_visible_text("Fri-Mon")
                     sleep(3)
                 except NoSuchElementException:
-                    log.error("Neither 'Thu-Mon' nor 'Fri-Mon' options were found.")
-                    return
+                    log.error("No 'Fri-Mon' option was found.")
+                    try:
+                        slate_select.select_by_visible_text("Sat-Mon")
+                        sleep(3)
+                    except NoSuchElementException:
+                        log.error("No 'Sat-Mon' option was found.")
+                        try:
+                            slate_select.select_by_visible_text("Sat-Sun")
+                            sleep(3)
+                        except NoSuchElementException:
+                            log.error("No 'Sat-Sun' option was found.")
+                            return
 
             html = browser.page_source
             soup = BeautifulSoup(html, "html.parser")
@@ -77,9 +86,7 @@ class SalaryScraper:
         salary_df["salary"] = salary_df.salary.str.replace("$", "").str.replace(",", "").astype(int)
 
         log.info("Saving salary data..")
-        output_path = os.path.join(
-            os.path.dirname(__file__), f"../data/salaries/dk_salary_{self.current_year}_w{self.current_week}.csv"
-        )
+        output_path = f"/app/data/salaries/dk_salary_{self.current_year}_w{self.current_week}.csv"
         salary_df.drop_duplicates().to_csv(output_path, index=False)
 
 

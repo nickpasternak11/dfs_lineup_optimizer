@@ -1,25 +1,23 @@
-import os
 from datetime import datetime
 from typing import Optional
 
 import pandas as pd
-
-from utils import get_current_week, get_stats, get_weekly_rankings
 from configs import log
+from utils import get_current_week, get_stats, get_weekly_rankings
 
 
 class ProjectionScraper:
     def __init__(self):
-        self.current_year = datetime.now().year
+        self.current_date = datetime.now()
+        self.current_year = self.current_date.year
         self.current_week = get_current_week(year=self.current_year)
+        # adjusted year for FantasyPro's site
+        self.fp_year = self.current_year - 1 if self.current_date.month in [1, 2] else self.current_year
 
     def get_salary_df(self, year: Optional[int] = None, week: Optional[int] = None) -> pd.DataFrame:
         year = self.current_year if year is None else year
         week = self.current_week if week is None else week
-        path_to_csv = os.path.join(
-            os.path.dirname(__file__), f"../data/salaries/dk_salary_{year}_w{week}.csv"
-        )
-        # path_to_csv = f"/app/data/salaries/dk_salary_{year}_w{week}.csv"
+        path_to_csv = f"/app/data/salaries/dk_salary_{year}_w{week}.csv"
         return pd.read_csv(path_to_csv)
 
     def scrape(self, year: Optional[int] = None, week: Optional[int] = None) -> None:
@@ -34,8 +32,8 @@ class ProjectionScraper:
                 [
                     df,
                     pd.merge(
-                        get_weekly_rankings(pos, year, week),
-                        get_stats(pos, year, [week - 4, week - 1])[["player", "avg_fpts"]],
+                        get_weekly_rankings(pos, self.fp_year, week),
+                        get_stats(pos, self.fp_year, [week - 4, week - 1])[["player", "avg_fpts"]],
                         how="left",
                     ),
                 ]
@@ -75,9 +73,7 @@ class ProjectionScraper:
         ]
 
         log.info("Saving projection data..")
-        output_path = os.path.join(
-            os.path.dirname(__file__), f"../data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
-        )
+        output_path = f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
         df.fillna(0).drop_duplicates().to_csv(output_path, index=False)
 
 

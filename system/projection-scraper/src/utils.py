@@ -17,8 +17,8 @@ def get_current_week(year: int):
     r = requests.get(url, params=params)
     df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     # Find the first column where all values are NaN to get current week
-    first_nan_col = df.columns[df.isna().all()][0] if df.isna().all().any() else None
-    return int(first_nan_col)
+    week = int(df.columns[df.isna().all()][0]) if df.isna().all().any() else 19
+    return week
 
 
 def get_weekly_rankings(position: str, year: int, week: int):
