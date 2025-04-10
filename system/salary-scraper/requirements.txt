@@ -1,0 +1,7 @@
+pandas
+numpy<1.27.0
+regex
+bs4
+selenium
+requests<2.32.0
+lxml

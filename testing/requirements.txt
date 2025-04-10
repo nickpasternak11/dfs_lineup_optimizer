@@ -1,0 +1,10 @@
+pandas
+numpy
+regex
+bs4
+selenium
+pulp
+requests
+lxml
+tabulate
+flask

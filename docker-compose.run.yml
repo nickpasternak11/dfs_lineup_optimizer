@@ -1,0 +1,49 @@
+services:
+  dfs-frontend:
+    image: dfs-frontend
+    labels:
+      logging: "promtail"
+    ports:
+      - "3000:80"
+    depends_on:
+      - dfs-api
+    networks:
+      - app_network
+
+  dfs-api:
+    image: dfs-api
+    labels:
+      logging: "promtail"
+    volumes:
+      - "/dfs_data:/app/data"
+    ports:
+      - "8080:8080"
+    networks:
+      - app_network
+
+  dfs-orchestration:
+    image: dfs-orchestration
+    labels:
+      logging: "promtail"
+    volumes:
+      - "/dfs_data:/app/data"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - app_network
+
+  selenium-web-driver:
+    image: selenium/standalone-chrome:latest
+    labels:
+      logging: "promtail"
+    ports:
+      - "4444:4444"
+      - "7900:7900"
+    shm_size: "2g"
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    name: dfs_optimizer_network
+    driver: overlay
+    attachable: true

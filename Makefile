@@ -1,27 +1,25 @@
 export DOCKER_BUILDKIT=1
 
-SALARY_SCRAPER_IMAGE_NAME = "salary-scraper"
-LINEUP_OPTIMIZER_IMAGE_NAME = "lineup-optimizer"
-APP_IMAGE_NAME = "app"
-CURRENT_DIR := $(shell pwd)
+COMPOSE_BUILD_FILE := docker-compose.build.yml
+COMPOSE_RUN_FILE := docker-compose.run.yml
+NETWORK := dfs_optimizer_network
+DATA_VOLUME := /dfs_data:/app/data
 
-build-salary-scraper:
-	docker buildx build --target $(SALARY_SCRAPER_IMAGE_NAME) -t $(SALARY_SCRAPER_IMAGE_NAME) .
+.PHONY: down build run run-salary-scraper run-projection-scraper clean
 
-build-lineup-optimizer:
-	docker buildx build --target $(LINEUP_OPTIMIZER_IMAGE_NAME) -t $(LINEUP_OPTIMIZER_IMAGE_NAME) .
+down:
+	docker compose -f $(COMPOSE_RUN_FILE) down
 
-run-salary-scraper: build-salary-scraper
-	docker compose run --rm -v "$(CURRENT_DIR):/app" $(SALARY_SCRAPER_IMAGE_NAME)
-	docker compose down
+build:
+	docker compose -f $(COMPOSE_BUILD_FILE) build --parallel
 
-run-lineup-optimizer: build-lineup-optimizer
-	docker run --rm -v "$(CURRENT_DIR):/app" -e WEEK=$(WEEK) -e DST=$(DST) -e ONE_TE=$(ONE_TE) $(LINEUP_OPTIMIZER_IMAGE_NAME)
+run: down
+	docker compose -f $(COMPOSE_RUN_FILE) up -d
 
-run: run-salary-scraper run-lineup-optimizer
+run-salary-scraper: down
+	docker compose -f $(COMPOSE_RUN_FILE) up -d selenium-web-driver
+	docker run --rm -v $(DATA_VOLUME) --network $(NETWORK) dfs-salary-scraper
+	docker compose -f $(COMPOSE_RUN_FILE) down selenium-web-driver
 
-build-app:
-	docker buildx build --target $(APP_IMAGE_NAME) -t $(APP_IMAGE_NAME) .
-
-run-app: build-app
-	docker run --rm -v "$(CURRENT_DIR):/app" -p 5000:5000 -e FLASK_ENV=development -e FLASK_APP=src/app.py $(APP_IMAGE_NAME)
+run-projection-scraper: down
+	docker run --rm -v $(DATA_VOLUME) dfs-projection-scraper
