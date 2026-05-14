@@ -6,10 +6,6 @@ A full-stack application for optimizing DraftKings NFL daily fantasy sports (DFS
 
 This project combines automated data collection with intelligent lineup optimization to generate competitive DFS lineups for DraftKings NFL contests. It consists of multiple microservices orchestrated with Docker, a Python backend, and a React frontend.
 
-## 🎥 Tutorial
-
-[▶ Watch the full walkthrough](media/tutorial.mp4)
-
 ### Key Features
 
 - **Automated Data Collection**: Scheduled scrapers for salary data and player projections
