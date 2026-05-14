@@ -1,86 +1,239 @@
-# DraftKings NFL DFS Lineup Optimizer
+# DFS Lineup Optimizer
 
-This repository contains a Python-based lineup optimizer for DraftKings NFL daily fantasy sports (DFS) contests. It scrapes salary data and projections, then uses optimization techniques to generate optimal lineups.
+A full-stack application for optimizing DraftKings NFL daily fantasy sports (DFS) lineups using web scraping and mathematical optimization.
 
-## Features
+## Overview
 
-- Scrapes NFL DFS salary data from DraftDime
-- Retrieves PPR projection data from FantasyPros  
-- Optimizes lineups for DraftKings NFL contests
-- Allows customization of optimization parameters
-- Outputs optimal weekly lineups
+This project combines automated data collection with intelligent lineup optimization to generate competitive DFS lineups for DraftKings NFL contests. It consists of multiple microservices orchestrated with Docker, a Python backend, and a React frontend.
 
-## Installation
+### Key Features
 
-1. Clone the repository:
+- **Automated Data Collection**: Scheduled scrapers for salary data and player projections
+- **Resilient Architecture**: Automatic retry logic with exponential backoff for API failures
+- **Real-time Optimization**: Generates optimal lineups based on current player projections and salary constraints
+- **Web Interface**: Interactive React dashboard for lineup management
+- **Containerized**: Full Docker support for seamless deployment
 
-```bash
-git clone https://github.com/username/dfs_lineup_optimizer.git
-cd dfs_lineup_optimizer
-```
-
-2. Install Docker:
-
-Docker is required to run the lineup optimizer. Follow the official Docker installation guide for your operating system:
-- [Install Docker on Windows](https://docs.docker.com/desktop/install/windows-install/)
-- [Install Docker on Mac](https://docs.docker.com/desktop/install/mac-install/)
-- [Install Docker on Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
-
-3. Install Make:
-
-Make is used to simplify the Docker commands. Installation instructions vary by operating system:
-- Windows: Install [Chocolatey](https://chocolatey.org/install) and then run `choco install make`
-- Mac: Make should be pre-installed. If not, install Xcode Command Line Tools with `xcode-select --install`
-- Ubuntu: Run `sudo apt-get install make`
-
-## Usage
-
-### Salary Scraper
-
-To gather the latest salary data:
-
-```bash
-make run-salary-scraper
-```
-
-### Lineup Optimizer
-
-To run the lineup optimizer:
-
-```bash
-make run-lineup-optimizer [WEEK=<week>] [DST=<defense_team>]
-```
-By default, the optimizer will find the best value defense available.
-
-## Customization
-
-The lineup optimizer accepts several parameters:
-
-- `YEAR`: NFL season year (default: current year)
-- `WEEK`: Week number (default: current week) 
-- `DST`: Desired defense (default: None)
-- `USE_AVG_FPTS`: Use average fantasy points (default: false)
-- `WEIGHTS`: Custom weighting for projections (JSON format)
-
-## Project Structure
+## Architecture
 
 ```
-dfs-lineup-optimizer/
-├── src/
-|   ├── configs.py
-|   ├── utils.py
-│   ├── salary_scraper.py
-│   └── lineup_optimizer.py
-├── data/
-│   ├── salaries/
-│   └── lineups/
-├── Dockerfile
-├── docker-compose.yml
-├── Makefile
-├── requirements.txt
+dfs_lineup_optimizer/
+├── system/                           # Microservices
+│   ├── orchestrator/                 # Scheduler & container orchestration
+│   │   ├── src/
+│   │   │   └── main.py              # Handles scraper scheduling & retry logic
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   │
+│   ├── salary-scraper/              # DraftKings salary data scraper
+│   │   ├── src/
+│   │   │   ├── main.py              # Selenium-based salary scraper
+│   │   │   └── utils.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   │
+│   └── projection-scraper/          # FantasyPros projections scraper
+│       ├── src/
+│       │   ├── main.py              # Web scraper for player projections
+│       │   ├── configs.py           # Column mappings & logging config
+│       │   └── utils.py             # Data fetching & parsing utilities
+│       ├── Dockerfile
+│       └── requirements.txt
+│
+├── app/                              # Backend (Python)
+│   ├── src/
+│   │   ├── lineup_optimizer.py      # Optimization engine
+│   │   ├── configs.py               # Configuration
+│   │   └── utils.py                 # Helper functions
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── frontend/                         # Frontend (React)
+│   ├── src/
+│   ├── public/
+│   ├── Dockerfile
+│   └── package.json
+│
+├── docker-compose.yml               # Service orchestration
+├── Makefile                         # Build & run commands
 └── README.md
 ```
 
+## Getting Started
+
+### Prerequisites
+
+- **Docker** ([Install](https://docs.docker.com/get-docker/))
+- **Docker Compose** (included with Docker Desktop)
+- **Make** (optional, for convenient commands)
+  - macOS: `xcode-select --install`
+  - Ubuntu: `sudo apt-get install make`
+  - Windows: `choco install make`
+
+### Quick Start
+
+1. Clone the repository:
+```bash
+git clone https://github.com/nickpasternak11/dfs_lineup_optimizer.git
+cd dfs_lineup_optimizer
+```
+
+2. Build and start all services:
+```bash
+make build-all
+make up
+```
+
+3. Access the application:
+- Frontend: http://localhost:3000
+- API: http://localhost:8000
+
+## Usage
+
+### Running Scrapers
+
+**Collect salary data and projections:**
+```bash
+make run-salary-scraper
+make run-projection-scraper
+```
+
+**Automatic scheduling** (via orchestrator):
+```bash
+make run-orchestrator
+```
+
+The orchestrator automatically runs:
+- **Salary Scraper**: Every Tuesday at 9:00 AM ET
+- **Projection Scraper**: Hourly from 10:00 AM to 8:00 PM ET (Tue-Thu)
+
+### Generate Lineups
+
+```bash
+make run-lineup-optimizer WEEK=<week_number> [DST=<team_abbreviation>]
+```
+
+**Example:**
+```bash
+make run-lineup-optimizer WEEK=5 DST=KC
+```
+
+**Parameters:**
+- `WEEK`: NFL week number (default: current week)
+- `YEAR`: NFL season (default: current year)
+- `DST`: Specific defense team (optional; auto-selects best value if omitted)
+
+## Technology Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | React, JavaScript, CSS, HTML | Interactive UI for lineup management |
+| **Backend** | Python, Pandas, NumPy | Data processing & optimization engine |
+| **Scraping** | BeautifulSoup, Selenium, Requests | Web scraping for salary & projection data |
+| **Orchestration** | Docker, Docker Compose, APScheduler | Container management & task scheduling |
+| **Deployment** | Docker | Containerized microservices |
+
+## Key Components
+
+### Orchestrator
+Manages scheduled tasks with automatic retry logic. Runs salary and projection scrapers on a predefined schedule and monitors container health.
+
+**Features:**
+- Exponential backoff retry strategy (3 attempts max)
+- Real-time container log streaming
+- Error handling & logging
+
+### Salary Scraper
+Extracts player salary data from DraftKings using Selenium and Chromium.
+
+**Supports multiple contest slates:**
+- Thu-Mon, Fri-Mon, Sat-Mon, Sat-Sun
+
+### Projection Scraper
+Fetches player projections and historical stats from FantasyPros.
+
+**Data collected:**
+- Weekly projections by position (QB, RB, WR, TE, DST)
+- Historical performance stats
+- Expert consensus grades
+
+### Lineup Optimizer
+Mathematical optimization engine that constructs valid lineups within DraftKings constraints.
+
+**Optimization approach:**
+- Maximizes projected fantasy points
+- Respects salary cap
+- Enforces position limits
+- Removes low-graded players
+
+## Development
+
+### Local Environment
+
+1. Install dependencies (if developing without Docker):
+```bash
+pip install -r requirements.txt
+cd frontend && npm install
+```
+
+2. Run services individually:
+```bash
+python system/orchestrator/src/main.py
+python system/salary-scraper/src/main.py
+python app/src/lineup_optimizer.py
+```
+
+### Docker Commands
+
+```bash
+# Build all images
+make build-all
+
+# Start all services
+make up
+
+# View logs
+make logs
+
+# Stop services
+make down
+
+# Run individual services
+make run-orchestrator
+make run-salary-scraper
+make run-projection-scraper
+make run-lineup-optimizer
+```
+
+## Data Storage
+
+- **Salary data**: `data/salaries/dk_salary_YYYY_wWW.csv`
+- **Projections**: `data/projections/projections_YYYY_wWW.csv`
+- **Lineups**: `data/lineups/lineups_YYYY_wWW.csv`
+
+## Performance & Reliability
+
+- **Automatic Retries**: Failed scraping operations retry with exponential backoff
+- **Health Checks**: Orchestrator monitors container status
+- **Efficient Scheduling**: Optimized scraper intervals to minimize resource usage
+- **Logging**: Comprehensive logs in Eastern Time for debugging
+
+## Future Enhancements
+
+- [ ] Historical lineup performance tracking
+- [ ] Multi-sport support (NBA, MLB, PGA)
+- [ ] Advanced constraint modeling
+- [ ] Machine learning-based projection adjustments
+- [ ] User authentication & saved lineups
+
+## License
+
+This project is unlicensed. See the LICENSE file for details.
+
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to open issues or submit pull requests.
+
+---
+
+**Last Updated**: May 2026

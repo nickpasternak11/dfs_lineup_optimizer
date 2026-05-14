@@ -1,12 +1,12 @@
 import json
 import re
-from typing import List, Tuple
 from io import StringIO
+from typing import List, Tuple
 
 import bs4 as bs
 import pandas as pd
 import requests
-from configs import STATS_COLUMN_MAPPINGS
+from configs import PROJECTIONS_COLUMN_MAPPINGS, STATS_COLUMN_MAPPINGS
 
 
 def get_current_week(year: int):
@@ -17,14 +17,14 @@ def get_current_week(year: int):
     r = requests.get(url, params=params)
     df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     # Find the first column where all values are NaN to get current week
-    week = int(df.columns[df.isna().all()][0]) if df.isna().all().any() else 19
+    week = int(df.columns[df.isna().all()][0]) if df.isna().all().any() else 1
     return week
 
 
 def get_weekly_rankings(position: str, year: int, week: int):
     rankings_list = []
     position = position.upper()
-    url = f"https://www.fantasypros.com/nfl/rankings/{'ppr-' if position not in ['QB','DST'] else ''}{position.lower()}.php"
+    url = f"https://www.fantasypros.com/nfl/rankings/{'ppr-' if position not in ['QB', 'DST'] else ''}{position.lower()}.php"
     params = {"year": year, "week": week}
     r = requests.get(url, params=params)
     cxt = bs.BeautifulSoup(r.text, features="lxml")
@@ -66,7 +66,38 @@ def get_weekly_rankings(position: str, year: int, week: int):
     return pd.DataFrame(rankings_list)
 
 
-def get_stats(position: str, year: int, weeks: Tuple[int, int] or List[int, int] = None, scoring: str = "PPR"):
+def get_weekly_projections(
+    position: str,
+    year: int,
+    week: int,
+    scoring: str = "PPR",
+):
+    position = position.upper()
+    url = f"https://www.fantasypros.com/nfl/projections/{position.lower()}.php"
+    params = {
+        "year": year,
+        "week": week,
+        "scoring": scoring,
+    }
+    r = requests.get(url, params=params)
+    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0]
+    df.columns = PROJECTIONS_COLUMN_MAPPINGS[position]
+    player_col = (
+        df.player if position == "DST" else df.player.str.split().str[:-1].str.join(" ")
+    )
+    df["player"] = player_col
+    df["position"] = position
+    df["season"] = year
+    df["week"] = week
+    return df
+
+
+def get_stats(
+    position: str,
+    year: int,
+    weeks: Tuple[int, int] or List[int, int] = None,
+    scoring: str = "PPR",
+):
     range = None
     start = None
     end = None
@@ -77,13 +108,33 @@ def get_stats(position: str, year: int, weeks: Tuple[int, int] or List[int, int]
 
     position = position.upper()
     url = f"https://www.fantasypros.com/nfl/stats/{position.lower()}.php"
-    params = {"year": year, "range": range, "start_week": start, "end_week": end, "scoring": scoring}
+    params = {
+        "year": year,
+        "range": range,
+        "start_week": start,
+        "end_week": end,
+        "scoring": scoring,
+    }
     r = requests.get(url, params=params)
     df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     df.columns = [
         (
             f"avg_{col}"
-            if ((col not in ["player", "cmp_perc", "games", "lng", "fpts", "avg_fpts", "rost"]) and ("/" not in col))
+            if (
+                (
+                    col
+                    not in [
+                        "player",
+                        "cmp_perc",
+                        "games",
+                        "lng",
+                        "fpts",
+                        "avg_fpts",
+                        "rost",
+                    ]
+                )
+                and ("/" not in col)
+            )
             else col
         )
         for col in STATS_COLUMN_MAPPINGS[position]
@@ -95,6 +146,8 @@ def get_stats(position: str, year: int, weeks: Tuple[int, int] or List[int, int]
     df["week"] = end + 1
     df["rost"] = df.rost.str.strip("%").astype(float)
     df[[col for col in df.columns if (("avg" in col) and (col != "avg_fpts"))]] = (
-        df[[col for col in df.columns if (("avg" in col) and (col != "avg_fpts"))]].div(df["games"], axis=0).round(1)
+        df[[col for col in df.columns if (("avg" in col) and (col != "avg_fpts"))]]
+        .div(df["games"], axis=0)
+        .round(1)
     )
     return df.drop(columns="fpts")

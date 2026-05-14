@@ -12,9 +12,15 @@ class ProjectionScraper:
         self.current_year = self.current_date.year
         self.current_week = get_current_week(year=self.current_year)
         # adjusted year for FantasyPro's site
-        self.fp_year = self.current_year - 1 if self.current_date.month in [1, 2] else self.current_year
+        self.fp_year = (
+            self.current_year - 1
+            if self.current_date.month in [1, 2]
+            else self.current_year
+        )
 
-    def get_salary_df(self, year: Optional[int] = None, week: Optional[int] = None) -> pd.DataFrame:
+    def get_salary_df(
+        self, year: Optional[int] = None, week: Optional[int] = None
+    ) -> pd.DataFrame:
         year = self.current_year if year is None else year
         week = self.current_week if week is None else week
         path_to_csv = f"/app/data/salaries/dk_salary_{year}_w{week}.csv"
@@ -25,7 +31,9 @@ class ProjectionScraper:
         week = self.current_week if week is None else week
         df = pd.DataFrame()
 
-        log.info("Scraping projections from FantasyPro's for year=%s, week=%s", year, week)
+        log.info(
+            "Scraping projections from FantasyPro's for year=%s, week=%s", year, week
+        )
 
         for pos in ["QB", "RB", "WR", "TE", "DST"]:
             df = pd.concat(
@@ -33,7 +41,9 @@ class ProjectionScraper:
                     df,
                     pd.merge(
                         get_weekly_rankings(pos, self.fp_year, week),
-                        get_stats(pos, self.fp_year, [week - 4, week - 1])[["player", "avg_fpts"]],
+                        get_stats(pos, self.fp_year, [week - 4, week - 1])[
+                            ["player", "avg_fpts"]
+                        ],
                         how="left",
                     ),
                 ]
@@ -54,7 +64,7 @@ class ProjectionScraper:
             ),
             axis=1,
         )
-        df = df[~df.grade.isin(["F", "D-", "D", "D+"])]
+        df = df[~df.grade.isin(["F", "D-"])]
         df = df.merge(self.get_salary_df(year=year, week=week))
         df = df[
             [
