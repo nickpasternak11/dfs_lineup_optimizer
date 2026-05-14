@@ -4,6 +4,8 @@ A full-stack application for optimizing DraftKings NFL daily fantasy sports (DFS
 
 ## Overview
 
+![WebApp](media/dfs_optimizer_img.png)
+
 This project combines automated data collection with intelligent lineup optimization to generate competitive DFS lineups for DraftKings NFL contests. It consists of multiple microservices orchestrated with Docker, a Python backend, and a React frontend.
 
 ### Key Features
