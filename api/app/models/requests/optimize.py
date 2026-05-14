@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 
 class OptimizeRequest(BaseModel):
+    year: Optional[int] = None
     week: Optional[int] = None
     dst: Optional[str] = None
     one_te: Optional[bool] = False

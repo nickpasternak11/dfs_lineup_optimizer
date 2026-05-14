@@ -6,6 +6,10 @@ A full-stack application for optimizing DraftKings NFL daily fantasy sports (DFS
 
 This project combines automated data collection with intelligent lineup optimization to generate competitive DFS lineups for DraftKings NFL contests. It consists of multiple microservices orchestrated with Docker, a Python backend, and a React frontend.
 
+## 🎥 Tutorial
+
+[▶ Watch the full walkthrough](media/tutorial.mp4)
+
 ### Key Features
 
 - **Automated Data Collection**: Scheduled scrapers for salary data and player projections
@@ -80,13 +84,11 @@ cd dfs_lineup_optimizer
 
 2. Build and start all services:
 ```bash
-make build-all
+make build
 make up
 ```
 
-3. Access the application:
-- Frontend: http://localhost:3000
-- API: http://localhost:8000
+3. Access the application at http://localhost:3000
 
 ## Usage
 
@@ -168,26 +170,11 @@ Mathematical optimization engine that constructs valid lineups within DraftKings
 
 ## Development
 
-### Local Environment
-
-1. Install dependencies (if developing without Docker):
-```bash
-pip install -r requirements.txt
-cd frontend && npm install
-```
-
-2. Run services individually:
-```bash
-python system/orchestrator/src/main.py
-python system/salary-scraper/src/main.py
-python app/src/lineup_optimizer.py
-```
-
 ### Docker Commands
 
 ```bash
 # Build all images
-make build-all
+make build
 
 # Start all services
 make up
@@ -211,29 +198,3 @@ make run-lineup-optimizer
 - **Projections**: `data/projections/projections_YYYY_wWW.csv`
 - **Lineups**: `data/lineups/lineups_YYYY_wWW.csv`
 
-## Performance & Reliability
-
-- **Automatic Retries**: Failed scraping operations retry with exponential backoff
-- **Health Checks**: Orchestrator monitors container status
-- **Efficient Scheduling**: Optimized scraper intervals to minimize resource usage
-- **Logging**: Comprehensive logs in Eastern Time for debugging
-
-## Future Enhancements
-
-- [ ] Historical lineup performance tracking
-- [ ] Multi-sport support (NBA, MLB, PGA)
-- [ ] Advanced constraint modeling
-- [ ] Machine learning-based projection adjustments
-- [ ] User authentication & saved lineups
-
-## License
-
-This project is unlicensed. See the LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome! Please feel free to open issues or submit pull requests.
-
----
-
-**Last Updated**: May 2026
