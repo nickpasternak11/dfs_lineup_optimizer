@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './LineupOptimizer.css';
 
@@ -9,6 +11,7 @@ export const BASE_URL = `${protocol}//${BASE_HOSTNAME}`;
 export const BASE_URL_API = `${BASE_URL}:8080`;
 
 function LineupOptimizer() {
+    const [year, setYear] = useState('');
     const [week, setWeek] = useState('');
     const [dst, setDst] = useState('');
     const [oneTe, setOneTe] = useState(false);
@@ -23,6 +26,7 @@ function LineupOptimizer() {
     const submitData = async () => {
         setLoading(true);
         const data = {
+            year: year ? parseInt(year) : null,
             week: week ? parseInt(week) : null,
             dst: dst || null,
             one_te: oneTe,
@@ -32,9 +36,13 @@ function LineupOptimizer() {
         try {
             const response = await axios.post(`${BASE_URL_API}/optimize`, data);
             setLineups(response.data);
+            if (response.data.length > 0) {
+                toast.success('Lineup optimization successful!');
+            }
         } catch (error) {
             console.error('Error:', error);
-            alert('An error occurred while optimizing. Please try again.');
+            const errorMsg = error.response?.data?.detail || 'Lineup optimization failed. Please try again.';
+            toast.error(`Error: ${errorMsg}`);
         } finally {
             setLoading(false);
         }
@@ -73,8 +81,21 @@ function LineupOptimizer() {
 
     return (
         <div className="container">
+            <ToastContainer theme="dark" />
             <h1 className="text-center mb-4">DFS Lineup Optimizer</h1>
-            <form onSubmit={handleSubmit} className="d-flex align-items-center justify-content-center mb-4">
+            <form onSubmit={handleSubmit} className="d-flex align-items-center justify-content-center mb-5">
+                <div className="form-group me-2">
+                    <label htmlFor="year">YEAR:</label>
+                    <input
+                        type="number"
+                        id="year"
+                        className="form-control form-control-sm"
+                        value={year}
+                        onChange={(e) => setYear(e.target.value)}
+                        min="2024"
+                        max="2025"
+                    />
+                </div>
                 <div className="form-group me-2">
                     <label htmlFor="week">WEEK:</label>
                     <input
