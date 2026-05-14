@@ -32,14 +32,16 @@ class SalaryScraper:
                 continue
         log.info("Webdriver is up!")
 
-    def scrape(self):
+    def scrape(self, slate: str = "Thu-Mon") -> pd.DataFrame:
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
 
         log.info("Scraping salary data..")
-        with webdriver.Remote(command_executor="http://selenium-web-driver:4444/wd/hub", options=options) as browser:
+        with webdriver.Remote(
+            command_executor="http://selenium-web-driver:4444/wd/hub", options=options
+        ) as browser:
             browser.get(self.url)
             sleep(1)
             site_select = Select(browser.find_element(by=By.ID, value="site-id"))
@@ -54,43 +56,56 @@ class SalaryScraper:
             sleep(2)
 
             try:
-                slate_select.select_by_visible_text("Thu-Mon")
+                slate_select.select_by_visible_text(slate)
                 sleep(3)
             except NoSuchElementException:
-                log.error("No 'Thu-Mon' option was found.")
-                try:
-                    slate_select.select_by_visible_text("Fri-Mon")
-                    sleep(3)
-                except NoSuchElementException:
-                    log.error("No 'Fri-Mon' option was found.")
-                    try:
-                        slate_select.select_by_visible_text("Sat-Mon")
-                        sleep(3)
-                    except NoSuchElementException:
-                        log.error("No 'Sat-Mon' option was found.")
-                        try:
-                            slate_select.select_by_visible_text("Sat-Sun")
-                            sleep(3)
-                        except NoSuchElementException:
-                            log.error("No 'Sat-Sun' option was found.")
-                            return
+                log.error(f"No '{slate}' option was found.")
+                return pd.DataFrame()
 
             html = browser.page_source
             soup = BeautifulSoup(html, "html.parser")
             table = soup.find("table", id="prj-main-table")
 
         salary_df = pd.io.html.read_html(StringIO(str(table)))[0].iloc[1:, :6]
-        salary_df.columns = ["player", "extra", "position", "team", "opponent", "salary"]
+        salary_df.columns = [
+            "player",
+            "extra",
+            "position",
+            "team",
+            "opponent",
+            "salary",
+        ]
         salary_df = salary_df.drop(columns=["extra"])
         salary_df["opponent"] = salary_df.opponent.str.replace("@", "")
-        salary_df["salary"] = salary_df.salary.str.replace("$", "").str.replace(",", "").astype(int)
+        salary_df["salary"] = (
+            salary_df.salary.str.replace("$", "").str.replace(",", "").astype(int)
+        )
 
+        return salary_df
+
+    def save_to_csv(self, df: pd.DataFrame):
         log.info("Saving salary data..")
-        output_path = f"/app/data/salaries/dk_salary_{self.current_year}_w{self.current_week}.csv"
-        salary_df.drop_duplicates().to_csv(output_path, index=False)
+        output_path = (
+            f"/app/data/salaries/dk_salary_{self.current_year}_w{self.current_week}.csv"
+        )
+        df.drop_duplicates().to_csv(output_path, index=False)
 
 
 if __name__ == "__main__":
     log.info("Starting salary scraper..")
     scraper = SalaryScraper()
-    scraper.scrape()
+
+    for slate in ["Thu-Mon", "Fri-Mon", "Sat-Mon", "Sat-Sun"]:
+        df = scraper.scrape(slate)
+        if not df.empty:
+            scraper.save_to_csv(df)
+            break
+
+    # df = pd.DataFrame()
+    # for slate in ["Sat", "Main"]:
+    #     sub_df = scraper.scrape(slate)
+    #     if not sub_df.empty:
+    #         df = pd.concat([df, sub_df], ignore_index=True)
+
+    # if not df.empty:
+    #     scraper.save_to_csv(df)
