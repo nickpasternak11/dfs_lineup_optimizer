@@ -93,7 +93,7 @@ function LineupOptimizer() {
                         value={year}
                         onChange={(e) => setYear(e.target.value)}
                         min="2024"
-                        max="2025"
+                        max="2026"
                     />
                 </div>
                 <div className="form-group me-2">
