@@ -11,4 +11,4 @@ COPY . .
 
 FROM builder as service
 
-CMD ["python", "src/main.py"]
+CMD ["python", "main.py"]

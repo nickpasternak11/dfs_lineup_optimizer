@@ -1,10 +1,9 @@
 import time
-from zoneinfo import ZoneInfo
 
 import backoff
 import docker
 import schedule
-from configs import log
+from src.configs import log
 
 
 class ScraperOrchestrator:
@@ -67,18 +66,12 @@ class ScraperOrchestrator:
                 log.error(f"{container_name} exited with status code {exit_code}")
 
         except docker.errors.APIError as e:
-            log.error(f"Docker API error running {container_name}: {str(e)}")
+            log.error(f"Docker API error running {container_name}: {e!s}")
         except Exception as e:
-            log.error(f"Error running {container_name}: {str(e)}")
+            log.error(f"Error running {container_name}: {e!s}")
 
     def run(self):
         log.info("Starting scheduler loop...")
         while True:
             schedule.run_pending()
             time.sleep(30)
-
-
-if __name__ == "__main__":
-    log.info("Starting orchestrator...")
-    orchestrator = ScraperOrchestrator()
-    orchestrator.run()
