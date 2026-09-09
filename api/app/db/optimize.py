@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import List, Optional
 
 import pandas as pd
 import pulp
@@ -10,7 +9,7 @@ from app.helpers.optimize import get_latest_week, get_stats, get_weekly_rankings
 
 
 class DFSLineupOptimizer:
-    def __init__(self, year: Optional[int] = None, week: Optional[int] = None):
+    def __init__(self, year: int | None = None, week: int | None = None):
         self.current_year = datetime.now().year if year is None else year
         self.current_week = get_latest_week(year=year) if week is None else week
 
@@ -86,12 +85,12 @@ class DFSLineupOptimizer:
 
     def optimize(
         self,
-        dst: Optional[NFLTeam] = None,
-        one_te: Optional[bool] = False,
+        dst: NFLTeam | None = None,
+        one_te: bool | None = False,
         use_avg_fpts: bool = False,
         weights: dict = {},
-        excluded_players: List[str] = [],
-        included_players: List[str] = [],
+        excluded_players: list[str] = [],
+        included_players: list[str] = [],
         use_stored_data: bool = False,
     ) -> pd.DataFrame:
         selected_players = []
@@ -252,12 +251,12 @@ class DFSLineupOptimizer:
 
     def get_optimal_lineups(
         self,
-        dst: Optional[NFLTeam] = None,
-        one_te: Optional[bool] = False,
-        excluded_players: List[str] = [],
-        included_players: List[str] = [],
+        dst: NFLTeam | None = None,
+        one_te: bool | None = False,
+        excluded_players: list[str] = [],
+        included_players: list[str] = [],
         use_stored_data: bool = False,
-    ) -> List[dict]:
+    ) -> list[dict]:
         lineups = []
         for weights in [(1, 0), (0.9, 0.1), (0.8, 0.2)]:
             log.info("weights=%s", weights)

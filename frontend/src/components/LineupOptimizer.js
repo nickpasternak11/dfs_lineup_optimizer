@@ -10,6 +10,13 @@ export const BASE_HOSTNAME = window.location.hostname;
 export const BASE_URL = `${protocol}//${BASE_HOSTNAME}`;
 export const BASE_URL_API = `${BASE_URL}:8080`;
 
+const columnOrder = ["year", "week", "player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary"];
+const columnLabels = {
+    avg_fpts: "Mean FPTS",
+    proj_fpts: "Proj FPTS",
+};
+
+
 function LineupOptimizer() {
     const [year, setYear] = useState('');
     const [week, setWeek] = useState('');
@@ -18,22 +25,41 @@ function LineupOptimizer() {
     const [excludedPlayers, setExcludedPlayers] = useState([]);
     const [includedPlayers, setIncludedPlayers] = useState([]);
     const [lineups, setLineups] = useState([]);
+    const [projections, setProjections] = useState([]);
+    const [playerSearch, setPlayerSearch] = useState('');
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('lineup1');
 
-    const columnOrder = ["year", "week", "player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary"];
+    const players = [...new Set(
+        projections
+            .map(projection => projection.player)
+            .filter(Boolean)
+    )].sort();
 
-    const submitData = async () => {
+    const filteredPlayers = players.filter(player =>
+        player.toLowerCase().includes(playerSearch.toLowerCase())
+    );
+
+    const fetchProjections = async (selectedYear = year, selectedWeek = week) => {
+        const response = await axios.post(`${BASE_URL_API}/projections`, {
+            year: selectedYear ? parseInt(selectedYear) : null,
+            week: selectedWeek ? parseInt(selectedWeek) : null,
+        });
+        setProjections(response.data);
+    };
+
+    const optimizeLineups = async (selectedYear = year, selectedWeek = week) => {
         setLoading(true);
-        const data = {
-            year: year ? parseInt(year) : null,
-            week: week ? parseInt(week) : null,
-            dst: dst || null,
-            one_te: oneTe,
-            excluded_players: excludedPlayers,
-            included_players: includedPlayers
-        };
         try {
+            const data = {
+                year: selectedYear ? parseInt(selectedYear) : null,
+                week: selectedWeek ? parseInt(selectedWeek) : null,
+                dst: dst || null,
+                one_te: oneTe,
+                excluded_players: excludedPlayers,
+                included_players: includedPlayers
+            };
+            await fetchProjections(selectedYear, selectedWeek);
             const response = await axios.post(`${BASE_URL_API}/optimize`, data);
             setLineups(response.data);
             if (response.data.length > 0) {
@@ -41,16 +67,26 @@ function LineupOptimizer() {
             }
         } catch (error) {
             console.error('Error:', error);
-            const errorMsg = error.response?.data?.detail || 'Lineup optimization failed. Please try again.';
+            const errorMsg = error.response?.data?.detail || 'Unable to load projections or optimize the lineup. Please try again.';
             toast.error(`Error: ${errorMsg}`);
         } finally {
             setLoading(false);
         }
     };
 
+    const fetchCurrentPeriod = async () => {
+        const yearResponse = await axios.get(`${BASE_URL_API}/projections/current_year`);
+        const weekResponse = await axios.get(`${BASE_URL_API}/projections/current_week`);
+        const currentYear = String(yearResponse.data);
+        const currentWeek = String(weekResponse.data);
+        setYear(currentYear);
+        setWeek(currentWeek);
+        optimizeLineups(currentYear, currentWeek);
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
-        submitData();
+        optimizeLineups();
     };
 
     const toggleExclude = (playerName) => {
@@ -76,88 +112,120 @@ function LineupOptimizer() {
     };
 
     useEffect(() => {
-        submitData();
+        fetchCurrentPeriod().catch((error) => {
+            console.error('Error loading current year and week:', error);
+            toast.error('Unable to load the current year and week. Please try again.');
+        });
     }, []);
 
     return (
         <div className="container">
             <ToastContainer theme="dark" />
-            <h1 className="text-center mb-4">DFS Lineup Optimizer</h1>
-            <form onSubmit={handleSubmit} className="d-flex align-items-center justify-content-center mb-5">
-                <div className="form-group me-2">
-                    <label htmlFor="year">YEAR:</label>
-                    <input
-                        type="number"
-                        id="year"
-                        className="form-control form-control-sm"
-                        value={year}
-                        onChange={(e) => setYear(e.target.value)}
-                        min="2024"
-                        max="2026"
-                    />
+            <header className="page-header">
+                <div>
+                    <h1>DFS Lineup Optimizer</h1>
                 </div>
-                <div className="form-group me-2">
-                    <label htmlFor="week">WEEK:</label>
-                    <input
-                        type="number"
-                        id="week"
-                        className="form-control form-control-sm"
-                        value={week}
-                        onChange={(e) => setWeek(e.target.value)}
-                        min="1"
-                        max="18"
-                    />
-                </div>
-                <div className="form-group me-2">
-                    <label htmlFor="dst">DST:</label>
-                    <input
-                        type="text"
-                        id="dst"
-                        className="form-control form-control-sm"
-                        value={dst}
-                        onChange={(e) => setDst(e.target.value)}
-                    />
-                </div>
-                <div className="form-group me-2">
-                    <label htmlFor="one_te">MAX 1 TE:</label>
-                    <input
-                        type="checkbox"
-                        id="one_te"
-                        className="form-check-input"
-                        checked={oneTe}
-                        onChange={(e) => setOneTe(e.target.checked)}
-                    />
-                </div>
-                <button type="submit" className="btn btn-primary btn-sm">Optimize</button>
-            </form>
+            </header>
 
-            <div className="row">
-                <div className="col-md-2 mb-3 side-panel p-3">
-                    <div id="excluded-players" className="mb-3">
-                        <h6>Excluded Players:</h6>
+            <div className="optimizer-layout">
+                <aside className="side-panel">
+                    <form onSubmit={handleSubmit} className="optimizer-controls">
+                        <div className="panel-heading">
+                            <span className="panel-kicker">Settings</span>
+                        </div>
+                        <div className="filter-grid">
+                            <div className="form-group">
+                                <label htmlFor="year">Year</label>
+                                <input type="number" id="year" className="form-control form-control-sm" value={year} onChange={(e) => setYear(e.target.value)} min="2024" max="2026" />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="week">Week</label>
+                                <input type="number" id="week" className="form-control form-control-sm" value={week} onChange={(e) => setWeek(e.target.value)} min="1" max="18" />
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="dst">Defense</label>
+                            <input type="text" id="dst" className="form-control form-control-sm" value={dst} onChange={(e) => setDst(e.target.value)} placeholder="Optional team" />
+                        </div>
+                        <label className="te-toggle" htmlFor="one_te">
+                            <span>Limit to one TE</span>
+                            <input type="checkbox" id="one_te" className="form-check-input" checked={oneTe} onChange={(e) => setOneTe(e.target.checked)} />
+                        </label>
+                        <button type="submit" className="btn btn-primary optimize-button">Optimize lineups</button>
+                    </form>
+
+                    <div className="player-search mb-3">
+                        <div className="panel-heading compact-heading">
+                            <span className="panel-kicker">Player pool</span>
+                        </div>
+                        <input
+                            type="search"
+                            id="player-search"
+                            className="form-control form-control-sm"
+                            value={playerSearch}
+                            onChange={(e) => setPlayerSearch(e.target.value)}
+                            placeholder="Search by name"
+                        />
+                        {playerSearch.trim() && (
+                            <ul className="player-list search-results">
+                                {filteredPlayers.map(player => (
+                                    <li key={player} className="player-item search-result">
+                                        <span>{player}</span>
+                                        <span className="player-actions">
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline-danger btn-sm"
+                                                onClick={() => toggleExclude(player)}
+                                                disabled={excludedPlayers.includes(player)}
+                                                title={`Exclude ${player}`}
+                                            >
+                                                ❌
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline-success btn-sm"
+                                                onClick={() => toggleInclude(player)}
+                                                disabled={includedPlayers.includes(player)}
+                                                title={`Include ${player}`}
+                                            >
+                                                ✅
+                                            </button>
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                    <div id="excluded-players" className="player-group">
+                        <h3>Excluded <span>{excludedPlayers.length}</span></h3>
                         <ul className="player-list">
                             {excludedPlayers.map(player => (
                                 <li key={player} className="player-item">
                                     {player}
-                                    <span className="text-danger action-button" onClick={() => toggleExclude(player)}>❌</span>
+                                    <span className="text-danger action-button" role="button" tabIndex="0" onClick={() => toggleExclude(player)} onKeyDown={(e) => e.key === 'Enter' && toggleExclude(player)} aria-label={`Remove ${player} from excluded players`} title={`Remove ${player} from excluded players`}>❌</span>
                                 </li>
                             ))}
                         </ul>
                     </div>
-                    <div id="included-players" className="mt-3">
-                        <h6>Included Players:</h6>
+                    <div id="included-players" className="player-group">
+                        <h3>Included <span>{includedPlayers.length}</span></h3>
                         <ul className="player-list">
                             {includedPlayers.map(player => (
                                 <li key={player} className="player-item">
                                     {player}
-                                    <span className="text-success action-button" onClick={() => toggleInclude(player)}>❌</span>
+                                    <span className="text-success action-button" role="button" tabIndex="0" onClick={() => toggleInclude(player)} onKeyDown={(e) => e.key === 'Enter' && toggleInclude(player)} aria-label={`Remove ${player} from included players`} title={`Remove ${player} from included players`}>❌</span>
                                 </li>
                             ))}
                         </ul>
                     </div>
-                </div>
+                </aside>
 
-                <div className="col-md-10">
+                <main className="lineups-main">
+                    <div className="lineups-heading">
+                        <div>
+                            <p className="eyebrow">Optimization results</p>
+                        </div>
+                    </div>
                     {loading && (
                         <div className="loader">
                             <div></div>
@@ -186,39 +254,41 @@ function LineupOptimizer() {
                                         <div className="lineup-summary">
                                             Total Projected FPTS: {lineup.reduce((sum, player) => sum + player.proj_fpts, 0).toFixed(2)} - Total Cap: ${lineup.reduce((sum, player) => sum + player.salary, 0)}
                                         </div>
-                                        <table className="table table-striped">
-                                            <thead>
-                                                <tr>
-                                                    {columnOrder.map(col => (
-                                                        <th key={col}>{col.charAt(0).toUpperCase() + col.slice(1)}</th>
-                                                    ))}
-                                                    <th>Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {lineup.map((player, playerIndex) => (
-                                                    <tr key={playerIndex}>
+                                        <div className="lineup-table-wrap">
+                                            <table className="table table-striped">
+                                                <thead>
+                                                    <tr>
                                                         {columnOrder.map(col => (
-                                                            <td key={col}>{player[col]}</td>
+                                                            <th key={col}>{columnLabels[col] || col.charAt(0).toUpperCase() + col.slice(1)}</th>
                                                         ))}
-                                                        <td>
-                                                            {!excludedPlayers.includes(player.player) && !includedPlayers.includes(player.player) && (
-                                                                <>
-                                                                    <span className="action-button text-danger" onClick={() => toggleExclude(player.player)}>❌</span>
-                                                                    <span className="action-button text-success" onClick={() => toggleInclude(player.player)}>✅</span>
-                                                                </>
-                                                            )}
-                                                        </td>
+                                                        <th>Actions</th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody>
+                                                    {lineup.map((player, playerIndex) => (
+                                                        <tr key={playerIndex}>
+                                                            {columnOrder.map(col => (
+                                                                <td key={col}>{player[col]}</td>
+                                                            ))}
+                                                            <td>
+                                                                {!excludedPlayers.includes(player.player) && !includedPlayers.includes(player.player) && (
+                                                                    <>
+                                                                        <span className="action-button text-danger" onClick={() => toggleExclude(player.player)} title={`Exclude ${player.player}`} aria-label={`Exclude ${player.player}`}>❌</span>
+                                                                        <span className="action-button text-success" onClick={() => toggleInclude(player.player)} title={`Include ${player.player}`} aria-label={`Include ${player.player}`}>✅</span>
+                                                                    </>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
                         </>
                     )}
-                </div>
+                </main>
             </div>
         </div>
     );
