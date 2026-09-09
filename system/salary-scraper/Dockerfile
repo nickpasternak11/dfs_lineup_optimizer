@@ -14,4 +14,4 @@ FROM builder as service
 # Add the current directory to PYTHONPATH
 ENV PYTHONPATH="${PYTHONPATH}:/app"
 
-CMD ["python", "src/main.py"]
+CMD ["python", "main.py"]

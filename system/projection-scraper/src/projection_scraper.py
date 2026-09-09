@@ -1,9 +1,8 @@
 from datetime import datetime
-from typing import Optional
 
 import pandas as pd
-from configs import log
-from utils import get_current_week, get_stats, get_weekly_rankings
+from src.configs import log
+from src.utils import get_current_week, get_stats, get_weekly_rankings
 
 
 class ProjectionScraper:
@@ -19,14 +18,14 @@ class ProjectionScraper:
         )
 
     def get_salary_df(
-        self, year: Optional[int] = None, week: Optional[int] = None
+        self, year: int | None = None, week: int | None = None
     ) -> pd.DataFrame:
         year = self.current_year if year is None else year
         week = self.current_week if week is None else week
         path_to_csv = f"/app/data/salaries/dk_salary_{year}_w{week}.csv"
         return pd.read_csv(path_to_csv)
 
-    def scrape(self, year: Optional[int] = None, week: Optional[int] = None) -> None:
+    def scrape(self, year: int | None = None, week: int | None = None) -> None:
         year = self.current_year if year is None else year
         week = self.current_week if week is None else week
         df = pd.DataFrame()
@@ -85,9 +84,3 @@ class ProjectionScraper:
         log.info("Saving projection data..")
         output_path = f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
         df.fillna(0).drop_duplicates().to_csv(output_path, index=False)
-
-
-if __name__ == "__main__":
-    log.info("Starting projection scraper..")
-    scraper = ProjectionScraper()
-    scraper.scrape()

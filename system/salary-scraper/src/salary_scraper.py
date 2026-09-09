@@ -5,12 +5,12 @@ from time import sleep
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from configs import log
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
-from utils import get_current_week
+from src.configs import log
+from src.utils import get_current_week
 
 
 class SalaryScraper:
@@ -89,23 +89,3 @@ class SalaryScraper:
             f"/app/data/salaries/dk_salary_{self.current_year}_w{self.current_week}.csv"
         )
         df.drop_duplicates().to_csv(output_path, index=False)
-
-
-if __name__ == "__main__":
-    log.info("Starting salary scraper..")
-    scraper = SalaryScraper()
-
-    for slate in ["Thu-Mon", "Fri-Mon", "Sat-Mon", "Sat-Sun"]:
-        df = scraper.scrape(slate)
-        if not df.empty:
-            scraper.save_to_csv(df)
-            break
-
-    # df = pd.DataFrame()
-    # for slate in ["Sat", "Main"]:
-    #     sub_df = scraper.scrape(slate)
-    #     if not sub_df.empty:
-    #         df = pd.concat([df, sub_df], ignore_index=True)
-
-    # if not df.empty:
-    #     scraper.save_to_csv(df)
