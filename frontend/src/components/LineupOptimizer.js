@@ -12,11 +12,24 @@ export const BASE_URL_API = `${BASE_URL}:8080`;
 
 const playerColumns = ["player", "position", "team", "opponent", "proj_fpts", "salary"];
 const mainPlayerColumns = ["player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary"];
+
 const columnLabels = {
+    player: "Player",
+    position: "Pos",
+    team: "Team",
+    opponent: "Opp",
+    grade: "Grd",
+    rank: "Rnk",
     avg_fpts: "Avg FPTS",
     proj_fpts: "Proj FPTS",
+    salary: "Salary",
 };
 
+const formatCellValue = (key, val) => {
+    if (val === null || val === undefined) return '';
+    if (key === 'salary') return `$${Number(val).toLocaleString()}`;
+    return val;
+};
 
 function LineupOptimizer() {
     const [year, setYear] = useState('');
@@ -240,14 +253,18 @@ function LineupOptimizer() {
                         <table className="table table-striped player-pool-table">
                             <thead>
                                 <tr>
-                                    {mainPlayerColumns.map(col => <th key={col}>{columnLabels[col] || col.charAt(0).toUpperCase() + col.slice(1)}</th>)}
+                                    {mainPlayerColumns.map(col => (
+                                        <th key={col}>{columnLabels[col] || col}</th>
+                                    ))}
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredProjections.map((player, playerIndex) => (
                                     <tr key={`${player.player}-${playerIndex}`}>
-                                        {mainPlayerColumns.map(col => <td key={col}>{player[col]}</td>)}
+                                        {mainPlayerColumns.map(col => (
+                                            <td key={col}>{formatCellValue(col, player[col])}</td>
+                                        ))}
                                         <td>{renderActionButtons(player.player)}</td>
                                     </tr>
                                 ))}
@@ -284,11 +301,20 @@ function LineupOptimizer() {
                                         </div>
                                         <div className="lineup-table-wrap">
                                             <table className="table table-striped">
-                                                <thead><tr>{playerColumns.map(col => <th key={col}>{columnLabels[col] || col.charAt(0).toUpperCase() + col.slice(1)}</th>)}<th>Actions</th></tr></thead>
+                                                <thead>
+                                                    <tr>
+                                                        {playerColumns.map(col => (
+                                                            <th key={col}>{columnLabels[col] || col}</th>
+                                                        ))}
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
                                                 <tbody>
                                                     {lineup.map((player, playerIndex) => (
                                                         <tr key={`${player.player}-${playerIndex}`}>
-                                                            {playerColumns.map(col => <td key={col}>{player[col]}</td>)}
+                                                            {playerColumns.map(col => (
+                                                                <td key={col}>{formatCellValue(col, player[col])}</td>
+                                                            ))}
                                                             <td>{renderActionButtons(player.player)}</td>
                                                         </tr>
                                                     ))}
