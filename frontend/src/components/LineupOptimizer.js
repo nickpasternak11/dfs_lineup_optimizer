@@ -12,7 +12,7 @@ export const BASE_URL_API = `${BASE_URL}:8080`;
 
 const playerColumns = ["player", "position", "team", "opponent", "proj_fpts", "salary"];
 const mainPlayerColumns = ["player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary"];
-const sortableColumns = ["grade", "rank", "avg_fpts", "proj_fpts", "salary"];
+const sortableColumns = ["rank", "avg_fpts", "proj_fpts", "salary"];
 
 const columnLabels = {
     player: "Player",
