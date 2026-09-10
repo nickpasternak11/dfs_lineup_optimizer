@@ -80,6 +80,7 @@ class ProjectionScraper:
                 "salary",
             ]
         ]
+        df["value"] = df["proj_fpts"] / (df["salary"] / 1000)
 
         log.info("Saving projection data..")
         output_path = f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"

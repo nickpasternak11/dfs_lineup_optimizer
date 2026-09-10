@@ -11,8 +11,8 @@ export const BASE_URL = `${protocol}//${BASE_HOSTNAME}`;
 export const BASE_URL_API = `${BASE_URL}:8080`;
 
 const playerColumns = ["player", "position", "team", "opponent", "proj_fpts", "salary"];
-const mainPlayerColumns = ["player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary"];
-const sortableColumns = ["rank", "avg_fpts", "proj_fpts", "salary"];
+const mainPlayerColumns = ["player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary", "value"];
+const sortableColumns = ["rank", "avg_fpts", "proj_fpts", "salary", "value"];
 
 const columnLabels = {
     player: "Player",
@@ -24,11 +24,13 @@ const columnLabels = {
     avg_fpts: "Avg FPTS",
     proj_fpts: "Proj FPTS",
     salary: "Salary",
+    value: "Val"
 };
 
 const formatCellValue = (key, val) => {
     if (val === null || val === undefined) return '';
     if (key === 'salary') return `$${Number(val).toLocaleString()}`;
+    if (key == 'value') return Number(val).toFixed(2);
     return val;
 };
 
@@ -49,8 +51,8 @@ function LineupOptimizer() {
     const [activeTab, setActiveTab] = useState('lineup1');
 
     // Sorting state
-    const [sortColumn, setSortColumn] = useState('rank');
-    const [sortDirection, setSortDirection] = useState('asc');
+    const [sortColumn, setSortColumn] = useState('salary'); // Default sort by salary
+    const [sortDirection, setSortDirection] = useState('desc'); // Default sort direction
 
     const filterOptions = (field) => [...new Set(
         projections.map(projection => projection[field]).filter(Boolean)
