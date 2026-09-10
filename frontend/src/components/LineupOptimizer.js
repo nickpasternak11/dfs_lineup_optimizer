@@ -12,6 +12,7 @@ export const BASE_URL_API = `${BASE_URL}:8080`;
 
 const playerColumns = ["player", "position", "team", "opponent", "proj_fpts", "salary"];
 const mainPlayerColumns = ["player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary"];
+const sortableColumns = ["grade", "rank", "avg_fpts", "proj_fpts", "salary"];
 
 const columnLabels = {
     player: "Player",
@@ -47,6 +48,10 @@ function LineupOptimizer() {
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('lineup1');
 
+    // Sorting state
+    const [sortColumn, setSortColumn] = useState('rank');
+    const [sortDirection, setSortDirection] = useState('asc');
+
     const filterOptions = (field) => [...new Set(
         projections.map(projection => projection[field]).filter(Boolean)
     )].sort();
@@ -57,6 +62,38 @@ function LineupOptimizer() {
         (!teamFilter || projection.team === teamFilter) &&
         (!opponentFilter || projection.opponent === opponentFilter)
     ));
+
+    const handleSort = (col) => {
+        if (!sortableColumns.includes(col)) return;
+
+        if (sortColumn === col) {
+            setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSortColumn(col);
+            setSortDirection(col === 'rank' ? 'asc' : 'desc');
+        }
+    };
+
+    const sortedProjections = [...filteredProjections].sort((a, b) => {
+        if (!sortColumn) return 0;
+
+        let valA = a[sortColumn];
+        let valB = b[sortColumn];
+
+        if (valA === null || valA === undefined) return 1;
+        if (valB === null || valB === undefined) return -1;
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return sortDirection === 'asc' ? valA - valB : valB - valA;
+        }
+
+        valA = String(valA).toUpperCase();
+        valB = String(valB).toUpperCase();
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
 
     const renderActionButtons = (playerName) => (
         <span className="player-actions">
@@ -253,14 +290,31 @@ function LineupOptimizer() {
                         <table className="table table-striped player-pool-table">
                             <thead>
                                 <tr>
-                                    {mainPlayerColumns.map(col => (
-                                        <th key={col}>{columnLabels[col] || col}</th>
-                                    ))}
+                                    {mainPlayerColumns.map(col => {
+                                        const isSortable = sortableColumns.includes(col);
+                                        const isSorted = sortColumn === col;
+
+                                        return (
+                                            <th
+                                                key={col}
+                                                onClick={() => isSortable && handleSort(col)}
+                                                style={{ cursor: isSortable ? 'pointer' : 'default', userSelect: 'none' }}
+                                                title={isSortable ? `Sort by ${columnLabels[col] || col}` : ''}
+                                            >
+                                                {columnLabels[col] || col}
+                                                {isSortable && (
+                                                    <span style={{ marginLeft: '4px', opacity: isSorted ? 1 : 0.35 }}>
+                                                        {isSorted ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+                                                    </span>
+                                                )}
+                                            </th>
+                                        );
+                                    })}
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredProjections.map((player, playerIndex) => (
+                                {sortedProjections.map((player, playerIndex) => (
                                     <tr key={`${player.player}-${playerIndex}`}>
                                         {mainPlayerColumns.map(col => (
                                             <td key={col}>{formatCellValue(col, player[col])}</td>
