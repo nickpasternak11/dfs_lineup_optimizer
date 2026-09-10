@@ -10,9 +10,10 @@ export const BASE_HOSTNAME = window.location.hostname;
 export const BASE_URL = `${protocol}//${BASE_HOSTNAME}`;
 export const BASE_URL_API = `${BASE_URL}:8080`;
 
-const columnOrder = ["year", "week", "player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary"];
+const playerColumns = ["player", "position", "team", "opponent", "proj_fpts", "salary"];
+const mainPlayerColumns = ["player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary"];
 const columnLabels = {
-    avg_fpts: "Mean FPTS",
+    avg_fpts: "Avg FPTS",
     proj_fpts: "Proj FPTS",
 };
 
@@ -27,17 +28,46 @@ function LineupOptimizer() {
     const [lineups, setLineups] = useState([]);
     const [projections, setProjections] = useState([]);
     const [playerSearch, setPlayerSearch] = useState('');
+    const [positionFilter, setPositionFilter] = useState('');
+    const [teamFilter, setTeamFilter] = useState('');
+    const [opponentFilter, setOpponentFilter] = useState('');
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('lineup1');
 
-    const players = [...new Set(
-        projections
-            .map(projection => projection.player)
-            .filter(Boolean)
+    const filterOptions = (field) => [...new Set(
+        projections.map(projection => projection[field]).filter(Boolean)
     )].sort();
 
-    const filteredPlayers = players.filter(player =>
-        player.toLowerCase().includes(playerSearch.toLowerCase())
+    const filteredProjections = projections.filter(projection => (
+        projection.player?.toLowerCase().includes(playerSearch.toLowerCase()) &&
+        (!positionFilter || projection.position === positionFilter) &&
+        (!teamFilter || projection.team === teamFilter) &&
+        (!opponentFilter || projection.opponent === opponentFilter)
+    ));
+
+    const renderActionButtons = (playerName) => (
+        <span className="player-actions">
+            <button
+                type="button"
+                className="action-button text-danger"
+                onClick={() => toggleExclude(playerName)}
+                disabled={excludedPlayers.includes(playerName)}
+                title={`Exclude ${playerName}`}
+                aria-label={`Exclude ${playerName}`}
+            >
+                <span role="img" aria-label="Exclude">❌</span>
+            </button>
+            <button
+                type="button"
+                className="action-button text-success"
+                onClick={() => toggleInclude(playerName)}
+                disabled={includedPlayers.includes(playerName)}
+                title={`Include ${playerName}`}
+                aria-label={`Include ${playerName}`}
+            >
+                <span role="img" aria-label="Include">✅</span>
+            </button>
+        </span>
     );
 
     const fetchProjections = async (selectedYear = year, selectedWeek = week) => {
@@ -154,55 +184,13 @@ function LineupOptimizer() {
                         <button type="submit" className="btn btn-primary optimize-button">Optimize lineups</button>
                     </form>
 
-                    <div className="player-search mb-3">
-                        <div className="panel-heading compact-heading">
-                            <span className="panel-kicker">Player pool</span>
-                        </div>
-                        <input
-                            type="search"
-                            id="player-search"
-                            className="form-control form-control-sm"
-                            value={playerSearch}
-                            onChange={(e) => setPlayerSearch(e.target.value)}
-                            placeholder="Search by name"
-                        />
-                        {playerSearch.trim() && (
-                            <ul className="player-list search-results">
-                                {filteredPlayers.map(player => (
-                                    <li key={player} className="player-item search-result">
-                                        <span>{player}</span>
-                                        <span className="player-actions">
-                                            <button
-                                                type="button"
-                                                className="btn btn-outline-danger btn-sm"
-                                                onClick={() => toggleExclude(player)}
-                                                disabled={excludedPlayers.includes(player)}
-                                                title={`Exclude ${player}`}
-                                            >
-                                                ❌
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="btn btn-outline-success btn-sm"
-                                                onClick={() => toggleInclude(player)}
-                                                disabled={includedPlayers.includes(player)}
-                                                title={`Include ${player}`}
-                                            >
-                                                ✅
-                                            </button>
-                                        </span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
                     <div id="excluded-players" className="player-group">
                         <h3>Excluded <span>{excludedPlayers.length}</span></h3>
                         <ul className="player-list">
                             {excludedPlayers.map(player => (
                                 <li key={player} className="player-item">
                                     {player}
-                                    <span className="text-danger action-button" role="button" tabIndex="0" onClick={() => toggleExclude(player)} onKeyDown={(e) => e.key === 'Enter' && toggleExclude(player)} aria-label={`Remove ${player} from excluded players`} title={`Remove ${player} from excluded players`}>❌</span>
+                                    <span className="text-danger action-button" role="button" tabIndex="0" onClick={() => toggleExclude(player)} onKeyDown={(e) => e.key === 'Enter' && toggleExclude(player)} aria-label={`Remove ${player} from excluded players`} title={`Remove ${player} from excluded players`}><span role="img" aria-label="Remove">❌</span></span>
                                 </li>
                             ))}
                         </ul>
@@ -213,33 +201,75 @@ function LineupOptimizer() {
                             {includedPlayers.map(player => (
                                 <li key={player} className="player-item">
                                     {player}
-                                    <span className="text-success action-button" role="button" tabIndex="0" onClick={() => toggleInclude(player)} onKeyDown={(e) => e.key === 'Enter' && toggleInclude(player)} aria-label={`Remove ${player} from included players`} title={`Remove ${player} from included players`}>❌</span>
+                                    <span className="text-success action-button" role="button" tabIndex="0" onClick={() => toggleInclude(player)} onKeyDown={(e) => e.key === 'Enter' && toggleInclude(player)} aria-label={`Remove ${player} from included players`} title={`Remove ${player} from included players`}><span role="img" aria-label="Remove">❌</span></span>
                                 </li>
                             ))}
                         </ul>
                     </div>
                 </aside>
 
-                <main className="lineups-main">
-                    <div className="lineups-heading">
+                <main className="player-pool-main">
+                    <div className="section-heading">
+                        <div>
+                            <p className="eyebrow">Player pool</p>
+                            <h2>Available players</h2>
+                        </div>
+                        <span className="result-count">{filteredProjections.length} players</span>
+                    </div>
+                    <div className="player-filters">
+                        <input
+                            type="search"
+                            id="player-search"
+                            className="form-control form-control-sm"
+                            value={playerSearch}
+                            onChange={(e) => setPlayerSearch(e.target.value)}
+                            placeholder="Search players"
+                        />
+                        {[
+                            ['Position', positionFilter, setPositionFilter, 'position'],
+                            ['Team', teamFilter, setTeamFilter, 'team'],
+                            ['Opponent', opponentFilter, setOpponentFilter, 'opponent'],
+                        ].map(([label, value, setter, field]) => (
+                            <select key={field} className="form-select form-select-sm" value={value} onChange={(e) => setter(e.target.value)} aria-label={`Filter by ${label}`}>
+                                <option value="">All {label}s</option>
+                                {filterOptions(field).map(option => <option key={option} value={option}>{option}</option>)}
+                            </select>
+                        ))}
+                    </div>
+                    <div className="player-table-wrap">
+                        <table className="table table-striped player-pool-table">
+                            <thead>
+                                <tr>
+                                    {mainPlayerColumns.map(col => <th key={col}>{columnLabels[col] || col.charAt(0).toUpperCase() + col.slice(1)}</th>)}
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredProjections.map((player, playerIndex) => (
+                                    <tr key={`${player.player}-${playerIndex}`}>
+                                        {mainPlayerColumns.map(col => <td key={col}>{player[col]}</td>)}
+                                        <td>{renderActionButtons(player.player)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </main>
+
+                <aside className="results-panel">
+                    <div className="section-heading">
                         <div>
                             <p className="eyebrow">Optimization results</p>
+                            <h2>Suggested lineups</h2>
                         </div>
                     </div>
-                    {loading && (
-                        <div className="loader">
-                            <div></div>
-                        </div>
-                    )}
+                    {loading && <div className="results-loading">Optimizing...</div>}
                     {lineups.length > 0 && (
                         <>
-                            <ul className="nav nav-tabs mb-2" id="lineupTabs" role="tablist">
+                            <ul className="nav nav-tabs lineup-tabs" id="lineupTabs" role="tablist">
                                 {lineups.map((_, index) => (
                                     <li key={index} className="nav-item" role="presentation">
-                                        <button
-                                            className={`nav-link ${activeTab === `lineup${index + 1}` ? 'active' : ''}`}
-                                            onClick={() => setActiveTab(`lineup${index + 1}`)}
-                                        >
+                                        <button className={`nav-link ${activeTab === `lineup${index + 1}` ? 'active' : ''}`} onClick={() => setActiveTab(`lineup${index + 1}`)}>
                                             Lineup {index + 1}
                                         </button>
                                     </li>
@@ -247,37 +277,19 @@ function LineupOptimizer() {
                             </ul>
                             <div className="tab-content">
                                 {lineups.map((lineup, index) => (
-                                    <div
-                                        key={index}
-                                        className={`tab-pane fade ${activeTab === `lineup${index + 1}` ? 'show active' : ''}`}
-                                    >
+                                    <div key={index} className={`tab-pane fade ${activeTab === `lineup${index + 1}` ? 'show active' : ''}`}>
                                         <div className="lineup-summary">
-                                            Total Projected FPTS: {lineup.reduce((sum, player) => sum + player.proj_fpts, 0).toFixed(2)} - Total Cap: ${lineup.reduce((sum, player) => sum + player.salary, 0)}
+                                            <span>{lineup.reduce((sum, player) => sum + player.proj_fpts, 0).toFixed(2)} FPTS</span>
+                                            <span>${lineup.reduce((sum, player) => sum + player.salary, 0).toLocaleString()}</span>
                                         </div>
                                         <div className="lineup-table-wrap">
                                             <table className="table table-striped">
-                                                <thead>
-                                                    <tr>
-                                                        {columnOrder.map(col => (
-                                                            <th key={col}>{columnLabels[col] || col.charAt(0).toUpperCase() + col.slice(1)}</th>
-                                                        ))}
-                                                        <th>Actions</th>
-                                                    </tr>
-                                                </thead>
+                                                <thead><tr>{playerColumns.map(col => <th key={col}>{columnLabels[col] || col.charAt(0).toUpperCase() + col.slice(1)}</th>)}<th>Actions</th></tr></thead>
                                                 <tbody>
                                                     {lineup.map((player, playerIndex) => (
-                                                        <tr key={playerIndex}>
-                                                            {columnOrder.map(col => (
-                                                                <td key={col}>{player[col]}</td>
-                                                            ))}
-                                                            <td>
-                                                                {!excludedPlayers.includes(player.player) && !includedPlayers.includes(player.player) && (
-                                                                    <>
-                                                                        <span className="action-button text-danger" onClick={() => toggleExclude(player.player)} title={`Exclude ${player.player}`} aria-label={`Exclude ${player.player}`}>❌</span>
-                                                                        <span className="action-button text-success" onClick={() => toggleInclude(player.player)} title={`Include ${player.player}`} aria-label={`Include ${player.player}`}>✅</span>
-                                                                    </>
-                                                                )}
-                                                            </td>
+                                                        <tr key={`${player.player}-${playerIndex}`}>
+                                                            {playerColumns.map(col => <td key={col}>{player[col]}</td>)}
+                                                            <td>{renderActionButtons(player.player)}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -288,7 +300,7 @@ function LineupOptimizer() {
                             </div>
                         </>
                     )}
-                </main>
+                </aside>
             </div>
         </div>
     );
