@@ -6,60 +6,53 @@ A full-stack application for optimizing DraftKings NFL daily fantasy sports (DFS
 
 ![WebApp](media/dfs_optimizer_img.png)
 
-This project combines automated data collection with intelligent lineup optimization to generate competitive DFS lineups for DraftKings NFL contests. It consists of multiple microservices orchestrated with Docker, a Python backend, and a React frontend.
+This project combines automated data collection with lineup optimization to generate DraftKings NFL DFS lineups. It consists of Dockerized scraper services, a FastAPI backend, a React frontend, and shared CSV data mounted at `/dfs_data`.
 
 ### Key Features
 
-- **Automated Data Collection**: Scheduled scrapers for salary data and player projections
-- **Resilient Architecture**: Automatic retry logic with exponential backoff for API failures
-- **Real-time Optimization**: Generates optimal lineups based on current player projections and salary constraints
-- **Web Interface**: Interactive React dashboard for lineup management
-- **Containerized**: Full Docker support for seamless deployment
+- **Automated Data Collection**: Salary and projection scrapers for DraftKings and FantasyPros data
+- **Lineup Optimization**: Generates multiple lineups using salary, position, projection, and player constraints
+- **Web Interface**: Filterable player pool with include/exclude actions and suggested lineup results
+- **Containerized**: Docker Compose build and runtime configurations for the application and data services
 
 ## Architecture
 
 ```
 dfs_lineup_optimizer/
-├── system/                           # Microservices
-│   ├── orchestrator/                 # Scheduler & container orchestration
-│   │   ├── src/
-│   │   │   └── main.py              # Handles scraper scheduling & retry logic
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   │
-│   ├── salary-scraper/              # DraftKings salary data scraper
-│   │   ├── src/
-│   │   │   ├── main.py              # Selenium-based salary scraper
-│   │   │   └── utils.py
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   │
-│   └── projection-scraper/          # FantasyPros projections scraper
-│       ├── src/
-│       │   ├── main.py              # Web scraper for player projections
-│       │   ├── configs.py           # Column mappings & logging config
-│       │   └── utils.py             # Data fetching & parsing utilities
-│       ├── Dockerfile
-│       └── requirements.txt
-│
-├── app/                              # Backend (Python)
-│   ├── src/
-│   │   ├── lineup_optimizer.py      # Optimization engine
-│   │   ├── configs.py               # Configuration
-│   │   └── utils.py                 # Helper functions
+├── api/                              # FastAPI service
+│   ├── main.py                       # Uvicorn entrypoint
+│   ├── app/
+│   │   ├── routes/                   # Projection and optimization endpoints
+│   │   ├── db/                       # Projection loading and lineup optimization
+│   │   ├── models/                   # Request and response models
+│   │   └── configs/                  # API configuration
 │   ├── Dockerfile
 │   └── requirements.txt
-│
-├── frontend/                         # Frontend (React)
-│   ├── src/
+├── frontend/                         # React web application
+│   ├── src/components/               # Lineup optimizer UI
 │   ├── public/
 │   ├── Dockerfile
 │   └── package.json
-│
-├── docker-compose.yml               # Service orchestration
-├── Makefile                         # Build & run commands
+├── system/
+│   ├── orchestrator/                 # Scraper scheduling service
+│   ├── salary-scraper/               # DraftKings salary scraper
+│   └── projection-scraper/            # Player projection scraper
+├── data/                             # Stored CSV projections, salaries, and props
+├── docker-compose.build.yml          # Image build definitions
+├── docker-compose.run.yml            # Runtime services and ports
+├── Makefile                          # Build, run, and scraper shortcuts
 └── README.md
 ```
+
+### Runtime Services
+
+The runtime Compose configuration starts:
+
+- `dfs-frontend`: React application served on port `3000`
+- `dfs-api`: FastAPI application served on port `8080`
+- `dfs-orchestration`: scraper scheduling service
+
+The salary scraper also uses `selenium-web-driver` when run manually. All services share the `dfs_optimizer_network` network. The API and scraper services use `/dfs_data` as the container-mounted data directory.
 
 ## Getting Started
 
@@ -83,10 +76,12 @@ cd dfs_lineup_optimizer
 2. Build and start all services:
 ```bash
 make build
-make up
+make run
 ```
 
 3. Access the application at http://localhost:3000
+
+The frontend loads the current projection year and week from the API, displays the available player pool, and submits optimization requests to the API. The API is available at http://localhost:8080.
 
 ## Usage
 
@@ -98,30 +93,25 @@ make run-salary-scraper
 make run-projection-scraper
 ```
 
-**Automatic scheduling** (via orchestrator):
-```bash
-make run-orchestrator
-```
+Both scraper targets stop the current runtime stack before running. Run `make run` afterward to start the application stack again. The salary scraper starts Selenium automatically. The orchestrator runs as part of `make run` and manages scheduled scraper execution inside its container.
 
-The orchestrator automatically runs:
-- **Salary Scraper**: Every Tuesday at 9:00 AM ET
-- **Projection Scraper**: Hourly from 10:00 AM to 8:00 PM ET (Tue-Thu)
+### Generate Lineups in the Web App
 
-### Generate Lineups
+Use the settings panel to choose the year, week, defense, and optional one-tight-end constraint, then select **Optimize lineups**. The player pool supports:
 
-```bash
-make run-lineup-optimizer WEEK=<week_number> [DST=<team_abbreviation>]
-```
+- Search by player name
+- Filtering by position, team, and opponent
+- Include and exclude actions for player constraints
+- Rank, grade, average FPTS, projected FPTS, and salary columns
 
-**Example:**
-```bash
-make run-lineup-optimizer WEEK=5 DST=KC
-```
+The suggested lineups panel displays multiple optimized results with player, position, team, opponent, projected FPTS, salary, and include/exclude actions.
 
-**Parameters:**
-- `WEEK`: NFL week number (default: current week)
-- `YEAR`: NFL season (default: current year)
-- `DST`: Specific defense team (optional; auto-selects best value if omitted)
+The API endpoints used by the frontend are:
+
+- `GET /projections/current_year`
+- `GET /projections/current_week`
+- `POST /projections`
+- `POST /optimize`
 
 ## Technology Stack
 
@@ -136,29 +126,24 @@ make run-lineup-optimizer WEEK=5 DST=KC
 ## Key Components
 
 ### Orchestrator
-Manages scheduled tasks with automatic retry logic. Runs salary and projection scrapers on a predefined schedule and monitors container health.
-
-**Features:**
-- Exponential backoff retry strategy (3 attempts max)
-- Real-time container log streaming
-- Error handling & logging
+Runs the scraper scheduling workflow in its own container. It shares the data directory and Docker socket so scheduled scraper jobs can run alongside the application services.
 
 ### Salary Scraper
-Extracts player salary data from DraftKings using Selenium and Chromium.
+Extracts player salary data from DraftKings using Selenium and Chromium. The manual Make target starts the Selenium WebDriver container before running the scraper.
 
 **Supports multiple contest slates:**
 - Thu-Mon, Fri-Mon, Sat-Mon, Sat-Sun
 
 ### Projection Scraper
-Fetches player projections and historical stats from FantasyPros.
+Fetches player projections and historical stats from FantasyPros and stores weekly projection CSVs.
 
 **Data collected:**
 - Weekly projections by position (QB, RB, WR, TE, DST)
 - Historical performance stats
 - Expert consensus grades
 
-### Lineup Optimizer
-Mathematical optimization engine that constructs valid lineups within DraftKings constraints.
+### API and Lineup Optimizer
+The FastAPI service loads stored weekly data and exposes the projection and optimization endpoints. Its optimization engine constructs valid lineups within DraftKings constraints.
 
 **Optimization approach:**
 - Maximizes projected fantasy points
@@ -168,31 +153,38 @@ Mathematical optimization engine that constructs valid lineups within DraftKings
 
 ## Development
 
-### Docker Commands
+### Docker and Make Commands
 
 ```bash
 # Build all images
 make build
 
-# Start all services
-make up
-
-# View logs
-make logs
+# Start the application stack
+make run
 
 # Stop services
 make down
 
-# Run individual services
-make run-orchestrator
+# Run the data scrapers manually
 make run-salary-scraper
 make run-projection-scraper
-make run-lineup-optimizer
 ```
+
+To run the frontend locally outside Docker:
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+The legacy Create React App toolchain may require `NODE_OPTIONS=--openssl-legacy-provider` with newer Node versions.
 
 ## Data Storage
 
-- **Salary data**: `data/salaries/dk_salary_YYYY_wWW.csv`
-- **Projections**: `data/projections/projections_YYYY_wWW.csv`
-- **Lineups**: `data/lineups/lineups_YYYY_wWW.csv`
+- **Salary data**: `data/salaries/dk_salary_YYYY_wW.csv`
+- **Projections**: `data/projections/fp_projection_YYYY_wW.csv`
+- **Player props**: `data/props/player_props_*.csv`
+
+At runtime, these files are mounted into containers through `/dfs_data:/app/data`. The API reads stored projections and salary data when handling requests; optimized lineups are returned in the API response and are not currently written to a separate lineups directory.
 
