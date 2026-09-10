@@ -113,6 +113,12 @@ def get_stats(
         start = weeks[0]
         end = weeks[1]
 
+    # Handle first week of the season (week 1)
+    if end is not None and end == 0:
+        start = 1
+        end = 18
+        year = year - 1
+
     position = position.upper()
     url = f"https://www.fantasypros.com/nfl/stats/{position.lower()}.php"
     params = {

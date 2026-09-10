@@ -3,7 +3,6 @@ import json
 import os
 import re
 from io import StringIO
-from typing import List, Optional, Tuple
 
 import bs4 as bs
 import pandas as pd
@@ -12,7 +11,7 @@ import requests
 from app.configs.configs import STATS_COLUMN_MAPPINGS
 
 
-def get_latest_week(year: Optional[int] = None) -> int:
+def get_latest_week(year: int | None = None) -> int:
     pattern = f"/app/data/salaries/dk_salary_{year if year else '*'}_w*.csv"
     files = glob.glob(pattern)
     if not files:
@@ -70,7 +69,7 @@ def get_weekly_rankings(position: str, year: int, week: int):
 def get_stats(
     position: str,
     year: int,
-    weeks: Tuple[int, int] or List[int, int] = None,
+    weeks: tuple[int, int] or list[int, int] = None,
     scoring: str = "PPR",
 ):
     range = None
@@ -80,6 +79,12 @@ def get_stats(
         range = "custom"
         start = weeks[0]
         end = weeks[1]
+
+    # Handle first week of the season (week 1)
+    if end is not None and end == 0:
+        start = 1
+        end = 18
+        year = year - 1
 
     position = position.upper()
     url = f"https://www.fantasypros.com/nfl/stats/{position.lower()}.php"
