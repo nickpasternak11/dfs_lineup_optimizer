@@ -204,6 +204,7 @@ function LineupOptimizer() {
         <div className="container">
             <ToastContainer theme="dark" />
             <header className="page-header">
+                <img className="brand-logo" src={`${process.env.PUBLIC_URL}/favicon-192x192.png`} alt="" />
                 <div>
                     <h1>DFS Lineup Optimizer</h1>
                 </div>
