@@ -39,7 +39,7 @@ h1 {
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.12em;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     text-transform: uppercase;
 }
 
@@ -66,8 +66,8 @@ h1 {
     padding-bottom: 16px;
 }
 
-.panel-heading {
-    margin-bottom: 12px;
+.panel-heading-override {
+    margin-bottom: 8px;
 }
 
 .filter-grid {
@@ -90,16 +90,18 @@ h1 {
     text-transform: uppercase;
 }
 
-.form-control {
+.form-control,
+.form-select {
     border-color: #ccd7dc;
 }
 
-.form-control:focus {
+.form-control:focus,
+.form-select:focus {
     border-color: #197278;
-    box-shadow: 0 0 0 0.15rem rgba(25, 114, 120, 0.15);
+    box-shadow: 0 0 0 0.15rem rgba(25, 114, 120, 0.2);
 }
 
-/* Fix for Stack QB Checkbox Layout */
+/* Stack QB Checkbox Layout */
 .form-check-stack {
     display: flex;
     align-items: center;
@@ -114,6 +116,11 @@ h1 {
     flex-shrink: 0;
     width: 1em;
     height: 1em;
+}
+
+.form-check-stack .form-check-input:checked {
+    background-color: #197278;
+    border-color: #197278;
 }
 
 .form-check-stack .form-check-label {
@@ -133,7 +140,8 @@ h1 {
     width: 100%;
 }
 
-.optimize-button:hover {
+.optimize-button:hover,
+.optimize-button:focus {
     background: #145d62;
 }
 
@@ -147,7 +155,8 @@ h1 {
     top: 20px;
     background: #ffffff;
     border: 1px solid #dce4e8;
-    border-radius: 8px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(23, 33, 43, 0.06);
     overflow: hidden;
     padding: 16px;
 }
@@ -205,7 +214,7 @@ h1 {
 }
 
 .table thead th {
-    background: #173f46;
+    background: #197278;
     color: #ffffff;
     font-size: 0.68rem;
     font-weight: 700;
@@ -233,23 +242,38 @@ h1 {
     color: #17212b;
 }
 
+/* Locked / Included Table Row Highlight */
+.player-pool-table tr.row-player-locked td {
+    background-color: #eaf6f6 !important;
+    border-top: 1px solid #b2dfdb;
+    border-bottom: 1px solid #b2dfdb;
+}
+
 .player-actions {
     display: inline-flex;
-    gap: 4px;
+    gap: 6px;
     align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    /* Keeps column width stable whether 1 or 2 icons are shown */
 }
 
 .action-button {
     background: transparent;
     border: 0;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     padding: 0 2px;
-    transition: transform 0.15s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
-.action-button:hover {
+.action-button:hover:not(:disabled) {
     transform: scale(1.2);
+}
+
+.action-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
 }
 
 .player-group {
@@ -289,13 +313,53 @@ h1 {
     padding: 4px 8px;
 }
 
+.player-item-locked {
+    background-color: #eaf6f6;
+    border-color: #b2dfdb;
+    font-weight: 600;
+}
+
+/* Reset Button */
+.reset-container {
+    border-top: 1px solid #e4eaed;
+    margin-top: 12px;
+    padding-top: 10px;
+}
+
+.btn-reset-rules {
+    width: 100%;
+    color: #197278;
+    border-color: #197278;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.btn-reset-rules:hover {
+    background-color: #197278;
+    color: #ffffff;
+}
+
 .lineup-tabs {
     border-bottom: 1px solid #dce4e8;
     margin-bottom: 12px;
 }
 
+.lineup-tabs .nav-link {
+    color: #4c5a64;
+    font-weight: 600;
+    font-size: 0.82rem;
+}
+
+.lineup-tabs .nav-link.active {
+    color: #197278;
+    border-color: #dce4e8 #dce4e8 #ffffff;
+    border-top: 3px solid #197278;
+    font-weight: 700;
+}
+
 .lineup-summary {
-    background: #f4f7f8;
+    background: #eaf6f6;
     border-left: 4px solid #197278;
     color: #17212b;
     display: flex;
@@ -304,6 +368,7 @@ h1 {
     margin-bottom: 12px;
     padding: 8px 12px;
     font-size: 0.9rem;
+    border-radius: 0 4px 4px 0;
 }
 
 .lineup-table-wrap {

@@ -27,11 +27,65 @@ const columnLabels = {
     value: "Val"
 };
 
+const TOTAL_ROSTER_LIMIT = 9;
+const SALARY_CAP = 50000;
+
 const formatCellValue = (key, val) => {
     if (val === null || val === undefined) return '';
     if (key === 'salary') return `$${Number(val).toLocaleString()}`;
     if (key === 'value') return Number(val).toFixed(2);
     return val;
+};
+
+// Lineup structure & salary cap validator
+const canIncludePlayer = (playerToInclude, currentIncludedNames, projectionsList) => {
+    if (!playerToInclude) return { allowed: false, reason: "Player not found." };
+
+    if (currentIncludedNames.includes(playerToInclude.player)) {
+        return { allowed: true };
+    }
+
+    if (currentIncludedNames.length >= TOTAL_ROSTER_LIMIT) {
+        return { allowed: false, reason: "Lineup is full (9/9 players selected)." };
+    }
+
+    const currentIncluded = projectionsList.filter(p => currentIncludedNames.includes(p.player));
+
+    const currentSalaryTotal = currentIncluded.reduce((sum, p) => sum + (p.salary || 0), 0);
+    const newSalary = playerToInclude.salary || 0;
+    if (currentSalaryTotal + newSalary > SALARY_CAP) {
+        const remaining = SALARY_CAP - currentSalaryTotal;
+        return {
+            allowed: false,
+            reason: `Exceeds salary cap. Remaining budget: $${remaining.toLocaleString()} (Player costs $${newSalary.toLocaleString()}).`
+        };
+    }
+
+    const counts = { QB: 0, RB: 0, WR: 0, TE: 0, DST: 0 };
+    currentIncluded.forEach(p => {
+        if (counts[p.position] !== undefined) counts[p.position]++;
+    });
+
+    const targetPos = playerToInclude.position;
+
+    if (targetPos === 'QB' && counts.QB >= 1) {
+        return { allowed: false, reason: "Max 1 QB allowed." };
+    }
+    if (targetPos === 'DST' && counts.DST >= 1) {
+        return { allowed: false, reason: "Max 1 DST allowed." };
+    }
+
+    const flexUsed = Math.max(0, counts.RB - 2) + Math.max(0, counts.WR - 3) + Math.max(0, counts.TE - 1);
+
+    if (targetPos === 'RB') {
+        if (counts.RB >= 2 && flexUsed >= 1) return { allowed: false, reason: "Max 3 RBs allowed (including FLEX)." };
+    } else if (targetPos === 'WR') {
+        if (counts.WR >= 3 && flexUsed >= 1) return { allowed: false, reason: "Max 4 WRs allowed (including FLEX)." };
+    } else if (targetPos === 'TE') {
+        if (counts.TE >= 1 && flexUsed >= 1) return { allowed: false, reason: "Max 2 TEs allowed (including FLEX)." };
+    }
+
+    return { allowed: true };
 };
 
 function LineupOptimizer() {
@@ -49,7 +103,6 @@ function LineupOptimizer() {
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('lineup1');
 
-    // Sorting state
     const [sortColumn, setSortColumn] = useState('salary');
     const [sortDirection, setSortDirection] = useState('desc');
 
@@ -113,41 +166,86 @@ function LineupOptimizer() {
         });
     };
 
-    const toggleInclude = (playerName) => {
-        setIncludedPlayers(prev => {
-            if (prev.includes(playerName)) {
-                return prev.filter(p => p !== playerName);
-            } else {
-                setExcludedPlayers(exc => exc.filter(p => p !== playerName));
-                return [...prev, playerName];
-            }
-        });
+    const toggleInclude = (playerTarget) => {
+        const playerName = typeof playerTarget === 'string' ? playerTarget : playerTarget.player;
+
+        if (includedPlayers.includes(playerName)) {
+            setIncludedPlayers(prev => prev.filter(p => p !== playerName));
+            return;
+        }
+
+        const targetObj = typeof playerTarget === 'object'
+            ? playerTarget
+            : projections.find(p => p.player === playerName);
+
+        const check = canIncludePlayer(targetObj, includedPlayers, projections);
+        if (!check.allowed) {
+            toast.warning(check.reason);
+            return;
+        }
+
+        setIncludedPlayers(prev => [...prev, playerName]);
+        setExcludedPlayers(prev => prev.filter(p => p !== playerName));
     };
 
-    const renderActionButtons = (playerName) => (
-        <span className="player-actions">
-            <button
-                type="button"
-                className="action-button text-danger"
-                onClick={() => toggleExclude(playerName)}
-                disabled={excludedPlayers.includes(playerName)}
-                title={`Exclude ${playerName}`}
-                aria-label={`Exclude ${playerName}`}
-            >
-                <span role="img" aria-label="Exclude">❌</span>
-            </button>
-            <button
-                type="button"
-                className="action-button text-success"
-                onClick={() => toggleInclude(playerName)}
-                disabled={includedPlayers.includes(playerName)}
-                title={`Include ${playerName}`}
-                aria-label={`Include ${playerName}`}
-            >
-                <span role="img" aria-label="Include">✅</span>
-            </button>
-        </span>
-    );
+    const handleResetAllRules = () => {
+        setIncludedPlayers([]);
+        setExcludedPlayers([]);
+        setPlayerSearch('');
+        setPositionFilter('');
+        setTeamFilter('');
+        setOpponentFilter('');
+        toast.info('All rules and filters cleared.');
+    };
+
+    const renderActionButtons = (player) => {
+        const playerObj = typeof player === 'string'
+            ? projections.find(p => p.player === player)
+            : player;
+
+        const playerName = playerObj ? playerObj.player : player;
+        const isExcluded = excludedPlayers.includes(playerName);
+        const isIncluded = includedPlayers.includes(playerName);
+        const check = canIncludePlayer(playerObj, includedPlayers, projections);
+        const canBeIncluded = isIncluded || check.allowed;
+
+        return (
+            <span className="player-actions">
+                {!isIncluded && (
+                    <button
+                        type="button"
+                        className="action-button text-danger"
+                        onClick={() => toggleExclude(playerName)}
+                        disabled={isExcluded || !canBeIncluded}
+                        style={{
+                            opacity: isExcluded || !canBeIncluded ? 0.35 : 1,
+                            cursor: !canBeIncluded ? 'not-allowed' : 'pointer'
+                        }}
+                        title={!canBeIncluded ? check.reason : `Exclude ${playerName}`}
+                        aria-label={`Exclude ${playerName}`}
+                    >
+                        <span role="img" aria-label="Exclude">❌</span>
+                    </button>
+                )}
+                <button
+                    type="button"
+                    className="action-button text-success"
+                    onClick={() => toggleInclude(playerObj || playerName)}
+                    disabled={!isIncluded && !canBeIncluded}
+                    style={{
+                        opacity: !isIncluded && !canBeIncluded ? 0.35 : 1,
+                        cursor: !canBeIncluded && !isIncluded ? 'not-allowed' : 'pointer'
+                    }}
+                    title={isIncluded ? `Unlock ${playerName}` : (!canBeIncluded ? check.reason : `Include/Lock ${playerName}`)}
+                    aria-label={`Include or Lock ${playerName}`}
+                >
+                    <span role="img" aria-label={isIncluded ? "Locked" : "Include"}>
+                        {isIncluded ? '🔒' : '✅'}
+                    </span>
+                </button>
+            </span>
+        );
+    };
 
     const fetchProjections = async (selectedYear = year, selectedWeek = week) => {
         const response = await axios.post(`${BASE_URL_API}/projections`, {
@@ -217,8 +315,11 @@ function LineupOptimizer() {
             <div className="optimizer-layout">
                 <aside className="side-panel">
                     <form onSubmit={handleSubmit} className="optimizer-controls">
-                        <div className="panel-heading">
-                            <span className="panel-kicker">Settings</span>
+                        <div className="section-heading panel-heading-override">
+                            <div>
+                                <p className="eyebrow">Controls</p>
+                                <h2>Settings</h2>
+                            </div>
                         </div>
                         <div className="filter-grid">
                             <div className="form-group">
@@ -276,13 +377,25 @@ function LineupOptimizer() {
                         <h3>Included <span>{includedPlayers.length}</span></h3>
                         <ul className="player-list">
                             {includedPlayers.map(player => (
-                                <li key={player} className="player-item">
-                                    {player}
-                                    <span className="text-success action-button" role="button" tabIndex="0" onClick={() => toggleInclude(player)} onKeyDown={(e) => e.key === 'Enter' && toggleInclude(player)} aria-label={`Remove ${player} from included players`} title={`Remove ${player} from included players`}><span role="img" aria-label="Remove">❌</span></span>
+                                <li key={player} className="player-item player-item-locked">
+                                    <span>🔒 {player}</span>
+                                    <span className="text-success action-button" role="button" tabIndex="0" onClick={() => toggleInclude(player)} onKeyDown={(e) => e.key === 'Enter' && toggleInclude(player)} aria-label={`Unlock ${player}`} title={`Unlock ${player}`}><span role="img" aria-label="Remove">❌</span></span>
                                 </li>
                             ))}
                         </ul>
                     </div>
+
+                    {(includedPlayers.length > 0 || excludedPlayers.length > 0 || playerSearch || positionFilter || teamFilter || opponentFilter) && (
+                        <div className="reset-container">
+                            <button
+                                type="button"
+                                className="btn btn-outline-secondary btn-sm btn-reset-rules"
+                                onClick={handleResetAllRules}
+                            >
+                                🔄 Reset Rules & Filters
+                            </button>
+                        </div>
+                    )}
                 </aside>
 
                 <main className="player-pool-main">
@@ -330,7 +443,7 @@ function LineupOptimizer() {
                                             >
                                                 {columnLabels[col] || col}
                                                 {isSortable && (
-                                                    <span style={{ marginLeft: '4px', opacity: isSorted ? 1 : 0.35 }}>
+                                                    <span style={{ marginLeft: '4px', opacity: isSorted ? 1 : 0.4 }}>
                                                         {isSorted ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
                                                     </span>
                                                 )}
@@ -341,14 +454,20 @@ function LineupOptimizer() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {sortedProjections.map((player, playerIndex) => (
-                                    <tr key={`${player.player}-${playerIndex}`}>
-                                        {mainPlayerColumns.map(col => (
-                                            <td key={col}>{formatCellValue(col, player[col])}</td>
-                                        ))}
-                                        <td>{renderActionButtons(player.player)}</td>
-                                    </tr>
-                                ))}
+                                {sortedProjections.map((player, playerIndex) => {
+                                    const isIncluded = includedPlayers.includes(player.player);
+                                    return (
+                                        <tr
+                                            key={`${player.player}-${playerIndex}`}
+                                            className={isIncluded ? 'row-player-locked' : ''}
+                                        >
+                                            {mainPlayerColumns.map(col => (
+                                                <td key={col}>{formatCellValue(col, player[col])}</td>
+                                            ))}
+                                            <td>{renderActionButtons(player)}</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -396,7 +515,7 @@ function LineupOptimizer() {
                                                             {playerColumns.map(col => (
                                                                 <td key={col}>{formatCellValue(col, player[col])}</td>
                                                             ))}
-                                                            <td>{renderActionButtons(player.player)}</td>
+                                                            <td>{renderActionButtons(player)}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
