@@ -1,13 +1,11 @@
 import os
 from datetime import datetime
-from typing import List, Optional
 
 import pandas as pd
 import pulp
+from configs import NFLTeam
 from pulp import PULP_CBC_CMD
 from tabulate import tabulate
-
-from configs import NFLTeam
 from utils import get_current_week, get_stats, get_weekly_rankings
 
 
@@ -16,13 +14,17 @@ class DFSLineupOptimizer:
         self.current_year = datetime.now().year
         self.current_week = get_current_week(year=self.current_year)
 
-    def get_salary_df(self, year: Optional[int] = None, week: Optional[int] = None) -> pd.DataFrame:
+    def get_salary_df(
+        self, year: int | None = None, week: int | None = None
+    ) -> pd.DataFrame:
         year = self.current_year if year is None else year
         week = self.current_week if week is None else week
         path_to_csv = f"/app/data/salaries/dk_salary_{year}_w{week}.csv"
         return pd.read_csv(path_to_csv)
 
-    def get_fantasypros_df(self, year: Optional[int] = None, week: Optional[int] = None) -> pd.DataFrame:
+    def get_fantasypros_df(
+        self, year: int | None = None, week: int | None = None
+    ) -> pd.DataFrame:
         year = self.current_year if year is None else year
         week = self.current_week if week is None else week
         df = pd.DataFrame()
@@ -33,7 +35,9 @@ class DFSLineupOptimizer:
                     df,
                     pd.merge(
                         get_weekly_rankings(pos, year, week),
-                        get_stats(pos, year, [week - 4, week - 1])[["player", "avg_fpts"]],
+                        get_stats(pos, year, [week - 4, week - 1])[
+                            ["player", "avg_fpts"]
+                        ],
                         how="left",
                     ),
                 ]
@@ -71,10 +75,12 @@ class DFSLineupOptimizer:
                 "salary",
             ]
         ]
-        
+        df["value"] = df["proj_fpts"] / (df["salary"] / 1000)
+
         print("Saving projection data..")
         output_path = os.path.join(
-            os.path.dirname(__file__), f"../data/projections/fp_projection_{year}_w{week}.csv"
+            os.path.dirname(__file__),
+            f"../data/projections/fp_projection_{year}_w{week}.csv",
         )
         df = df.fillna(0)
         df.drop_duplicates().to_csv(output_path, index=False)
@@ -82,15 +88,15 @@ class DFSLineupOptimizer:
 
     def get_lineup_df(
         self,
-        year: Optional[int] = None,
-        week: Optional[int] = None,
-        dst: Optional[NFLTeam] = None,
-        one_te: Optional[bool] = False,
+        year: int | None = None,
+        week: int | None = None,
+        dst: NFLTeam | None = None,
+        one_te: bool | None = False,
         use_avg_fpts: bool = False,
         weights: dict = {},
-        exclude_players: List[str] = [],
-        include_players: List[str] = [],
-        use_stored_data: bool = False
+        exclude_players: list[str] = [],
+        include_players: list[str] = [],
+        use_stored_data: bool = False,
     ) -> pd.DataFrame:
         selected_players = []
         budget = 50000
@@ -100,21 +106,33 @@ class DFSLineupOptimizer:
         # Get data
         year = self.current_year if year is None else year
         week = self.current_week if week is None else week
-        df = pd.read_csv(f"/app/data/projections/fp_projection_{year}_w{week}.csv") if use_stored_data else self.get_fantasypros_df(year=year, week=week)
+        df = (
+            pd.read_csv(f"/app/data/projections/fp_projection_{year}_w{week}.csv")
+            if use_stored_data
+            else self.get_fantasypros_df(year=year, week=week)
+        )
 
         # If specified, factor in avg_fpts
         if use_avg_fpts:
-            df["proj_fpts"] = round(df["proj_fpts"] * weights["proj_fpts"] + df["avg_fpts"] * weights["avg_fpts"], 1)
+            df["proj_fpts"] = round(
+                df["proj_fpts"] * weights["proj_fpts"]
+                + df["avg_fpts"] * weights["avg_fpts"],
+                1,
+            )
 
         # Handle excluded players
         df = df[~df["player"].isin(exclude_players)]
 
         # Handle selected DST
         if dst:
-            defense_row = df[(df["position"] == "DST") & (df["player"].str.contains(dst, case=False))]
+            defense_row = df[
+                (df["position"] == "DST") & (df["player"].str.contains(dst, case=False))
+            ]
             if not defense_row.empty:
                 dst_player = defense_row["player"].values[0]
-                if (dst_player not in exclude_players) and (dst_player not in include_players):
+                if (dst_player not in exclude_players) and (
+                    dst_player not in include_players
+                ):
                     selected_players.append(dst_player)
                     budget -= defense_row["salary"].values[0]
                     total_players -= 1
@@ -166,26 +184,79 @@ class DFSLineupOptimizer:
         selected_vars = pulp.LpVariable.dicts("Selected", opt_df.index, cat="Binary")
 
         # Objective function
-        prob += pulp.lpSum(opt_df.loc[i, "proj_fpts"] * selected_vars[i] for i in opt_df.index)
+        prob += pulp.lpSum(
+            opt_df.loc[i, "proj_fpts"] * selected_vars[i] for i in opt_df.index
+        )
 
         # Constraints
         prob += pulp.lpSum(selected_vars[i] for i in opt_df.index) == total_players
-        prob += pulp.lpSum(opt_df.loc[i, "salary"] * selected_vars[i] for i in opt_df.index) <= budget
-        prob += pulp.lpSum(selected_vars[i] for i in opt_df.index if opt_df.loc[i, "position"] == "QB") == QB_limit
-        prob += pulp.lpSum(selected_vars[i] for i in opt_df.index if opt_df.loc[i, "position"] == "RB") >= RB_limit
-        prob += pulp.lpSum(selected_vars[i] for i in opt_df.index if opt_df.loc[i, "position"] == "WR") >= WR_limit
+        prob += (
+            pulp.lpSum(opt_df.loc[i, "salary"] * selected_vars[i] for i in opt_df.index)
+            <= budget
+        )
+        prob += (
+            pulp.lpSum(
+                selected_vars[i]
+                for i in opt_df.index
+                if opt_df.loc[i, "position"] == "QB"
+            )
+            == QB_limit
+        )
+        prob += (
+            pulp.lpSum(
+                selected_vars[i]
+                for i in opt_df.index
+                if opt_df.loc[i, "position"] == "RB"
+            )
+            >= RB_limit
+        )
+        prob += (
+            pulp.lpSum(
+                selected_vars[i]
+                for i in opt_df.index
+                if opt_df.loc[i, "position"] == "WR"
+            )
+            >= WR_limit
+        )
         if one_te:
-            prob += pulp.lpSum(selected_vars[i] for i in opt_df.index if opt_df.loc[i, "position"] == "TE") == TE_limit
+            prob += (
+                pulp.lpSum(
+                    selected_vars[i]
+                    for i in opt_df.index
+                    if opt_df.loc[i, "position"] == "TE"
+                )
+                == TE_limit
+            )
         else:
-            prob += pulp.lpSum(selected_vars[i] for i in opt_df.index if opt_df.loc[i, "position"] == "TE") >= TE_limit
-        prob += pulp.lpSum(selected_vars[i] for i in opt_df.index if opt_df.loc[i, "position"] == "DST") == DST_limit
+            prob += (
+                pulp.lpSum(
+                    selected_vars[i]
+                    for i in opt_df.index
+                    if opt_df.loc[i, "position"] == "TE"
+                )
+                >= TE_limit
+            )
+        prob += (
+            pulp.lpSum(
+                selected_vars[i]
+                for i in opt_df.index
+                if opt_df.loc[i, "position"] == "DST"
+            )
+            == DST_limit
+        )
 
         # Solve the problem
         solver = PULP_CBC_CMD(msg=False)
         prob.solve(solver)
 
         # Return the selected players
-        selected_players.extend([opt_df.loc[i, "player"] for i in opt_df.index if selected_vars[i].varValue == 1])
+        selected_players.extend(
+            [
+                opt_df.loc[i, "player"]
+                for i in opt_df.index
+                if selected_vars[i].varValue == 1
+            ]
+        )
         selected_lineup = df[df["player"].isin(selected_players)]
         return selected_lineup
 
@@ -202,14 +273,22 @@ if __name__ == "__main__":
     print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
 
     lineup = optimizer.get_lineup_df(
-        week=week, dst=dst, one_te=one_te, use_avg_fpts=True, weights={"proj_fpts": 0.90, "avg_fpts": 0.10}
+        week=week,
+        dst=dst,
+        one_te=one_te,
+        use_avg_fpts=True,
+        weights={"proj_fpts": 0.90, "avg_fpts": 0.10},
     )
     print("\nSelected Players:")
     print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))
     print(f"Projected FantasyPros FPTS: {lineup.proj_fpts.sum()}")
 
     lineup = optimizer.get_lineup_df(
-        week=week, dst=dst, one_te=one_te, use_avg_fpts=True, weights={"proj_fpts": 0.80, "avg_fpts": 0.20}
+        week=week,
+        dst=dst,
+        one_te=one_te,
+        use_avg_fpts=True,
+        weights={"proj_fpts": 0.80, "avg_fpts": 0.20},
     )
     print("\nSelected Players:")
     print(tabulate(lineup, headers="keys", tablefmt="pretty", showindex=False))

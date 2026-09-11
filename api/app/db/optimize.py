@@ -59,7 +59,6 @@ class DFSLineupOptimizer:
             ),
             axis=1,
         )
-        df = df[~df.grade.isin(["F", "D-", "D", "D+"])]
         df = df.merge(self.get_salary_df())
         df = df[
             [
@@ -76,6 +75,7 @@ class DFSLineupOptimizer:
                 "salary",
             ]
         ]
+        df["value"] = df["proj_fpts"] / (df["salary"] / 1000)
 
         log.info("Saving projection data..")
         df = df.fillna(0)

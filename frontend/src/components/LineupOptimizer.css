@@ -13,11 +13,17 @@ body {
 
 .page-header {
     display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
     margin-bottom: 20px;
     border-bottom: 1px solid #d8e0e6;
     padding-bottom: 16px;
+}
+
+.brand-logo {
+    height: 56px;
+    object-fit: contain;
+    width: 56px;
 }
 
 h1 {
