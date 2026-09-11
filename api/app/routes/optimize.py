@@ -19,13 +19,14 @@ async def optimize(data: OptimizeRequest):
     try:
         optimizer = DFSLineupOptimizer(year=data.year, week=data.week)
         if lineups := optimizer.get_optimal_lineups(
-            dst=data.dst,
-            one_te=data.one_te,
+            stack_qb=data.stack_qb,
             excluded_players=data.excluded_players,
             included_players=data.included_players,
             use_stored_data=True,
         ):
             return lineups
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

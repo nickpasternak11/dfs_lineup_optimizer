@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -30,15 +30,14 @@ const columnLabels = {
 const formatCellValue = (key, val) => {
     if (val === null || val === undefined) return '';
     if (key === 'salary') return `$${Number(val).toLocaleString()}`;
-    if (key == 'value') return Number(val).toFixed(2);
+    if (key === 'value') return Number(val).toFixed(2);
     return val;
 };
 
 function LineupOptimizer() {
     const [year, setYear] = useState('');
     const [week, setWeek] = useState('');
-    const [dst, setDst] = useState('');
-    const [oneTe, setOneTe] = useState(false);
+    const [stackQB, setStackQB] = useState(false);
     const [excludedPlayers, setExcludedPlayers] = useState([]);
     const [includedPlayers, setIncludedPlayers] = useState([]);
     const [lineups, setLineups] = useState([]);
@@ -51,19 +50,23 @@ function LineupOptimizer() {
     const [activeTab, setActiveTab] = useState('lineup1');
 
     // Sorting state
-    const [sortColumn, setSortColumn] = useState('salary'); // Default sort by salary
-    const [sortDirection, setSortDirection] = useState('desc'); // Default sort direction
+    const [sortColumn, setSortColumn] = useState('salary');
+    const [sortDirection, setSortDirection] = useState('desc');
 
-    const filterOptions = (field) => [...new Set(
-        projections.map(projection => projection[field]).filter(Boolean)
-    )].sort();
+    const getFilterOptions = useCallback((field) => {
+        return [...new Set(
+            projections.map(projection => projection[field]).filter(Boolean)
+        )].sort();
+    }, [projections]);
 
-    const filteredProjections = projections.filter(projection => (
-        projection.player?.toLowerCase().includes(playerSearch.toLowerCase()) &&
-        (!positionFilter || projection.position === positionFilter) &&
-        (!teamFilter || projection.team === teamFilter) &&
-        (!opponentFilter || projection.opponent === opponentFilter)
-    ));
+    const filteredProjections = useMemo(() => {
+        return projections.filter(projection => (
+            projection.player?.toLowerCase().includes(playerSearch.toLowerCase()) &&
+            (!positionFilter || projection.position === positionFilter) &&
+            (!teamFilter || projection.team === teamFilter) &&
+            (!opponentFilter || projection.opponent === opponentFilter)
+        ));
+    }, [projections, playerSearch, positionFilter, teamFilter, opponentFilter]);
 
     const handleSort = (col) => {
         if (!sortableColumns.includes(col)) return;
@@ -76,26 +79,50 @@ function LineupOptimizer() {
         }
     };
 
-    const sortedProjections = [...filteredProjections].sort((a, b) => {
-        if (!sortColumn) return 0;
+    const sortedProjections = useMemo(() => {
+        return [...filteredProjections].sort((a, b) => {
+            if (!sortColumn) return 0;
 
-        let valA = a[sortColumn];
-        let valB = b[sortColumn];
+            let valA = a[sortColumn];
+            let valB = b[sortColumn];
 
-        if (valA === null || valA === undefined) return 1;
-        if (valB === null || valB === undefined) return -1;
+            if (valA === null || valA === undefined) return 1;
+            if (valB === null || valB === undefined) return -1;
 
-        if (typeof valA === 'number' && typeof valB === 'number') {
-            return sortDirection === 'asc' ? valA - valB : valB - valA;
-        }
+            if (typeof valA === 'number' && typeof valB === 'number') {
+                return sortDirection === 'asc' ? valA - valB : valB - valA;
+            }
 
-        valA = String(valA).toUpperCase();
-        valB = String(valB).toUpperCase();
+            valA = String(valA).toUpperCase();
+            valB = String(valB).toUpperCase();
 
-        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
-    });
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [filteredProjections, sortColumn, sortDirection]);
+
+    const toggleExclude = (playerName) => {
+        setExcludedPlayers(prev => {
+            if (prev.includes(playerName)) {
+                return prev.filter(p => p !== playerName);
+            } else {
+                setIncludedPlayers(inc => inc.filter(p => p !== playerName));
+                return [...prev, playerName];
+            }
+        });
+    };
+
+    const toggleInclude = (playerName) => {
+        setIncludedPlayers(prev => {
+            if (prev.includes(playerName)) {
+                return prev.filter(p => p !== playerName);
+            } else {
+                setExcludedPlayers(exc => exc.filter(p => p !== playerName));
+                return [...prev, playerName];
+            }
+        });
+    };
 
     const renderActionButtons = (playerName) => (
         <span className="player-actions">
@@ -136,8 +163,7 @@ function LineupOptimizer() {
             const data = {
                 year: selectedYear ? parseInt(selectedYear) : null,
                 week: selectedWeek ? parseInt(selectedWeek) : null,
-                dst: dst || null,
-                one_te: oneTe,
+                stack_qb: stackQB,
                 excluded_players: excludedPlayers,
                 included_players: includedPlayers
             };
@@ -171,28 +197,6 @@ function LineupOptimizer() {
         optimizeLineups();
     };
 
-    const toggleExclude = (playerName) => {
-        setExcludedPlayers(prev => {
-            if (prev.includes(playerName)) {
-                return prev.filter(p => p !== playerName);
-            } else {
-                setIncludedPlayers(inc => inc.filter(p => p !== playerName));
-                return [...prev, playerName];
-            }
-        });
-    };
-
-    const toggleInclude = (playerName) => {
-        setIncludedPlayers(prev => {
-            if (prev.includes(playerName)) {
-                return prev.filter(p => p !== playerName);
-            } else {
-                setExcludedPlayers(exc => exc.filter(p => p !== playerName));
-                return [...prev, playerName];
-            }
-        });
-    };
-
     useEffect(() => {
         fetchCurrentPeriod().catch((error) => {
             console.error('Error loading current year and week:', error);
@@ -219,21 +223,41 @@ function LineupOptimizer() {
                         <div className="filter-grid">
                             <div className="form-group">
                                 <label htmlFor="year">Year</label>
-                                <input type="number" id="year" className="form-control form-control-sm" value={year} onChange={(e) => setYear(e.target.value)} min="2024" max="2026" />
+                                <input
+                                    type="number"
+                                    id="year"
+                                    className="form-control form-control-sm"
+                                    value={year}
+                                    onChange={(e) => setYear(e.target.value)}
+                                    min="2024"
+                                    max="2026"
+                                />
                             </div>
                             <div className="form-group">
                                 <label htmlFor="week">Week</label>
-                                <input type="number" id="week" className="form-control form-control-sm" value={week} onChange={(e) => setWeek(e.target.value)} min="1" max="18" />
+                                <input
+                                    type="number"
+                                    id="week"
+                                    className="form-control form-control-sm"
+                                    value={week}
+                                    onChange={(e) => setWeek(e.target.value)}
+                                    min="1"
+                                    max="18"
+                                />
                             </div>
                         </div>
-                        <div className="form-group">
-                            <label htmlFor="dst">Defense</label>
-                            <input type="text" id="dst" className="form-control form-control-sm" value={dst} onChange={(e) => setDst(e.target.value)} placeholder="Optional team" />
+                        <div className="form-check-stack">
+                            <input
+                                type="checkbox"
+                                id="stack_qb"
+                                className="form-check-input"
+                                checked={stackQB}
+                                onChange={(e) => setStackQB(e.target.checked)}
+                            />
+                            <label className="form-check-label" htmlFor="stack_qb">
+                                Stack QB with WR/TE
+                            </label>
                         </div>
-                        <label className="te-toggle" htmlFor="one_te">
-                            <span>Limit to one TE</span>
-                            <input type="checkbox" id="one_te" className="form-check-input" checked={oneTe} onChange={(e) => setOneTe(e.target.checked)} />
-                        </label>
                         <button type="submit" className="btn btn-primary optimize-button">Optimize lineups</button>
                     </form>
 
@@ -285,7 +309,7 @@ function LineupOptimizer() {
                         ].map(([label, value, setter, field]) => (
                             <select key={field} className="form-select form-select-sm" value={value} onChange={(e) => setter(e.target.value)} aria-label={`Filter by ${label}`}>
                                 <option value="">All {label}s</option>
-                                {filterOptions(field).map(option => <option key={option} value={option}>{option}</option>)}
+                                {getFilterOptions(field).map(option => <option key={option} value={option}>{option}</option>)}
                             </select>
                         ))}
                     </div>

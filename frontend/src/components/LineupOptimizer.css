@@ -74,10 +74,11 @@ h1 {
     display: grid;
     gap: 8px;
     grid-template-columns: 1fr 1fr;
+    margin-bottom: 12px;
 }
 
 .form-group {
-    margin-bottom: 10px;
+    margin-bottom: 0;
 }
 
 .form-group label {
@@ -98,13 +99,30 @@ h1 {
     box-shadow: 0 0 0 0.15rem rgba(25, 114, 120, 0.15);
 }
 
-.te-toggle {
-    align-items: center;
-    color: #4c5a64;
+/* Fix for Stack QB Checkbox Layout */
+.form-check-stack {
     display: flex;
-    font-size: 0.8rem;
-    justify-content: space-between;
-    margin: 12px 0;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding-left: 0;
+}
+
+.form-check-stack .form-check-input {
+    margin: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+    width: 1em;
+    height: 1em;
+}
+
+.form-check-stack .form-check-label {
+    color: #4c5a64;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    line-height: 1.2;
 }
 
 .optimize-button {
@@ -249,6 +267,8 @@ h1 {
     font-weight: 700;
     margin-bottom: 6px;
     text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
 }
 
 .player-list {
@@ -289,6 +309,13 @@ h1 {
 .lineup-table-wrap {
     width: 100%;
     overflow-x: hidden;
+}
+
+.results-loading {
+    padding: 20px;
+    text-align: center;
+    color: #197278;
+    font-weight: 700;
 }
 
 @media (max-width: 1200px) {
