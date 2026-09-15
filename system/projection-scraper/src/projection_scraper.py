@@ -9,7 +9,7 @@ class ProjectionScraper:
     def __init__(self):
         self.current_date = datetime.now()
         self.current_year = self.current_date.year
-        self.current_week = get_current_week(year=self.current_year)
+        self.current_week = get_current_week()
         # adjusted year for FantasyPro's site
         self.fp_year = (
             self.current_year - 1
@@ -28,12 +28,12 @@ class ProjectionScraper:
     def scrape(self, year: int | None = None, week: int | None = None) -> None:
         year = self.current_year if year is None else year
         week = self.current_week if week is None else week
-        df = pd.DataFrame()
 
         log.info(
             "Scraping projections from FantasyPro's for year=%s, week=%s", year, week
         )
 
+        df = pd.DataFrame()
         for pos in ["QB", "RB", "WR", "TE", "DST"]:
             df = pd.concat(
                 [
@@ -48,22 +48,6 @@ class ProjectionScraper:
                 ]
             )
 
-        df["player"] = df.apply(
-            lambda x: (
-                x["player"].split()[-1]
-                if x["position"] == "DST"
-                else x["player"]
-                .replace("II", "")
-                .replace(" I", "")
-                .replace("Jr.", "")
-                .replace("Sr.", "")
-                .replace(".", "")
-                .replace("'", "")
-                .strip()
-            ),
-            axis=1,
-        )
-        df = df[~df.grade.isin(["F", "D-"])]
         df = df.merge(self.get_salary_df(year=year, week=week))
         df = df[
             [
@@ -72,16 +56,25 @@ class ProjectionScraper:
                 "player",
                 "position",
                 "team",
+                "kickoff",
                 "opponent",
                 "grade",
                 "rank",
                 "avg_fpts",
                 "proj_fpts",
                 "salary",
+                "salary_change",
             ]
         ]
         df["value"] = df["proj_fpts"] / (df["salary"] / 1000)
 
         log.info("Saving projection data..")
-        output_path = f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
+        output_path = f"/app/data/projections/fp_projection_{year}_w{week}.csv"
         df.fillna(0).drop_duplicates().to_csv(output_path, index=False)
+
+
+if __name__ == "__main__":
+    scraper = ProjectionScraper()
+    for year in range(2018, scraper.current_year + 1):
+        log.info(f"Scraping projection data for year {year}..")
+        scraper.scrape(year=year)

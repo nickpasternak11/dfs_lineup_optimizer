@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -11,27 +11,65 @@ export const BASE_URL = `${protocol}//${BASE_HOSTNAME}`;
 export const BASE_URL_API = `${BASE_URL}:8080`;
 
 const playerColumns = ["player", "position", "team", "opponent", "proj_fpts", "salary"];
-const mainPlayerColumns = ["player", "position", "team", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary", "value"];
-const sortableColumns = ["rank", "avg_fpts", "proj_fpts", "salary", "value"];
+const mainPlayerColumns = ["player", "position", "team", "kickoff", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
+const sortableColumns = ["rank", "avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
 
 const columnLabels = {
     player: "Player",
     position: "Pos",
     team: "Team",
+    kickoff: "Kickoff",
     opponent: "Opp",
     grade: "Grd",
     rank: "Rnk",
     avg_fpts: "Avg FPTS",
     proj_fpts: "Proj FPTS",
     salary: "Salary",
+    salary_change: "Salary Delta",
     value: "Val"
+};
+
+const KICKOFF_CUTOFF_OPTIONS = [
+    { label: 'All Games (No Cutoff)', value: '' },
+    { label: 'Friday or Later (Hide Thursday)', value: 'friday' },
+    { label: 'Sunday or Later (Hide Thu/Fri/Sat)', value: 'sunday' },
+    { label: 'Sunday Main Slate (1 PM ET+)', value: 'sunday_main' },
+];
+
+const formatKickoff = (val) => {
+    if (!val) return '';
+    const date = new Date(val);
+    if (isNaN(date.getTime())) return val;
+
+    return new Intl.DateTimeFormat('en-US', {
+        month: 'numeric',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    }).format(date);
 };
 
 const formatCellValue = (key, val) => {
     if (val === null || val === undefined) return '';
+    if (key === 'kickoff') return formatKickoff(val);
     if (key === 'salary') return `$${Number(val).toLocaleString()}`;
-    if (key == 'value') return Number(val).toFixed(2);
+    if (key === 'salary_change') {
+        const num = Number(val);
+        return `${num > 0 ? '+' : ''}${num.toLocaleString()}`;
+    }
+    if (key === 'value') return Number(val).toFixed(2);
     return val;
+};
+
+const getCellStyle = (key, val) => {
+    if (key === 'salary_change' && val !== null && val !== undefined) {
+        const num = Number(val);
+        if (num > 0) return { color: '#28a745', fontWeight: '600' };
+        if (num < 0) return { color: '#dc3545', fontWeight: '600' };
+    }
+    return {};
 };
 
 function LineupOptimizer() {
@@ -47,23 +85,70 @@ function LineupOptimizer() {
     const [positionFilter, setPositionFilter] = useState('');
     const [teamFilter, setTeamFilter] = useState('');
     const [opponentFilter, setOpponentFilter] = useState('');
+    const [kickoffCutoff, setKickoffCutoff] = useState('');
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('lineup1');
 
     // Sorting state
-    const [sortColumn, setSortColumn] = useState('salary'); // Default sort by salary
-    const [sortDirection, setSortDirection] = useState('desc'); // Default sort direction
+    const [sortColumn, setSortColumn] = useState('salary');
+    const [sortDirection, setSortDirection] = useState('desc');
+
+    // Dynamically calculate smart default cutoff based on current day of the week
+    const getDefaultCutoff = () => {
+        const now = new Date();
+        const day = now.getDay(); // 0 = Sun, 1 = Mon, ..., 5 = Fri, 6 = Sat
+
+        // If it's Friday or Saturday, default to hiding Thursday games
+        if (day === 5 || day === 6) {
+            return 'friday';
+        }
+        // If it's Sunday after Thursday/Friday games, default to Sunday games
+        if (day === 0) {
+            return 'sunday';
+        }
+        return '';
+    };
 
     const filterOptions = (field) => [...new Set(
         projections.map(projection => projection[field]).filter(Boolean)
     )].sort();
 
-    const filteredProjections = projections.filter(projection => (
-        projection.player?.toLowerCase().includes(playerSearch.toLowerCase()) &&
-        (!positionFilter || projection.position === positionFilter) &&
-        (!teamFilter || projection.team === teamFilter) &&
-        (!opponentFilter || projection.opponent === opponentFilter)
-    ));
+    // Helper to evaluate if a kickoff passes the selected cutoff filter
+    const satisfiesKickoffCutoff = (kickoffStr, cutoffKey) => {
+        if (!cutoffKey || !kickoffStr) return true;
+        const kDate = new Date(kickoffStr);
+        if (isNaN(kDate.getTime())) return true;
+
+        const yearNum = kDate.getFullYear();
+        const monthNum = kDate.getMonth();
+        const dateNum = kDate.getDate();
+
+        if (cutoffKey === 'friday') {
+            // Include games starting Friday (day index 5) or later in the week
+            return kDate.getDay() >= 5 || kDate.getDay() === 0 || kDate.getDay() === 1;
+        }
+        if (cutoffKey === 'sunday') {
+            // Include Sunday (0) or Monday (1) games
+            return kDate.getDay() === 0 || kDate.getDay() === 1;
+        }
+        if (cutoffKey === 'sunday_main') {
+            // Include Sunday games starting at or after 1:00 PM ET
+            if (kDate.getDay() !== 0) return false;
+            const sundayNoon = new Date(yearNum, monthNum, dateNum, 13, 0, 0);
+            return kDate >= sundayNoon;
+        }
+        return true;
+    };
+
+    const filteredProjections = useMemo(() => {
+        return projections.filter(projection => (
+            projection.player?.toLowerCase().includes(playerSearch.toLowerCase()) &&
+            (!positionFilter || projection.position === positionFilter) &&
+            (!teamFilter || projection.team === teamFilter) &&
+            (!opponentFilter || projection.opponent === opponentFilter) &&
+            satisfiesKickoffCutoff(projection.kickoff, kickoffCutoff)
+        ));
+    }, [projections, playerSearch, positionFilter, teamFilter, opponentFilter, kickoffCutoff]);
 
     const handleSort = (col) => {
         if (!sortableColumns.includes(col)) return;
@@ -76,26 +161,28 @@ function LineupOptimizer() {
         }
     };
 
-    const sortedProjections = [...filteredProjections].sort((a, b) => {
-        if (!sortColumn) return 0;
+    const sortedProjections = useMemo(() => {
+        return [...filteredProjections].sort((a, b) => {
+            if (!sortColumn) return 0;
 
-        let valA = a[sortColumn];
-        let valB = b[sortColumn];
+            let valA = a[sortColumn];
+            let valB = b[sortColumn];
 
-        if (valA === null || valA === undefined) return 1;
-        if (valB === null || valB === undefined) return -1;
+            if (valA === null || valA === undefined) return 1;
+            if (valB === null || valB === undefined) return -1;
 
-        if (typeof valA === 'number' && typeof valB === 'number') {
-            return sortDirection === 'asc' ? valA - valB : valB - valA;
-        }
+            if (typeof valA === 'number' && typeof valB === 'number') {
+                return sortDirection === 'asc' ? valA - valB : valB - valA;
+            }
 
-        valA = String(valA).toUpperCase();
-        valB = String(valB).toUpperCase();
+            valA = String(valA).toUpperCase();
+            valB = String(valB).toUpperCase();
 
-        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
-    });
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [filteredProjections, sortColumn, sortDirection]);
 
     const renderActionButtons = (playerName) => (
         <span className="player-actions">
@@ -133,12 +220,21 @@ function LineupOptimizer() {
     const optimizeLineups = async (selectedYear = year, selectedWeek = week) => {
         setLoading(true);
         try {
+            // Note: The optimizer API works on filtered projections or uses excluded_players
+            // Automatically exclude players filtered out by the cutoff if needed
+            const currentFilteredNames = filteredProjections.map(p => p.player);
+            const hiddenPlayers = projections
+                .map(p => p.player)
+                .filter(name => !currentFilteredNames.includes(name));
+
+            const combinedExcluded = Array.from(new Set([...excludedPlayers, ...hiddenPlayers]));
+
             const data = {
                 year: selectedYear ? parseInt(selectedYear) : null,
                 week: selectedWeek ? parseInt(selectedWeek) : null,
                 dst: dst || null,
                 one_te: oneTe,
-                excluded_players: excludedPlayers,
+                excluded_players: combinedExcluded,
                 included_players: includedPlayers
             };
             await fetchProjections(selectedYear, selectedWeek);
@@ -163,6 +259,7 @@ function LineupOptimizer() {
         const currentWeek = String(weekResponse.data);
         setYear(currentYear);
         setWeek(currentWeek);
+        setKickoffCutoff(getDefaultCutoff());
         optimizeLineups(currentYear, currentWeek);
     };
 
@@ -270,24 +367,38 @@ function LineupOptimizer() {
                         <span className="result-count">{filteredProjections.length} players</span>
                     </div>
                     <div className="player-filters">
-                        <input
-                            type="search"
-                            id="player-search"
-                            className="form-control form-control-sm"
-                            value={playerSearch}
-                            onChange={(e) => setPlayerSearch(e.target.value)}
-                            placeholder="Search players"
-                        />
-                        {[
-                            ['Position', positionFilter, setPositionFilter, 'position'],
-                            ['Team', teamFilter, setTeamFilter, 'team'],
-                            ['Opponent', opponentFilter, setOpponentFilter, 'opponent'],
-                        ].map(([label, value, setter, field]) => (
-                            <select key={field} className="form-select form-select-sm" value={value} onChange={(e) => setter(e.target.value)} aria-label={`Filter by ${label}`}>
-                                <option value="">All {label}s</option>
-                                {filterOptions(field).map(option => <option key={option} value={option}>{option}</option>)}
+                        <div className="primary-filters">
+                            <input
+                                type="search"
+                                id="player-search"
+                                className="form-control form-control-sm"
+                                value={playerSearch}
+                                onChange={(e) => setPlayerSearch(e.target.value)}
+                                placeholder="Search players"
+                            />
+                            <select
+                                className="form-select form-select-sm"
+                                value={kickoffCutoff}
+                                onChange={(e) => setKickoffCutoff(e.target.value)}
+                                aria-label="Filter by Kickoff Slate"
+                            >
+                                {KICKOFF_CUTOFF_OPTIONS.map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
                             </select>
-                        ))}
+                        </div>
+                        <div className="secondary-filters">
+                            {[
+                                ['Position', positionFilter, setPositionFilter, 'position'],
+                                ['Team', teamFilter, setTeamFilter, 'team'],
+                                ['Opponent', opponentFilter, setOpponentFilter, 'opponent'],
+                            ].map(([label, value, setter, field]) => (
+                                <select key={field} className="form-select form-select-sm" value={value} onChange={(e) => setter(e.target.value)} aria-label={`Filter by ${label}`}>
+                                    <option value="">All {label}s</option>
+                                    {filterOptions(field).map(option => <option key={option} value={option}>{option}</option>)}
+                                </select>
+                            ))}
+                        </div>
                     </div>
                     <div className="player-table-wrap">
                         <table className="table table-striped player-pool-table">
@@ -320,7 +431,9 @@ function LineupOptimizer() {
                                 {sortedProjections.map((player, playerIndex) => (
                                     <tr key={`${player.player}-${playerIndex}`}>
                                         {mainPlayerColumns.map(col => (
-                                            <td key={col}>{formatCellValue(col, player[col])}</td>
+                                            <td key={col} style={getCellStyle(col, player[col])}>
+                                                {formatCellValue(col, player[col])}
+                                            </td>
                                         ))}
                                         <td>{renderActionButtons(player.player)}</td>
                                     </tr>
@@ -370,7 +483,9 @@ function LineupOptimizer() {
                                                     {lineup.map((player, playerIndex) => (
                                                         <tr key={`${player.player}-${playerIndex}`}>
                                                             {playerColumns.map(col => (
-                                                                <td key={col}>{formatCellValue(col, player[col])}</td>
+                                                                <td key={col} style={getCellStyle(col, player[col])}>
+                                                                    {formatCellValue(col, player[col])}
+                                                                </td>
                                                             ))}
                                                             <td>{renderActionButtons(player.player)}</td>
                                                         </tr>

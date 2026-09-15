@@ -2,30 +2,42 @@ import json
 import re
 from io import StringIO
 
-import bs4 as bs
+import bs4
 import pandas as pd
 import requests
 from src.configs import PROJECTIONS_COLUMN_MAPPINGS, STATS_COLUMN_MAPPINGS
 
 
-def get_current_week(year: int):
-    url = "https://www.fantasypros.com/nfl/reports/leaders/"
-    params = {"year": year}
-    r = requests.get(
-        url,
-        params=params,
-        timeout=30,
-    )
+def get_current_week() -> int:
+    """Fetch the current NFL week number from FantasyPros.
+
+    Returns default_week if the request fails or parsing finds no match.
+    """
+    url = "https://www.fantasypros.com/nfl/schedule.php"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        )
+    }
 
     try:
-        tables = pd.read_html(StringIO(r.text), attrs={"id": "data"})
-        df = tables[0].iloc[:, 1:]
-    except ValueError:
-        return 1  # Return 1 if no tables are found
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
 
-    # Find the first column where all values are NaN to get current week
-    week = int(df.columns[df.isna().all()][0]) if df.isna().all().any() else 1
-    return week
+        soup = bs4.BeautifulSoup(response.text, "html.parser")
+        caption = soup.select_one("table#data caption.hidden-aria")
+
+        if caption and (
+            match := re.search(r"Week\s+(\d+)", caption.get_text(), re.IGNORECASE)
+        ):
+            return int(match.group(1))
+
+    except (requests.RequestException, ValueError) as e:
+        print(f"Warning: Failed to fetch current week ({e}). Defaulting to 1.")
+
+    return 1
 
 
 def get_weekly_rankings(position: str, year: int, week: int):
@@ -34,7 +46,7 @@ def get_weekly_rankings(position: str, year: int, week: int):
     url = f"https://www.fantasypros.com/nfl/rankings/{'ppr-' if position not in ['QB', 'DST'] else ''}{position.lower()}.php"
     params = {"year": year, "week": week}
     r = requests.get(url, params=params)
-    cxt = bs.BeautifulSoup(r.text, features="lxml")
+    cxt = bs4.BeautifulSoup(r.text, features="lxml")
     script_tags = cxt.find_all("script", attrs={"type": "text/javascript"})
     for script_tag in script_tags:
         script_text = script_tag.text.strip()

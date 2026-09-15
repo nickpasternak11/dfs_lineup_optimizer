@@ -43,11 +43,12 @@ h1 {
     text-transform: uppercase;
 }
 
+/* Adjusted layout proportions to give the main player table more room */
 .optimizer-layout {
     align-items: start;
     display: grid;
     gap: 16px;
-    grid-template-columns: 220px 1.4fr 1fr;
+    grid-template-columns: 200px 2.2fr 1fr;
 }
 
 .side-panel {
@@ -161,13 +162,26 @@ h1 {
     background: #ffffff;
     border: 1px solid #dce4e8;
     border-radius: 8px;
-    display: grid;
-    gap: 8px;
-    grid-template-columns: 1.5fr repeat(3, 1fr);
     margin-bottom: 12px;
     padding: 8px;
 }
 
+.primary-filters,
+.secondary-filters {
+    display: grid;
+    gap: 8px;
+}
+
+.primary-filters {
+    grid-template-columns: 1.5fr 1fr;
+}
+
+.secondary-filters {
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: 8px;
+}
+
+/* Enabled horizontal scrolling as safety fallthrough for smaller viewports */
 .player-table-wrap {
     background: #ffffff;
     border: 1px solid #dce4e8;
@@ -175,7 +189,7 @@ h1 {
     max-height: calc(100vh - 180px);
     min-height: 360px;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto;
 }
 
 .table {
@@ -186,12 +200,13 @@ h1 {
     border-collapse: collapse;
 }
 
+/* Reduced table padding and font-size to allow standard sizing to fit */
 .table thead th {
     background: #173f46;
     color: #ffffff;
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     font-weight: 700;
-    padding: 8px 6px;
+    padding: 6px 4px;
     text-transform: uppercase;
     white-space: nowrap;
     position: sticky;
@@ -201,12 +216,21 @@ h1 {
 
 .table tbody td {
     color: #3f4d56;
-    font-size: 0.8rem;
-    padding: 6px 6px;
+    font-size: 0.75rem;
+    padding: 5px 4px;
     vertical-align: middle;
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
+}
+
+/* Constrained Kickoff column width so date strings do not overflow */
+.player-pool-table td:nth-child(4),
+.player-pool-table th:nth-child(4) {
+    font-size: 0.7rem;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .player-pool-table td:nth-child(1),
@@ -288,12 +312,12 @@ h1 {
 
 .lineup-table-wrap {
     width: 100%;
-    overflow-x: hidden;
+    overflow-x: auto;
 }
 
 @media (max-width: 1200px) {
     .optimizer-layout {
-        grid-template-columns: 220px 1fr;
+        grid-template-columns: 200px 1fr;
     }
 
     .results-panel {
@@ -308,6 +332,15 @@ h1 {
     }
 
     .player-filters {
+        background: #ffffff;
+        border: 1px solid #dce4e8;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        padding: 8px;
+    }
+
+    .primary-filters,
+    .secondary-filters {
         grid-template-columns: 1fr;
     }
 }

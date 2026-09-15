@@ -11,7 +11,9 @@ from app.helpers.optimize import get_latest_week, get_stats, get_weekly_rankings
 class DFSLineupOptimizer:
     def __init__(self, year: int | None = None, week: int | None = None):
         self.current_year = datetime.now().year if year is None else year
-        self.current_week = get_latest_week(year=year) if week is None else week
+        self.current_week = (
+            get_latest_week(year=self.current_year) if week is None else week
+        )
 
     def get_salary_df(self) -> pd.DataFrame:
         path_to_csv = (
@@ -20,14 +22,17 @@ class DFSLineupOptimizer:
         return pd.read_csv(path_to_csv)
 
     def get_projections_df(self, use_stored_data: bool = False) -> pd.DataFrame:
-        year = self.current_year
-        week = self.current_week
-
         if use_stored_data:
-            log.info("Using stored data")
+            log.info("Using stored data..")
             return pd.read_csv(
-                f"/app/data/projections/fp_projection_{year}_w{week}.csv"
+                f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
             )
+
+        log.info(
+            "Scraping projections from FantasyPro's for year=%s, week=%s",
+            self.current_year,
+            self.current_week,
+        )
 
         df = pd.DataFrame()
         for pos in ["QB", "RB", "WR", "TE", "DST"]:
@@ -35,30 +40,17 @@ class DFSLineupOptimizer:
                 [
                     df,
                     pd.merge(
-                        get_weekly_rankings(pos, year, week),
-                        get_stats(pos, year, [week - 4, week - 1])[
-                            ["player", "avg_fpts"]
-                        ],
+                        get_weekly_rankings(pos, self.current_year, self.current_week),
+                        get_stats(
+                            pos,
+                            self.current_year,
+                            [self.current_week - 4, self.current_week - 1],
+                        )[["player", "avg_fpts"]],
                         how="left",
                     ),
                 ]
             )
 
-        df["player"] = df.apply(
-            lambda x: (
-                x["player"].split()[-1]
-                if x["position"] == "DST"
-                else x["player"]
-                .replace("II", "")
-                .replace(" I", "")
-                .replace("Jr.", "")
-                .replace("Sr.", "")
-                .replace(".", "")
-                .replace("'", "")
-                .strip()
-            ),
-            axis=1,
-        )
         df = df.merge(self.get_salary_df())
         df = df[
             [
@@ -67,20 +59,21 @@ class DFSLineupOptimizer:
                 "player",
                 "position",
                 "team",
+                "kickoff",
                 "opponent",
                 "grade",
                 "rank",
                 "avg_fpts",
                 "proj_fpts",
                 "salary",
+                "salary_change",
             ]
         ]
         df["value"] = df["proj_fpts"] / (df["salary"] / 1000)
 
         log.info("Saving projection data..")
-        df = df.fillna(0)
-        output_path = f"/app/data/projections/fp_projection_{year}_w{week}.csv"
-        df.drop_duplicates().to_csv(output_path, index=False)
+        output_path = f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
+        df.fillna(0).drop_duplicates().to_csv(output_path, index=False)
         return df
 
     def optimize(
