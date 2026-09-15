@@ -62,7 +62,7 @@ const formatCellValue = (key, val) => {
         const num = Number(val);
         return `${num > 0 ? '+' : ''}${num.toLocaleString()}`;
     }
-    if (key ==== 'value') return Number(val).toFixed(2);
+    if (key === 'value') return Number(val).toFixed(2);
     return val;
 };
 
@@ -219,62 +219,20 @@ function LineupOptimizer() {
     const sortedProjections = useMemo(() => {
         return [...filteredProjections].sort((a, b) => {
             if (!sortColumn) return 0;
-            const sortedProjections = useMemo(() => {
-                return [...filteredProjections].sort((a, b) => {
-                    if (!sortColumn) return 0;
 
-                    let valA = a[sortColumn];
-                    let valB = b[sortColumn];
-                    let valA = a[sortColumn];
-                    let valB = b[sortColumn];
+            let valA = a[sortColumn];
+            let valB = b[sortColumn];
 
-                    if (valA === null || valA === undefined) return 1;
-                    if (valB === null || valB === undefined) return -1;
-                    if (valA === null || valA === undefined) return 1;
-                    if (valB === null || valB === undefined) return -1;
+            if (valA === null || valA === undefined) return 1;
+            if (valB === null || valB === undefined) return -1;
 
-                    if (typeof valA === 'number' && typeof valB === 'number') {
-                        return sortDirection === 'asc' ? valA - valB : valB - valA;
-                    }
-                    if (typeof valA === 'number' && typeof valB === 'number') {
-                        return sortDirection === 'asc' ? valA - valB : valB - valA;
-                    }
+            if (typeof valA === 'number' && typeof valB === 'number') {
+                return sortDirection === 'asc' ? valA - valB : valB - valA;
+            }
 
-                    valA = String(valA).toUpperCase();
-                    valB = String(valB).toUpperCase();
-                    valA = String(valA).toUpperCase();
-                    valB = String(valB).toUpperCase();
+            valA = String(valA).toUpperCase();
+            valB = String(valB).toUpperCase();
 
-                    if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-                    if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-                    return 0;
-                });
-            }, [filteredProjections, sortColumn, sortDirection]);
-
-            const renderActionButtons = (playerName) => (
-                <span className="player-actions">
-                    <button
-                        type="button"
-                        className="action-button text-danger"
-                        onClick={() => toggleExclude(playerName)}
-                        disabled={excludedPlayers.includes(playerName)}
-                        title={`Exclude ${playerName}`}
-                        aria-label={`Exclude ${playerName}`}
-                    >
-                        <span role="img" aria-label="Exclude">❌</span>
-                    </button>
-                    <button
-                        type="button"
-                        className="action-button text-success"
-                        onClick={() => toggleInclude(playerName)}
-                        disabled={includedPlayers.includes(playerName)}
-                        title={`Include ${playerName}`}
-                        aria-label={`Include ${playerName}`}
-                    >
-                        <span role="img" aria-label="Include">✅</span>
-                    </button>
-                </span>
-            );
             if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
             if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
             return 0;
@@ -571,7 +529,7 @@ function LineupOptimizer() {
                             ].map(([label, value, setter, field]) => (
                                 <select key={field} className="form-select form-select-sm" value={value} onChange={(e) => setter(e.target.value)} aria-label={`Filter by ${label}`}>
                                     <option value="">All {label}s</option>
-                                    {filterOptions(field).map(option => <option key={option} value={option}>{option}</option>)}
+                                    {getFilterOptions(field).map(option => <option key={option} value={option}>{option}</option>)}
                                 </select>
                             ))}
                         </div>
@@ -612,7 +570,9 @@ function LineupOptimizer() {
                                             className={isIncluded ? 'row-player-locked' : ''}
                                         >
                                             {mainPlayerColumns.map(col => (
-                                                <td key={col}>{formatCellValue(col, player[col])}</td>
+                                                <td key={col} style={getCellStyle(col, player[col])}>
+                                                    {formatCellValue(col, player[col])}
+                                                </td>
                                             ))}
                                             <td>{renderActionButtons(player)}</td>
                                         </tr>

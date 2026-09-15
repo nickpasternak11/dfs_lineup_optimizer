@@ -43,12 +43,12 @@ h1 {
     text-transform: uppercase;
 }
 
-/* Adjusted layout proportions to give the main player table more room */
+/* Three-column layout for controls, main player pool, and lineup output */
 .optimizer-layout {
     align-items: start;
     display: grid;
     gap: 16px;
-    grid-template-columns: 200px 2.2fr 1fr;
+    grid-template-columns: 220px 2.2fr 1.1fr;
 }
 
 .side-panel {
@@ -59,6 +59,7 @@ h1 {
     padding: 16px;
     position: sticky;
     top: 20px;
+    z-index: 5;
 }
 
 .optimizer-controls {
@@ -137,8 +138,10 @@ h1 {
     background: #197278;
     border: 0;
     font-weight: 700;
-    padding: 8px 12px;
+    padding: 10px 12px;
     width: 100%;
+    border-radius: 6px;
+    transition: background-color 0.15s ease-in-out;
 }
 
 .optimize-button:hover,
@@ -160,6 +163,7 @@ h1 {
     box-shadow: 0 8px 24px rgba(23, 33, 43, 0.06);
     overflow: hidden;
     padding: 16px;
+    z-index: 5;
 }
 
 .section-heading {
@@ -208,7 +212,7 @@ h1 {
     margin-top: 8px;
 }
 
-/* Enabled horizontal scrolling as safety fallthrough for smaller viewports */
+/* Horizontal scrolling container for player pool table */
 .player-table-wrap {
     background: #ffffff;
     border: 1px solid #dce4e8;
@@ -219,45 +223,34 @@ h1 {
     overflow-x: auto;
 }
 
-.table {
-    background: #ffffff;
-    margin-bottom: 0;
+.player-pool-table {
     width: 100%;
+    min-width: 850px;
     table-layout: auto;
     border-collapse: collapse;
 }
 
-/* Reduced table padding and font-size to allow standard sizing to fit */
-.table thead th {
+.player-pool-table thead th {
     background: #197278;
     color: #ffffff;
     font-size: 0.65rem;
     font-weight: 700;
-    padding: 6px 4px;
+    padding: 8px 6px;
     text-transform: uppercase;
-    white-space: nowrap;
+    white-space: nowrap !important;
     position: sticky;
     top: 0;
     z-index: 10;
 }
 
-.table tbody td {
+.player-pool-table tbody td {
     color: #3f4d56;
     font-size: 0.75rem;
-    padding: 5px 4px;
+    padding: 6px 4px;
     vertical-align: middle;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow: hidden;
-}
-
-/* Constrained Kickoff column width so date strings do not overflow */
-.player-pool-table td:nth-child(4),
-.player-pool-table th:nth-child(4) {
-    font-size: 0.7rem;
-    max-width: 110px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: nowrap !important;
+    text-overflow: clip !important;
+    overflow: visible !important;
 }
 
 .player-pool-table td:nth-child(1),
@@ -279,7 +272,6 @@ h1 {
     align-items: center;
     justify-content: center;
     min-width: 44px;
-    /* Keeps column width stable whether 1 or 2 icons are shown */
 }
 
 .action-button {
@@ -287,12 +279,17 @@ h1 {
     border: 0;
     cursor: pointer;
     font-size: 0.85rem;
-    padding: 0 2px;
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    padding: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: transform 0.15s ease, background-color 0.15s ease;
 }
 
 .action-button:hover:not(:disabled) {
-    transform: scale(1.2);
+    transform: scale(1.15);
+    background-color: #eaf6f6;
 }
 
 .action-button:disabled {
@@ -353,10 +350,14 @@ h1 {
 .btn-reset-rules {
     width: 100%;
     color: #197278;
-    border-color: #197278;
+    border: 1px solid #197278;
+    background: transparent;
     font-size: 0.72rem;
     font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 4px;
     text-transform: uppercase;
+    transition: all 0.15s ease-in-out;
 }
 
 .btn-reset-rules:hover {
@@ -395,9 +396,43 @@ h1 {
     border-radius: 0 4px 4px 0;
 }
 
-.lineup-table-wrap {
+/* Suggested Lineups Results Panel (Auto-fit layout with horizontal scroll support) */
+.results-panel .lineup-table-wrap {
     width: 100%;
     overflow-x: auto;
+}
+
+.results-panel table {
+    width: 100%;
+    min-width: 380px;
+    table-layout: auto;
+    font-size: 0.75rem;
+    border-collapse: collapse;
+}
+
+.results-panel th {
+    background: #197278;
+    color: #ffffff;
+    font-size: 0.65rem !important;
+    font-weight: 700;
+    padding: 6px 4px !important;
+    text-transform: uppercase;
+    white-space: nowrap !important;
+    text-align: center;
+}
+
+.results-panel td {
+    padding: 6px 4px !important;
+    white-space: nowrap !important;
+    text-overflow: clip !important;
+    overflow: visible !important;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.results-panel th:first-child,
+.results-panel td:first-child {
+    text-align: left;
 }
 
 .results-loading {
@@ -407,6 +442,7 @@ h1 {
     font-weight: 700;
 }
 
+/* Responsive Viewport Layout Adjustments */
 @media (max-width: 1200px) {
     .optimizer-layout {
         grid-template-columns: 200px 1fr;
@@ -421,14 +457,6 @@ h1 {
 @media (max-width: 768px) {
     .optimizer-layout {
         grid-template-columns: 1fr;
-    }
-
-    .player-filters {
-        background: #ffffff;
-        border: 1px solid #dce4e8;
-        border-radius: 8px;
-        margin-bottom: 12px;
-        padding: 8px;
     }
 
     .primary-filters,
