@@ -342,20 +342,11 @@ function LineupOptimizer() {
     const optimizeLineups = async (selectedYear = year, selectedWeek = week) => {
         setLoading(true);
         try {
-            // Note: The optimizer API works on filtered projections or uses excluded_players
-            // Automatically exclude players filtered out by the cutoff if needed
-            const currentFilteredNames = filteredProjections.map(p => p.player);
-            const hiddenPlayers = projections
-                .map(p => p.player)
-                .filter(name => !currentFilteredNames.includes(name));
-
-            const combinedExcluded = Array.from(new Set([...excludedPlayers, ...hiddenPlayers]));
-
             const data = {
                 year: selectedYear ? parseInt(selectedYear) : null,
                 week: selectedWeek ? parseInt(selectedWeek) : null,
                 stack_qb: stackQB,
-                excluded_players: combinedExcluded,
+                excluded_players: excludedPlayers,
                 included_players: includedPlayers
             };
             await fetchProjections(selectedYear, selectedWeek);
