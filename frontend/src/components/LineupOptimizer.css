@@ -348,6 +348,29 @@ h1 {
     color: #a33636;
 }
 
+.pool-opponent-cell {
+    align-items: center;
+    display: inline-flex;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.pool-opponent-cell small {
+    color: #6d7a82;
+    font-size: 0.66rem;
+    font-weight: 600;
+}
+
+.pool-opponent-cell.opponent-top-defense>span {
+    color: #b23b3b;
+    font-weight: 700;
+}
+
+.pool-opponent-cell.opponent-bottom-defense>span {
+    color: #25804a;
+    font-weight: 700;
+}
+
 .player-pool-table td:nth-child(1),
 .results-panel table td:nth-child(1) {
     font-weight: 600;

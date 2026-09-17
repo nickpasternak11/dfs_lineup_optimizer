@@ -11,22 +11,20 @@ export const BASE_URL = `${protocol}//${BASE_HOSTNAME}`;
 export const BASE_URL_API = `${BASE_URL}:8080`;
 
 const playerColumns = ["player", "position", "proj_fpts", "salary"];
-const mainPlayerColumns = ["player", "position", "team", "kickoff", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
-const sortableColumns = ["rank", "avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
+const mainPlayerColumns = ["player", "position", "team", "opponent", "grade", "avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
+const sortableColumns = ["avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
 
 const columnLabels = {
     player: "Player",
     position: "Pos",
     team: "Team",
-    kickoff: "Kickoff",
     opponent: "Opp",
-    grade: "Grd",
-    rank: "Rnk",
+    grade: "Grade",
     avg_fpts: "Avg FPTS",
     proj_fpts: "Proj FPTS",
     salary: "Salary",
-    salary_change: "Salary Delta",
-    value: "Val"
+    salary_change: "Salary Δ",
+    value: "Value"
 };
 
 const TOTAL_ROSTER_LIMIT = 9;
@@ -55,6 +53,21 @@ const formatKickoff = (val) => {
     }).format(date);
 };
 
+const formatCompactKickoff = (val) => {
+    if (!val) return '';
+    const date = new Date(val);
+    if (isNaN(date.getTime())) return '';
+
+    const formatted = new Intl.DateTimeFormat('en-US', {
+        weekday: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    }).format(date);
+
+    return formatted.replace(',', '').replace(/ (AM|PM)$/, '$1');
+};
+
 const formatCellValue = (key, val) => {
     if (val === null || val === undefined) return '';
     if (key === 'kickoff') return formatKickoff(val);
@@ -71,9 +84,16 @@ const formatLineupMatchup = (player) => {
     if (!player.team || !player.opponent) return '';
 
     const homeValue = String(player.home ?? '').toLowerCase();
-    const isHome = [true, 1, '1', 'true', 'h', 'home', 'a'].includes(player.home) ||
-        ['1', 'true', 'h', 'home', 'a'].includes(homeValue);
+    const isHome = [true, 1, '1', 'true', 'h', 'home'].includes(player.home) ||
+        ['1', 'true', 'h', 'home'].includes(homeValue);
     return `${isHome ? 'vs' : '@'} ${player.opponent}`;
+};
+
+const formatPoolOpponent = (player) => {
+    const homeValue = String(player.home ?? '').toLowerCase();
+    const isHome = [true, 1, '1', 'true', 'h', 'home'].includes(player.home) ||
+        ['1', 'true', 'h', 'home'].includes(homeValue);
+    return `${isHome ? '' : '@'}${player.opponent || ''}`.trim();
 };
 
 // Lineup structure & salary cap validator
@@ -142,6 +162,14 @@ const getGradeClassName = (grade) => {
     if (normalizedGrade.startsWith('B')) return 'grade-b';
     if (normalizedGrade.startsWith('C')) return 'grade-c';
     return 'grade-d';
+};
+
+const getDefenseClassName = (defenseRank) => {
+    const rank = Number(defenseRank);
+    if (!Number.isFinite(rank)) return '';
+    if (rank <= 10) return 'opponent-top-defense';
+    if (rank >= 23) return 'opponent-bottom-defense';
+    return '';
 };
 
 function LineupOptimizer() {
@@ -515,7 +543,16 @@ function LineupOptimizer() {
                             >
                                 {mainPlayerColumns.map(col => (
                                     <td key={col} style={getCellStyle(col, player[col])}>
-                                        {col === 'grade' ? (
+                                        {col === 'opponent' ? (
+                                            <div className={`pool-opponent-cell ${getDefenseClassName(
+                                                projections.find(projection => (
+                                                    projection.position === 'DST' && projection.team === player.opponent
+                                                ))?.rank
+                                            )}`}>
+                                                <span>{formatPoolOpponent(player)}</span>
+                                                <small>{formatCompactKickoff(player.kickoff)}</small>
+                                            </div>
+                                        ) : col === 'grade' ? (
                                             <span className={`grade-badge ${getGradeClassName(player[col])}`}>
                                                 {formatCellValue(col, player[col])}
                                             </span>

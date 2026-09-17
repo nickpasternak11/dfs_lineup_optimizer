@@ -58,6 +58,7 @@ class ProjectionScraper:
                 "team",
                 "kickoff",
                 "opponent",
+                "home",
                 "grade",
                 "rank",
                 "avg_fpts",
