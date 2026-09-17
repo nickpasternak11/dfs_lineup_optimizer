@@ -60,6 +60,7 @@ class DFSLineupOptimizer:
                 "position",
                 "team",
                 "kickoff",
+                "home",
                 "opponent",
                 "grade",
                 "rank",

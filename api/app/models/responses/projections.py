@@ -1,3 +1,1 @@
-from typing import List
-
-GetProjectionsResponse = List[dict]
+GetProjectionsResponse = list[dict]

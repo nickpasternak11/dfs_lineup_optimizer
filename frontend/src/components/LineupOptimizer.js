@@ -10,7 +10,7 @@ export const BASE_HOSTNAME = window.location.hostname;
 export const BASE_URL = `${protocol}//${BASE_HOSTNAME}`;
 export const BASE_URL_API = `${BASE_URL}:8080`;
 
-const playerColumns = ["player", "position", "team", "opponent", "proj_fpts", "salary"];
+const playerColumns = ["player", "position", "proj_fpts", "salary"];
 const mainPlayerColumns = ["player", "position", "team", "kickoff", "opponent", "grade", "rank", "avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
 const sortableColumns = ["rank", "avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
 
@@ -31,6 +31,7 @@ const columnLabels = {
 
 const TOTAL_ROSTER_LIMIT = 9;
 const SALARY_CAP = 50000;
+const EXCLUDED_PLAYERS_STORAGE_KEY = 'dfs-lineup-optimizer-excluded-players';
 
 const KICKOFF_CUTOFF_OPTIONS = [
     { label: 'All Games (No Cutoff)', value: '' },
@@ -64,6 +65,15 @@ const formatCellValue = (key, val) => {
     }
     if (key === 'value') return Number(val).toFixed(2);
     return val;
+};
+
+const formatLineupMatchup = (player) => {
+    if (!player.team || !player.opponent) return '';
+
+    const homeValue = String(player.home ?? '').toLowerCase();
+    const isHome = [true, 1, '1', 'true', 'h', 'home', 'a'].includes(player.home) ||
+        ['1', 'true', 'h', 'home', 'a'].includes(homeValue);
+    return `${isHome ? 'vs' : '@'} ${player.opponent}`;
 };
 
 // Lineup structure & salary cap validator
@@ -126,11 +136,28 @@ const getCellStyle = (key, val) => {
     return {};
 };
 
+const getGradeClassName = (grade) => {
+    const normalizedGrade = String(grade || '').trim().toUpperCase();
+    if (normalizedGrade.startsWith('A')) return 'grade-a';
+    if (normalizedGrade.startsWith('B')) return 'grade-b';
+    if (normalizedGrade.startsWith('C')) return 'grade-c';
+    return 'grade-d';
+};
+
 function LineupOptimizer() {
     const [year, setYear] = useState('');
     const [week, setWeek] = useState('');
     const [stackQB, setStackQB] = useState(false);
-    const [excludedPlayers, setExcludedPlayers] = useState([]);
+    const [excludedPlayers, setExcludedPlayers] = useState(() => {
+        try {
+            const savedPlayers = window.localStorage.getItem(EXCLUDED_PLAYERS_STORAGE_KEY);
+            const parsedPlayers = savedPlayers ? JSON.parse(savedPlayers) : [];
+            return Array.isArray(parsedPlayers) ? parsedPlayers : [];
+        } catch (error) {
+            console.warn('Unable to restore excluded players:', error);
+            return [];
+        }
+    });
     const [includedPlayers, setIncludedPlayers] = useState([]);
     const [lineups, setLineups] = useState([]);
     const [projections, setProjections] = useState([]);
@@ -141,6 +168,7 @@ function LineupOptimizer() {
     const [kickoffCutoff, setKickoffCutoff] = useState('');
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('lineup1');
+    const [playerPoolTab, setPlayerPoolTab] = useState('available');
 
     // Sorting state
     const [sortColumn, setSortColumn] = useState('salary');
@@ -205,6 +233,47 @@ function LineupOptimizer() {
         ));
     }, [projections, playerSearch, positionFilter, teamFilter, opponentFilter, kickoffCutoff]);
 
+    const sortPlayers = useCallback((players) => [...players].sort((firstPlayer, secondPlayer) => {
+        if (!sortColumn) return 0;
+
+        let firstValue = firstPlayer[sortColumn];
+        let secondValue = secondPlayer[sortColumn];
+
+        if (firstValue === null || firstValue === undefined) return 1;
+        if (secondValue === null || secondValue === undefined) return -1;
+
+        if (typeof firstValue === 'number' && typeof secondValue === 'number') {
+            return sortDirection === 'asc' ? firstValue - secondValue : secondValue - firstValue;
+        }
+
+        firstValue = String(firstValue).toUpperCase();
+        secondValue = String(secondValue).toUpperCase();
+
+        if (firstValue < secondValue) return sortDirection === 'asc' ? -1 : 1;
+        if (firstValue > secondValue) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    }), [sortColumn, sortDirection]);
+
+    const isPlayerUnavailable = useCallback((player) => {
+        if (excludedPlayers.includes(player.player)) return true;
+        if (!player.kickoff) return false;
+
+        const kickoffDate = new Date(player.kickoff);
+        return !isNaN(kickoffDate.getTime()) && kickoffDate <= new Date();
+    }, [excludedPlayers]);
+
+    const availableProjections = useMemo(() => (
+        sortPlayers(filteredProjections.filter(player => !isPlayerUnavailable(player)))
+    ), [filteredProjections, isPlayerUnavailable, sortPlayers]);
+
+    const unavailableProjections = useMemo(() => (
+        sortPlayers(filteredProjections.filter(isPlayerUnavailable))
+    ), [filteredProjections, isPlayerUnavailable, sortPlayers]);
+
+    const displayedProjections = playerPoolTab === 'available'
+        ? availableProjections
+        : unavailableProjections;
+
     const handleSort = (col) => {
         if (!sortableColumns.includes(col)) return;
 
@@ -216,38 +285,25 @@ function LineupOptimizer() {
         }
     };
 
-    const sortedProjections = useMemo(() => {
-        return [...filteredProjections].sort((a, b) => {
-            if (!sortColumn) return 0;
-
-            let valA = a[sortColumn];
-            let valB = b[sortColumn];
-
-            if (valA === null || valA === undefined) return 1;
-            if (valB === null || valB === undefined) return -1;
-
-            if (typeof valA === 'number' && typeof valB === 'number') {
-                return sortDirection === 'asc' ? valA - valB : valB - valA;
-            }
-
-            valA = String(valA).toUpperCase();
-            valB = String(valB).toUpperCase();
-
-            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-            return 0;
-        });
-    }, [filteredProjections, sortColumn, sortDirection]);
-
     const toggleExclude = (playerName) => {
-        setExcludedPlayers(prev => {
-            if (prev.includes(playerName)) {
-                return prev.filter(p => p !== playerName);
-            } else {
-                setIncludedPlayers(inc => inc.filter(p => p !== playerName));
-                return [...prev, playerName];
-            }
-        });
+        const isCurrentlyExcluded = excludedPlayers.includes(playerName);
+        const nextExcludedPlayers = isCurrentlyExcluded
+            ? excludedPlayers.filter(player => player !== playerName)
+            : [...excludedPlayers, playerName];
+        const nextIncludedPlayers = isCurrentlyExcluded
+            ? includedPlayers
+            : includedPlayers.filter(player => player !== playerName);
+
+        setExcludedPlayers(nextExcludedPlayers);
+        setIncludedPlayers(nextIncludedPlayers);
+
+        const appearsInSuggestedLineup = lineups.some(lineup => (
+            lineup.some(player => player.player === playerName)
+        ));
+
+        if (!isCurrentlyExcluded && appearsInSuggestedLineup) {
+            optimizeLineups(year, week, nextExcludedPlayers, nextIncludedPlayers);
+        }
     };
 
     const toggleInclude = (playerTarget) => {
@@ -268,21 +324,22 @@ function LineupOptimizer() {
             return;
         }
 
-        setIncludedPlayers(prev => [...prev, playerName]);
-        setExcludedPlayers(prev => prev.filter(p => p !== playerName));
+        const nextIncludedPlayers = [...includedPlayers, playerName];
+        const nextExcludedPlayers = excludedPlayers.filter(player => player !== playerName);
+
+        setIncludedPlayers(nextIncludedPlayers);
+        setExcludedPlayers(nextExcludedPlayers);
+
+        const appearsInSuggestedLineup = lineups.some(lineup => (
+            lineup.some(player => player.player === playerName)
+        ));
+
+        if (!appearsInSuggestedLineup) {
+            optimizeLineups(year, week, nextExcludedPlayers, nextIncludedPlayers);
+        }
     };
 
-    const handleResetAllRules = () => {
-        setIncludedPlayers([]);
-        setExcludedPlayers([]);
-        setPlayerSearch('');
-        setPositionFilter('');
-        setTeamFilter('');
-        setOpponentFilter('');
-        toast.info('All rules and filters cleared.');
-    };
-
-    const renderActionButtons = (player) => {
+    const renderActionButtons = (player, isUnavailable = false) => {
         const playerObj = typeof player === 'string'
             ? projections.find(p => p.player === player)
             : player;
@@ -293,6 +350,22 @@ function LineupOptimizer() {
         const check = canIncludePlayer(playerObj, includedPlayers, projections);
         const canBeIncluded = isIncluded || check.allowed;
 
+        if (isUnavailable) {
+            if (!isExcluded) return <span className="player-unavailable-label">Played</span>;
+
+            return (
+                <button
+                    type="button"
+                    className="action-button text-danger"
+                    onClick={() => toggleExclude(playerName)}
+                    title={`Restore ${playerName} to available players`}
+                    aria-label={`Restore ${playerName} to available players`}
+                >
+                    <span role="img" aria-label="Restore">🚫</span>
+                </button>
+            );
+        }
+
         return (
             <span className="player-actions">
                 {!isIncluded && (
@@ -300,15 +373,15 @@ function LineupOptimizer() {
                         type="button"
                         className="action-button text-danger"
                         onClick={() => toggleExclude(playerName)}
-                        disabled={isExcluded || !canBeIncluded}
+                        disabled={!canBeIncluded}
                         style={{
-                            opacity: isExcluded || !canBeIncluded ? 0.35 : 1,
+                            opacity: !canBeIncluded ? 0.35 : 1,
                             cursor: !canBeIncluded ? 'not-allowed' : 'pointer'
                         }}
                         title={!canBeIncluded ? check.reason : `Exclude ${playerName}`}
                         aria-label={`Exclude ${playerName}`}
                     >
-                        <span role="img" aria-label="Exclude">❌</span>
+                        <span role="img" aria-label="Exclude">🚫</span>
                     </button>
                 )}
                 <button
@@ -324,7 +397,7 @@ function LineupOptimizer() {
                     aria-label={`Include or Lock ${playerName}`}
                 >
                     <span role="img" aria-label={isIncluded ? "Locked" : "Include"}>
-                        {isIncluded ? '🔒' : '✅'}
+                        {isIncluded ? '🔒' : '🔓'}
                     </span>
                 </button>
             </span>
@@ -339,15 +412,20 @@ function LineupOptimizer() {
         setProjections(response.data);
     };
 
-    const optimizeLineups = async (selectedYear = year, selectedWeek = week) => {
+    const optimizeLineups = async (
+        selectedYear = year,
+        selectedWeek = week,
+        selectedExcludedPlayers = excludedPlayers,
+        selectedIncludedPlayers = includedPlayers
+    ) => {
         setLoading(true);
         try {
             const data = {
                 year: selectedYear ? parseInt(selectedYear) : null,
                 week: selectedWeek ? parseInt(selectedWeek) : null,
                 stack_qb: stackQB,
-                excluded_players: excludedPlayers,
-                included_players: includedPlayers
+                excluded_players: selectedExcludedPlayers,
+                included_players: selectedIncludedPlayers
             };
             await fetchProjections(selectedYear, selectedWeek);
             const response = await axios.post(`${BASE_URL_API}/optimize`, data);
@@ -381,11 +459,77 @@ function LineupOptimizer() {
     };
 
     useEffect(() => {
+        try {
+            window.localStorage.setItem(EXCLUDED_PLAYERS_STORAGE_KEY, JSON.stringify(excludedPlayers));
+        } catch (error) {
+            console.warn('Unable to persist excluded players:', error);
+        }
+    }, [excludedPlayers]);
+
+    useEffect(() => {
         fetchCurrentPeriod().catch((error) => {
             console.error('Error loading current year and week:', error);
             toast.error('Unable to load the current year and week. Please try again.');
         });
     }, []);
+
+    const renderProjectionTable = (players, emptyMessage, isUnavailable = false) => (
+        <div className="player-table-wrap">
+            <table className="table table-striped player-pool-table">
+                <thead>
+                    <tr>
+                        {mainPlayerColumns.map(col => {
+                            const isSortable = sortableColumns.includes(col);
+                            const isSorted = sortColumn === col;
+
+                            return (
+                                <th
+                                    key={col}
+                                    onClick={() => isSortable && handleSort(col)}
+                                    style={{ cursor: isSortable ? 'pointer' : 'default', userSelect: 'none' }}
+                                    title={isSortable ? `Sort by ${columnLabels[col] || col}` : ''}
+                                >
+                                    {columnLabels[col] || col}
+                                    {isSortable && (
+                                        <span style={{ marginLeft: '4px', opacity: isSorted ? 1 : 0.4 }}>
+                                            {isSorted ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+                                        </span>
+                                    )}
+                                </th>
+                            );
+                        })}
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {players.length === 0 ? (
+                        <tr>
+                            <td className="empty-player-state" colSpan={mainPlayerColumns.length + 1}>{emptyMessage}</td>
+                        </tr>
+                    ) : players.map((player, playerIndex) => {
+                        const isIncluded = includedPlayers.includes(player.player);
+                        return (
+                            <tr
+                                key={`${player.player}-${playerIndex}`}
+                                className={`${isIncluded ? 'row-player-locked' : ''} ${isUnavailable ? 'row-player-unavailable' : ''}`.trim()}
+                            >
+                                {mainPlayerColumns.map(col => (
+                                    <td key={col} style={getCellStyle(col, player[col])}>
+                                        {col === 'grade' ? (
+                                            <span className={`grade-badge ${getGradeClassName(player[col])}`}>
+                                                {formatCellValue(col, player[col])}
+                                            </span>
+                                        ) : formatCellValue(col, player[col])}
+                                    </td>
+                                ))}
+                                <td>{renderActionButtons(player, isUnavailable)}</td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
 
     return (
         <div className="container">
@@ -398,98 +542,36 @@ function LineupOptimizer() {
             </header>
 
             <div className="optimizer-layout">
-                <aside className="side-panel">
-                    <form onSubmit={handleSubmit} className="optimizer-controls">
-                        <div className="section-heading panel-heading-override">
-                            <div>
-                                <p className="eyebrow">Controls</p>
-                                <h2>Settings</h2>
-                            </div>
-                        </div>
-                        <div className="filter-grid">
-                            <div className="form-group">
-                                <label htmlFor="year">Year</label>
-                                <input
-                                    type="number"
-                                    id="year"
-                                    className="form-control form-control-sm"
-                                    value={year}
-                                    onChange={(e) => setYear(e.target.value)}
-                                    min="2024"
-                                    max="2026"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="week">Week</label>
-                                <input
-                                    type="number"
-                                    id="week"
-                                    className="form-control form-control-sm"
-                                    value={week}
-                                    onChange={(e) => setWeek(e.target.value)}
-                                    min="1"
-                                    max="18"
-                                />
-                            </div>
-                        </div>
-                        <div className="form-check-stack">
-                            <input
-                                type="checkbox"
-                                id="stack_qb"
-                                className="form-check-input"
-                                checked={stackQB}
-                                onChange={(e) => setStackQB(e.target.checked)}
-                            />
-                            <label className="form-check-label" htmlFor="stack_qb">
-                                Stack QB with WR/TE
-                            </label>
-                        </div>
-                        <button type="submit" className="btn btn-primary optimize-button">Optimize lineups</button>
-                    </form>
-
-                    <div id="excluded-players" className="player-group">
-                        <h3>Excluded <span>{excludedPlayers.length}</span></h3>
-                        <ul className="player-list">
-                            {excludedPlayers.map(player => (
-                                <li key={player} className="player-item">
-                                    {player}
-                                    <span className="text-danger action-button" role="button" tabIndex="0" onClick={() => toggleExclude(player)} onKeyDown={(e) => e.key === 'Enter' && toggleExclude(player)} aria-label={`Remove ${player} from excluded players`} title={`Remove ${player} from excluded players`}><span role="img" aria-label="Remove">❌</span></span>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                    <div id="included-players" className="player-group">
-                        <h3>Included <span>{includedPlayers.length}</span></h3>
-                        <ul className="player-list">
-                            {includedPlayers.map(player => (
-                                <li key={player} className="player-item player-item-locked">
-                                    <span>🔒 {player}</span>
-                                    <span className="text-success action-button" role="button" tabIndex="0" onClick={() => toggleInclude(player)} onKeyDown={(e) => e.key === 'Enter' && toggleInclude(player)} aria-label={`Unlock ${player}`} title={`Unlock ${player}`}><span role="img" aria-label="Remove">❌</span></span>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-
-                    {(includedPlayers.length > 0 || excludedPlayers.length > 0 || playerSearch || positionFilter || teamFilter || opponentFilter) && (
-                        <div className="reset-container">
-                            <button
-                                type="button"
-                                className="btn btn-outline-secondary btn-sm btn-reset-rules"
-                                onClick={handleResetAllRules}
-                            >
-                                🔄 Reset Rules & Filters
-                            </button>
-                        </div>
-                    )}
-                </aside>
-
                 <main className="player-pool-main">
                     <div className="section-heading">
                         <div>
                             <p className="eyebrow">Player pool</p>
-                            <h2>Available players</h2>
+                            <h2>{playerPoolTab === 'available' ? 'Available players' : 'Unavailable players'}</h2>
                         </div>
-                        <span className="result-count">{filteredProjections.length} players</span>
+                        <div className="player-count-badges">
+                            <span className="result-count">Available {availableProjections.length}</span>
+                            <span className="result-count result-count-unavailable">Unavailable {unavailableProjections.length}</span>
+                        </div>
+                    </div>
+                    <div className="player-pool-tabs" role="tablist" aria-label="Player pool status">
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={playerPoolTab === 'available'}
+                            className={playerPoolTab === 'available' ? 'active' : ''}
+                            onClick={() => setPlayerPoolTab('available')}
+                        >
+                            Available
+                        </button>
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={playerPoolTab === 'unavailable'}
+                            className={playerPoolTab === 'unavailable' ? 'active' : ''}
+                            onClick={() => setPlayerPoolTab('unavailable')}
+                        >
+                            Unavailable
+                        </button>
                     </div>
                     <div className="player-filters">
                         <div className="primary-filters">
@@ -525,110 +607,125 @@ function LineupOptimizer() {
                             ))}
                         </div>
                     </div>
-                    <div className="player-table-wrap">
-                        <table className="table table-striped player-pool-table">
-                            <thead>
-                                <tr>
-                                    {mainPlayerColumns.map(col => {
-                                        const isSortable = sortableColumns.includes(col);
-                                        const isSorted = sortColumn === col;
-
-                                        return (
-                                            <th
-                                                key={col}
-                                                onClick={() => isSortable && handleSort(col)}
-                                                style={{ cursor: isSortable ? 'pointer' : 'default', userSelect: 'none' }}
-                                                title={isSortable ? `Sort by ${columnLabels[col] || col}` : ''}
-                                            >
-                                                {columnLabels[col] || col}
-                                                {isSortable && (
-                                                    <span style={{ marginLeft: '4px', opacity: isSorted ? 1 : 0.4 }}>
-                                                        {isSorted ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
-                                                    </span>
-                                                )}
-                                            </th>
-                                        );
-                                    })}
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sortedProjections.map((player, playerIndex) => {
-                                    const isIncluded = includedPlayers.includes(player.player);
-                                    return (
-                                        <tr
-                                            key={`${player.player}-${playerIndex}`}
-                                            className={isIncluded ? 'row-player-locked' : ''}
-                                        >
-                                            {mainPlayerColumns.map(col => (
-                                                <td key={col} style={getCellStyle(col, player[col])}>
-                                                    {formatCellValue(col, player[col])}
-                                                </td>
-                                            ))}
-                                            <td>{renderActionButtons(player)}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                    {renderProjectionTable(
+                        displayedProjections,
+                        playerPoolTab === 'available' ? 'No available players match these filters.' : 'No unavailable players match these filters.',
+                        playerPoolTab === 'unavailable'
+                    )}
                 </main>
 
-                <aside className="results-panel">
-                    <div className="section-heading">
-                        <div>
-                            <p className="eyebrow">Optimization results</p>
-                            <h2>Suggested lineups</h2>
+                <aside className="right-sidebar">
+                    <div className="side-panel">
+                        <div id="optimizer-settings">
+                            <div className="section-heading sidebar-results-heading">
+                                <div>
+                                    <p className="eyebrow">Optimization results</p>
+                                    <h2>Suggested lineups</h2>
+                                </div>
+                            </div>
+                            <form onSubmit={handleSubmit} className="optimizer-controls">
+                                <button type="submit" className="btn btn-primary optimize-button">Optimize</button>
+                                <div className="filter-grid">
+                                    <div className="form-group">
+                                        <label htmlFor="year">Year</label>
+                                        <input
+                                            type="number"
+                                            id="year"
+                                            className="form-control form-control-sm"
+                                            value={year}
+                                            onChange={(e) => setYear(e.target.value)}
+                                            min="2024"
+                                            max="2026"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label htmlFor="week">Week</label>
+                                        <input
+                                            type="number"
+                                            id="week"
+                                            className="form-control form-control-sm"
+                                            value={week}
+                                            onChange={(e) => setWeek(e.target.value)}
+                                            min="1"
+                                            max="18"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="form-check-stack">
+                                    <input
+                                        type="checkbox"
+                                        id="stack_qb"
+                                        className="form-check-input"
+                                        checked={stackQB}
+                                        onChange={(e) => setStackQB(e.target.checked)}
+                                    />
+                                    <label className="form-check-label" htmlFor="stack_qb">
+                                        Stack QB with WR/TE
+                                    </label>
+                                </div>
+                            </form>
+
                         </div>
                     </div>
-                    {loading && <div className="results-loading">Optimizing...</div>}
-                    {lineups.length > 0 && (
-                        <>
-                            <ul className="nav nav-tabs lineup-tabs" id="lineupTabs" role="tablist">
-                                {lineups.map((_, index) => (
-                                    <li key={index} className="nav-item" role="presentation">
-                                        <button className={`nav-link ${activeTab === `lineup${index + 1}` ? 'active' : ''}`} onClick={() => setActiveTab(`lineup${index + 1}`)}>
-                                            Lineup {index + 1}
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                            <div className="tab-content">
-                                {lineups.map((lineup, index) => (
-                                    <div key={index} className={`tab-pane fade ${activeTab === `lineup${index + 1}` ? 'show active' : ''}`}>
-                                        <div className="lineup-summary">
-                                            <span>{lineup.reduce((sum, player) => sum + player.proj_fpts, 0).toFixed(2)} FPTS</span>
-                                            <span>${lineup.reduce((sum, player) => sum + player.salary, 0).toLocaleString()}</span>
-                                        </div>
-                                        <div className="lineup-table-wrap">
-                                            <table className="table table-striped">
-                                                <thead>
-                                                    <tr>
-                                                        {playerColumns.map(col => (
-                                                            <th key={col}>{columnLabels[col] || col}</th>
-                                                        ))}
-                                                        <th>Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {lineup.map((player, playerIndex) => (
-                                                        <tr key={`${player.player}-${playerIndex}`}>
+
+                    <div className="results-panel">
+                        {loading && <div className="results-loading">Optimizing...</div>}
+                        {lineups.length > 0 && (
+                            <>
+                                <ul className="nav nav-tabs lineup-tabs" id="lineupTabs" role="tablist">
+                                    {lineups.map((_, index) => (
+                                        <li key={index} className="nav-item" role="presentation">
+                                            <button className={`nav-link ${activeTab === `lineup${index + 1}` ? 'active' : ''}`} onClick={() => setActiveTab(`lineup${index + 1}`)}>
+                                                Lineup {index + 1}
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                                <div className="tab-content">
+                                    {lineups.map((lineup, index) => (
+                                        <div key={index} className={`tab-pane fade ${activeTab === `lineup${index + 1}` ? 'show active' : ''}`}>
+                                            <div className="lineup-table-wrap">
+                                                <table className="table table-striped">
+                                                    <thead>
+                                                        <tr>
                                                             {playerColumns.map(col => (
-                                                                <td key={col} style={getCellStyle(col, player[col])}>
-                                                                    {formatCellValue(col, player[col])}
-                                                                </td>
+                                                                <th key={col}>{columnLabels[col] || col}</th>
                                                             ))}
-                                                            <td>{renderActionButtons(player)}</td>
+                                                            <th>Actions</th>
                                                         </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                                    </thead>
+                                                    <tbody>
+                                                        {lineup.map((player, playerIndex) => (
+                                                            <tr
+                                                                key={`${player.player}-${playerIndex}`}
+                                                                className={includedPlayers.includes(player.player) ? 'row-player-locked' : ''}
+                                                            >
+                                                                {playerColumns.map(col => (
+                                                                    <td key={col} style={getCellStyle(col, player[col])}>
+                                                                        {col === 'player' ? (
+                                                                            <div className="lineup-player-cell">
+                                                                                <strong>{player.player}</strong>
+                                                                                <span>{player.team} {formatLineupMatchup(player)}</span>
+                                                                            </div>
+                                                                        ) : formatCellValue(col, player[col])}
+                                                                    </td>
+                                                                ))}
+                                                                <td>{renderActionButtons(player)}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div className="lineup-summary">
+                                                <span>{lineup.reduce((sum, player) => sum + player.proj_fpts, 0).toFixed(2)} FPTS</span>
+                                                <span>${lineup.reduce((sum, player) => sum + player.salary, 0).toLocaleString()}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </>
-                    )}
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </aside>
             </div>
         </div>

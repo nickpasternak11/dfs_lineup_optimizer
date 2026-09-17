@@ -43,15 +43,20 @@ h1 {
     text-transform: uppercase;
 }
 
-/* Three-column layout for controls, main player pool, and lineup output */
+/* Keep the player pool wide while stacking controls above lineup output. */
 .optimizer-layout {
     align-items: start;
     display: grid;
-    gap: 16px;
-    grid-template-columns: 220px 2.2fr 1.1fr;
+    column-gap: 16px;
+    row-gap: 8px;
+    grid-template-areas:
+        "pool sidebar"
+        "pool sidebar";
+    grid-template-columns: minmax(0, 1.8fr) minmax(380px, 1fr);
 }
 
-.side-panel {
+.right-sidebar {
+    grid-area: sidebar;
     background: #ffffff;
     border: 1px solid #dce4e8;
     border-radius: 10px;
@@ -62,10 +67,27 @@ h1 {
     z-index: 5;
 }
 
+.side-panel {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    position: static;
+}
+
 .optimizer-controls {
     border-bottom: 1px solid #e4eaed;
-    margin-bottom: 16px;
-    padding-bottom: 16px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+}
+
+.sidebar-results-heading {
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.sidebar-results-heading h2 {
+    font-size: 1.1rem;
 }
 
 .panel-heading-override {
@@ -108,7 +130,7 @@ h1 {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 16px;
+    margin-bottom: 10px;
     padding-left: 0;
 }
 
@@ -138,6 +160,7 @@ h1 {
     background: #197278;
     border: 0;
     font-weight: 700;
+    margin-bottom: 10px;
     padding: 10px 12px;
     width: 100%;
     border-radius: 6px;
@@ -154,16 +177,23 @@ h1 {
     min-width: 0;
 }
 
+.player-pool-main {
+    grid-area: pool;
+}
+
 .results-panel {
-    position: sticky;
-    top: 20px;
-    background: #ffffff;
-    border: 1px solid #dce4e8;
-    border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(23, 33, 43, 0.06);
-    overflow: hidden;
-    padding: 16px;
-    z-index: 5;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+    padding: 0;
+}
+
+.right-sidebar .results-panel {
+    border-top: 1px solid #e4eaed;
+    margin-top: 8px;
+    padding-top: 8px;
 }
 
 .section-heading {
@@ -187,6 +217,40 @@ h1 {
     font-weight: 700;
     padding: 4px 10px;
     white-space: nowrap;
+}
+
+.player-count-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.result-count-unavailable {
+    background: #f3e3e3;
+    color: #8f3030;
+}
+
+.player-pool-tabs {
+    border-bottom: 1px solid #dce4e8;
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.player-pool-tabs button {
+    background: transparent;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    color: #4c5a64;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 8px 14px;
+}
+
+.player-pool-tabs button.active {
+    border-bottom-color: #197278;
+    color: #197278;
 }
 
 .player-filters {
@@ -253,6 +317,37 @@ h1 {
     overflow: visible !important;
 }
 
+.grade-badge {
+    align-items: center;
+    border-radius: 4px;
+    display: inline-flex;
+    font-size: 0.68rem;
+    font-weight: 800;
+    justify-content: center;
+    min-width: 28px;
+    padding: 3px 5px;
+}
+
+.grade-a {
+    background: #dff3e5;
+    color: #23753b;
+}
+
+.grade-b {
+    background: #e2eef8;
+    color: #2d608c;
+}
+
+.grade-c {
+    background: #fff0cf;
+    color: #946312;
+}
+
+.grade-d {
+    background: #f7dede;
+    color: #a33636;
+}
+
 .player-pool-table td:nth-child(1),
 .results-panel table td:nth-child(1) {
     font-weight: 600;
@@ -260,10 +355,29 @@ h1 {
 }
 
 /* Locked / Included Table Row Highlight */
-.player-pool-table tr.row-player-locked td {
+.player-pool-table tr.row-player-locked td,
+.results-panel tr.row-player-locked td {
     background-color: #eaf6f6 !important;
     border-top: 1px solid #b2dfdb;
     border-bottom: 1px solid #b2dfdb;
+}
+
+.player-pool-table tr.row-player-unavailable td {
+    background-color: #f6f0f0 !important;
+    color: #6f5b5b;
+}
+
+.empty-player-state {
+    color: #6d7a82;
+    padding: 28px 12px !important;
+    text-align: center;
+}
+
+.player-unavailable-label {
+    color: #8f3030;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
 }
 
 .player-actions {
@@ -340,31 +454,6 @@ h1 {
     font-weight: 600;
 }
 
-/* Reset Button */
-.reset-container {
-    border-top: 1px solid #e4eaed;
-    margin-top: 12px;
-    padding-top: 10px;
-}
-
-.btn-reset-rules {
-    width: 100%;
-    color: #197278;
-    border: 1px solid #197278;
-    background: transparent;
-    font-size: 0.72rem;
-    font-weight: 700;
-    padding: 6px 12px;
-    border-radius: 4px;
-    text-transform: uppercase;
-    transition: all 0.15s ease-in-out;
-}
-
-.btn-reset-rules:hover {
-    background-color: #197278;
-    color: #ffffff;
-}
-
 .lineup-tabs {
     border-bottom: 1px solid #dce4e8;
     margin-bottom: 12px;
@@ -390,7 +479,8 @@ h1 {
     display: flex;
     font-weight: 700;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-top: 8px;
+    margin-bottom: 0;
     padding: 8px 12px;
     font-size: 0.9rem;
     border-radius: 0 4px 4px 0;
@@ -430,6 +520,28 @@ h1 {
     vertical-align: middle;
 }
 
+.lineup-player-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.15;
+}
+
+.lineup-player-cell strong {
+    color: #17212b;
+    font-weight: 700;
+}
+
+.lineup-player-cell span {
+    color: #6d7a82;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+.results-panel td:first-child {
+    min-width: 120px;
+}
+
 .results-panel th:first-child,
 .results-panel td:first-child {
     text-align: left;
@@ -445,18 +557,28 @@ h1 {
 /* Responsive Viewport Layout Adjustments */
 @media (max-width: 1200px) {
     .optimizer-layout {
-        grid-template-columns: 200px 1fr;
+        grid-template-areas:
+            "pool sidebar"
+            "pool sidebar";
+        grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr);
     }
 
-    .results-panel {
-        grid-column: 1 / -1;
+    .right-sidebar {
         position: static;
     }
+
 }
 
 @media (max-width: 768px) {
     .optimizer-layout {
+        grid-template-areas:
+            "sidebar"
+            "pool";
         grid-template-columns: 1fr;
+    }
+
+    .right-sidebar {
+        position: static;
     }
 
     .primary-filters,
