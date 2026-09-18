@@ -317,6 +317,19 @@ h1 {
     overflow: visible !important;
 }
 
+.pool-player-name {
+    color: #17212b;
+    font-weight: 600;
+}
+
+.injury-status-label {
+    color: #c03939;
+    font-size: 0.66em;
+    font-weight: 800;
+    margin-left: 5px;
+    white-space: nowrap;
+}
+
 .grade-badge {
     align-items: center;
     border-radius: 4px;

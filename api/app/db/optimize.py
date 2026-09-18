@@ -5,7 +5,7 @@ import pulp
 from pulp import PULP_CBC_CMD
 
 from app.configs.configs import log
-from app.helpers.optimize import get_latest_week, get_stats, get_weekly_rankings
+from app.helpers.optimize import get_latest_week
 
 
 class DFSLineupOptimizer:
@@ -21,61 +21,10 @@ class DFSLineupOptimizer:
         )
         return pd.read_csv(path_to_csv)
 
-    def get_projections_df(self, use_stored_data: bool = False) -> pd.DataFrame:
-        if use_stored_data:
-            log.info("Using stored data..")
-            return pd.read_csv(
-                f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
-            )
-
-        log.info(
-            "Scraping projections from FantasyPro's for year=%s, week=%s",
-            self.current_year,
-            self.current_week,
+    def get_projections_df(self) -> pd.DataFrame:
+        return pd.read_csv(
+            f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
         )
-
-        df = pd.DataFrame()
-        for pos in ["QB", "RB", "WR", "TE", "DST"]:
-            df = pd.concat(
-                [
-                    df,
-                    pd.merge(
-                        get_weekly_rankings(pos, self.current_year, self.current_week),
-                        get_stats(
-                            pos,
-                            self.current_year,
-                            [self.current_week - 4, self.current_week - 1],
-                        )[["player", "avg_fpts"]],
-                        how="left",
-                    ),
-                ]
-            )
-
-        df = df.merge(self.get_salary_df())
-        df = df[
-            [
-                "year",
-                "week",
-                "player",
-                "position",
-                "team",
-                "kickoff",
-                "home",
-                "opponent",
-                "grade",
-                "rank",
-                "avg_fpts",
-                "proj_fpts",
-                "salary",
-                "salary_change",
-            ]
-        ]
-        df["value"] = df["proj_fpts"] / (df["salary"] / 1000)
-
-        log.info("Saving projection data..")
-        output_path = f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
-        df.fillna(0).drop_duplicates().to_csv(output_path, index=False)
-        return df
 
     def optimize(
         self,
@@ -84,7 +33,6 @@ class DFSLineupOptimizer:
         stack_qb: bool = False,
         excluded_players: list[str] = [],
         included_players: list[str] = [],
-        use_stored_data: bool = False,
     ) -> pd.DataFrame:
         # selected_players = []
         budget = 50000
@@ -92,7 +40,7 @@ class DFSLineupOptimizer:
         QB_limit, RB_limit, WR_limit, TE_limit, DST_limit, FLEX_limit = 1, 2, 3, 1, 1, 1
 
         # Get data
-        df = self.get_projections_df(use_stored_data=use_stored_data).copy()
+        df = self.get_projections_df().copy()
 
         # Remove excluded players
         df = df[~df["player"].isin(excluded_players)].reset_index(drop=True)
@@ -280,7 +228,6 @@ class DFSLineupOptimizer:
         stack_qb: bool = False,
         excluded_players: list[str] = [],
         included_players: list[str] = [],
-        use_stored_data: bool = True,
     ) -> list[dict]:
         lineups = []
         for weights in [(1, 0), (0.9, 0.1), (0.8, 0.2)]:
@@ -291,7 +238,6 @@ class DFSLineupOptimizer:
                 stack_qb=stack_qb,
                 excluded_players=excluded_players,
                 included_players=included_players,
-                use_stored_data=use_stored_data,
             )
             lineups.append(lineup.to_dict(orient="records"))
         return lineups

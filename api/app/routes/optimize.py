@@ -22,7 +22,6 @@ async def optimize(data: OptimizeRequest):
             stack_qb=data.stack_qb,
             excluded_players=data.excluded_players,
             included_players=data.included_players,
-            use_stored_data=True,
         ):
             return lineups
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)

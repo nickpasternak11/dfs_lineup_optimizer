@@ -176,3 +176,41 @@ def get_stats(
         .round(1)
     )
     return df.drop(columns="fpts")
+
+
+def get_current_player_injuries() -> pd.DataFrame:
+    """Return current QB, RB, WR, and TE injury statuses from FantasyPros."""
+    url = "https://www.fantasypros.com/nfl/players/injuries.php"
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+
+    tables = pd.read_html(StringIO(response.text))
+    injury_tables = tables[:4]
+    injuries = []
+
+    for table in injury_tables:
+        columns = {str(column).strip().lower(): column for column in table.columns}
+        player_column = columns.get("player")
+        status_column = columns.get("status")
+        injury_column = columns.get("injury")
+
+        if not player_column or not status_column or not injury_column:
+            continue
+
+        current = table[[player_column, status_column, injury_column]].copy()
+        current.columns = ["player", "injury_status", "injury_type"]
+        current["player"] = (
+            current["player"].astype("string").str.strip().str.rsplit(" ", n=1).str[0]
+        )
+        current["injury_status"] = current["injury_status"].astype("string").str.strip()
+        current["injury_type"] = (
+            current["injury_type"].fillna("").astype("string").str.strip()
+        )
+        injuries.append(current)
+
+    if not injuries:
+        return pd.DataFrame(columns=["player", "injury_status", "injury_type"])
+
+    return pd.concat(injuries, ignore_index=True)[
+        ["player", "injury_status", "injury_type"]
+    ]

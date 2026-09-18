@@ -2,7 +2,12 @@ from datetime import datetime
 
 import pandas as pd
 from src.configs import log
-from src.utils import get_current_week, get_stats, get_weekly_rankings
+from src.utils import (
+    get_current_player_injuries,
+    get_current_week,
+    get_stats,
+    get_weekly_rankings,
+)
 
 
 class ProjectionScraper:
@@ -33,6 +38,7 @@ class ProjectionScraper:
             "Scraping projections from FantasyPro's for year=%s, week=%s", year, week
         )
 
+        # Get weekly rankings and stats for all positions
         df = pd.DataFrame()
         for pos in ["QB", "RB", "WR", "TE", "DST"]:
             df = pd.concat(
@@ -48,6 +54,7 @@ class ProjectionScraper:
                 ]
             )
 
+        # Merge with salary data and calculate value
         df = df.merge(self.get_salary_df(year=year, week=week))
         df = df[
             [
@@ -68,6 +75,15 @@ class ProjectionScraper:
             ]
         ]
         df["value"] = df["proj_fpts"] / (df["salary"] / 1000)
+
+        # Integrate player injury data
+        injuries_df = get_current_player_injuries().fillna("Healthy")
+        df = pd.merge(
+            df,
+            injuries_df[["player", "injury_status", "injury_type"]],
+            how="left",
+            on="player",
+        )
 
         log.info("Saving projection data..")
         output_path = f"/app/data/projections/fp_projection_{year}_w{week}.csv"

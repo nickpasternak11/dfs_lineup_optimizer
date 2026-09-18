@@ -172,6 +172,19 @@ const getDefenseClassName = (defenseRank) => {
     return '';
 };
 
+const getInjuryStatusLabel = (player) => {
+    const status = String(player.injury_status || '').trim().toLowerCase();
+    const labels = {
+        questionable: 'Q',
+        ir: 'IR',
+        out: 'OUT',
+        pup: 'PUP',
+        suspended: 'Suspended'
+    };
+
+    return labels[status] || '';
+};
+
 function LineupOptimizer() {
     const [year, setYear] = useState('');
     const [week, setWeek] = useState('');
@@ -543,7 +556,14 @@ function LineupOptimizer() {
                             >
                                 {mainPlayerColumns.map(col => (
                                     <td key={col} style={getCellStyle(col, player[col])}>
-                                        {col === 'opponent' ? (
+                                        {col === 'player' ? (
+                                            <span className="pool-player-name">
+                                                {player.player}
+                                                {getInjuryStatusLabel(player) && (
+                                                    <span className="injury-status-label">{getInjuryStatusLabel(player)}</span>
+                                                )}
+                                            </span>
+                                        ) : col === 'opponent' ? (
                                             <div className={`pool-opponent-cell ${getDefenseClassName(
                                                 projections.find(projection => (
                                                     projection.position === 'DST' && projection.team === player.opponent
@@ -741,7 +761,12 @@ function LineupOptimizer() {
                                                                     <td key={col} style={getCellStyle(col, player[col])}>
                                                                         {col === 'player' ? (
                                                                             <div className="lineup-player-cell">
-                                                                                <strong>{player.player}</strong>
+                                                                                <strong>
+                                                                                    {player.player}
+                                                                                    {getInjuryStatusLabel(player) && (
+                                                                                        <span className="injury-status-label">{getInjuryStatusLabel(player)}</span>
+                                                                                    )}
+                                                                                </strong>
                                                                                 <span>{player.team} {formatLineupMatchup(player)}</span>
                                                                             </div>
                                                                         ) : formatCellValue(col, player[col])}
