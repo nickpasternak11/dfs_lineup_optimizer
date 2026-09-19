@@ -5,13 +5,15 @@ import pulp
 from pulp import PULP_CBC_CMD
 
 from app.configs.configs import log
-from app.helpers.optimize import get_latest_week, get_stats, get_weekly_rankings
+from app.helpers.optimize import get_latest_week
 
 
 class DFSLineupOptimizer:
     def __init__(self, year: int | None = None, week: int | None = None):
         self.current_year = datetime.now().year if year is None else year
-        self.current_week = get_latest_week(year=year) if week is None else week
+        self.current_week = (
+            get_latest_week(year=self.current_year) if week is None else week
+        )
 
     def get_salary_df(self) -> pd.DataFrame:
         path_to_csv = (
@@ -19,69 +21,10 @@ class DFSLineupOptimizer:
         )
         return pd.read_csv(path_to_csv)
 
-    def get_projections_df(self, use_stored_data: bool = False) -> pd.DataFrame:
-        year = self.current_year
-        week = self.current_week
-
-        if use_stored_data:
-            log.info("Using stored data")
-            return pd.read_csv(
-                f"/app/data/projections/fp_projection_{year}_w{week}.csv"
-            )
-
-        df = pd.DataFrame()
-        for pos in ["QB", "RB", "WR", "TE", "DST"]:
-            df = pd.concat(
-                [
-                    df,
-                    pd.merge(
-                        get_weekly_rankings(pos, year, week),
-                        get_stats(pos, year, [week - 4, week - 1])[
-                            ["player", "avg_fpts"]
-                        ],
-                        how="left",
-                    ),
-                ]
-            )
-
-        df["player"] = df.apply(
-            lambda x: (
-                x["player"].split()[-1]
-                if x["position"] == "DST"
-                else x["player"]
-                .replace("II", "")
-                .replace(" I", "")
-                .replace("Jr.", "")
-                .replace("Sr.", "")
-                .replace(".", "")
-                .replace("'", "")
-                .strip()
-            ),
-            axis=1,
+    def get_projections_df(self) -> pd.DataFrame:
+        return pd.read_csv(
+            f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
         )
-        df = df.merge(self.get_salary_df())
-        df = df[
-            [
-                "year",
-                "week",
-                "player",
-                "position",
-                "team",
-                "opponent",
-                "grade",
-                "rank",
-                "avg_fpts",
-                "proj_fpts",
-                "salary",
-            ]
-        ]
-        df["value"] = df["proj_fpts"] / (df["salary"] / 1000)
-
-        log.info("Saving projection data..")
-        df = df.fillna(0)
-        output_path = f"/app/data/projections/fp_projection_{year}_w{week}.csv"
-        df.drop_duplicates().to_csv(output_path, index=False)
-        return df
 
     def optimize(
         self,
@@ -90,7 +33,6 @@ class DFSLineupOptimizer:
         stack_qb: bool = False,
         excluded_players: list[str] = [],
         included_players: list[str] = [],
-        use_stored_data: bool = False,
     ) -> pd.DataFrame:
         # selected_players = []
         budget = 50000
@@ -98,7 +40,7 @@ class DFSLineupOptimizer:
         QB_limit, RB_limit, WR_limit, TE_limit, DST_limit, FLEX_limit = 1, 2, 3, 1, 1, 1
 
         # Get data
-        df = self.get_projections_df(use_stored_data=use_stored_data).copy()
+        df = self.get_projections_df().copy()
 
         # Remove excluded players
         df = df[~df["player"].isin(excluded_players)].reset_index(drop=True)
@@ -286,7 +228,6 @@ class DFSLineupOptimizer:
         stack_qb: bool = False,
         excluded_players: list[str] = [],
         included_players: list[str] = [],
-        use_stored_data: bool = True,
     ) -> list[dict]:
         lineups = []
         for weights in [(1, 0), (0.9, 0.1), (0.8, 0.2)]:
@@ -297,7 +238,6 @@ class DFSLineupOptimizer:
                 stack_qb=stack_qb,
                 excluded_players=excluded_players,
                 included_players=included_players,
-                use_stored_data=use_stored_data,
             )
             lineups.append(lineup.to_dict(orient="records"))
         return lineups

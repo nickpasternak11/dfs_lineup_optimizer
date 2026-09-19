@@ -1,3 +1,1 @@
-from typing import List
-
-OptimizeResponse = List[List[dict]]
+OptimizeResponse = list[list[dict]]

@@ -37,7 +37,7 @@ async def get_current_week():
 async def get_projections(data: GetProjectionsRequest):
     optimizer = DFSLineupOptimizer(year=data.year, week=data.week)
     try:
-        df = optimizer.get_projections_df(use_stored_data=True)
+        df = optimizer.get_projections_df()
         return df.to_dict(orient="records")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
