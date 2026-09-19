@@ -10,8 +10,8 @@ export const BASE_HOSTNAME = window.location.hostname;
 export const BASE_URL = `${protocol}//${BASE_HOSTNAME}`;
 export const BASE_URL_API = `${BASE_URL}:8080`;
 
-const playerColumns = ["player", "position", "proj_fpts", "salary"];
-const mainPlayerColumns = ["player", "position", "team", "opponent", "grade", "avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
+const playerColumns = ["position", "player", "proj_fpts", "salary"];
+const mainPlayerColumns = ["position", "player", "team", "opponent", "grade", "avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
 const sortableColumns = ["avg_fpts", "proj_fpts", "salary", "salary_change", "value"];
 
 const columnLabels = {
@@ -499,6 +499,18 @@ function LineupOptimizer() {
         optimizeLineups();
     };
 
+    const hasActivePlayerFilters = Boolean(
+        playerSearch || positionFilter || teamFilter || opponentFilter || kickoffCutoff
+    );
+
+    const clearPlayerFilters = () => {
+        setPlayerSearch('');
+        setPositionFilter('');
+        setTeamFilter('');
+        setOpponentFilter('');
+        setKickoffCutoff('');
+    };
+
     useEffect(() => {
         try {
             window.localStorage.setItem(EXCLUDED_PLAYERS_STORAGE_KEY, JSON.stringify(excludedPlayers));
@@ -663,6 +675,15 @@ function LineupOptimizer() {
                                 </select>
                             ))}
                         </div>
+                        <button
+                            type="button"
+                            className="clear-filters-button"
+                            onClick={clearPlayerFilters}
+                            disabled={!hasActivePlayerFilters}
+                        >
+                            <span className="clear-filters-icon" aria-hidden="true">×</span>
+                            Clear filters
+                        </button>
                     </div>
                     {renderProjectionTable(
                         displayedProjections,
