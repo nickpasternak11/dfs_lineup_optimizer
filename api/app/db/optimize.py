@@ -30,7 +30,9 @@ class DFSLineupOptimizer:
         self,
         use_avg_fpts: bool = False,
         weights: dict = {},
-        stack_qb: bool = False,
+        stack_qb_count: int = 0,
+        avoid_te_flex: bool = False,
+        include_started_players: bool = False,
         excluded_players: list[str] = [],
         included_players: list[str] = [],
     ) -> pd.DataFrame:
@@ -41,6 +43,13 @@ class DFSLineupOptimizer:
 
         # Get data
         df = self.get_projections_df().copy()
+
+        # By default, only players whose games have not started are eligible.
+        # Older projection files may not have kickoff data, so leave those
+        # slates unchanged.
+        if not include_started_players and "kickoff" in df.columns:
+            kickoff = pd.to_datetime(df["kickoff"], errors="coerce", utc=True)
+            df = df[kickoff.isna() | (kickoff > pd.Timestamp.now(tz="UTC"))]
 
         # Remove excluded players
         df = df[~df["player"].isin(excluded_players)].reset_index(drop=True)
@@ -165,12 +174,11 @@ class DFSLineupOptimizer:
             )
             >= TE_limit
         )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "TE"
-            )
-            <= TE_limit + FLEX_limit
+        te_constraint = pulp.lpSum(
+            player_vars[i] for i in df.index if df.loc[i, "position"] == "TE"
         )
+        te_maximum = TE_limit if avoid_te_flex else TE_limit + FLEX_limit
+        prob += te_constraint <= te_maximum
         prob += (
             pulp.lpSum(
                 player_vars[i] for i in df.index if df.loc[i, "position"] == "DST"
@@ -189,7 +197,7 @@ class DFSLineupOptimizer:
             prob += player_vars[idx] == 1
 
         # QB WR/TE stracking constraints
-        if stack_qb:
+        if stack_qb_count:
             teams = df["team"].unique()
             for team in teams:
                 qb_vars = [
@@ -206,8 +214,9 @@ class DFSLineupOptimizer:
 
                 if qb_vars:
                     prob += (
-                        pulp.lpSum(pass_catcher_vars) >= pulp.lpSum(qb_vars),
-                        f"QB_Stack_{team}",
+                        pulp.lpSum(pass_catcher_vars)
+                        >= stack_qb_count * pulp.lpSum(qb_vars),
+                        f"QB_Stack_{team}_{stack_qb_count}",
                     )
 
         # Solve the problem
@@ -225,7 +234,9 @@ class DFSLineupOptimizer:
 
     def get_optimal_lineups(
         self,
-        stack_qb: bool = False,
+        stack_qb_count: int = 0,
+        avoid_te_flex: bool = False,
+        include_started_players: bool = False,
         excluded_players: list[str] = [],
         included_players: list[str] = [],
     ) -> list[dict]:
@@ -235,7 +246,9 @@ class DFSLineupOptimizer:
             lineup = self.optimize(
                 use_avg_fpts=True if weights[1] > 0 else False,
                 weights={"proj_fpts": weights[0], "avg_fpts": weights[1]},
-                stack_qb=stack_qb,
+                stack_qb_count=stack_qb_count,
+                avoid_te_flex=avoid_te_flex,
+                include_started_players=include_started_players,
                 excluded_players=excluded_players,
                 included_players=included_players,
             )

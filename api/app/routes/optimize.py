@@ -18,8 +18,11 @@ async def optimize(data: OptimizeRequest):
     # get optimal lineups
     try:
         optimizer = DFSLineupOptimizer(year=data.year, week=data.week)
+        stack_qb_count = data.stack_qb_count or (1 if data.stack_qb else 0)
         if lineups := optimizer.get_optimal_lineups(
-            stack_qb=data.stack_qb,
+            stack_qb_count=stack_qb_count,
+            avoid_te_flex=data.avoid_te_flex,
+            include_started_players=data.include_started_players,
             excluded_players=data.excluded_players,
             included_players=data.included_players,
         ):

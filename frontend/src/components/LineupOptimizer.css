@@ -125,7 +125,7 @@ h1 {
     box-shadow: 0 0 0 0.15rem rgba(25, 114, 120, 0.2);
 }
 
-/* Stack QB Checkbox Layout */
+/* Optimizer setting toggles */
 .form-check-stack {
     display: flex;
     align-items: center;
@@ -134,17 +134,45 @@ h1 {
     padding-left: 0;
 }
 
-.form-check-stack .form-check-input {
-    margin: 0;
+.form-check-stack .optimizer-toggle {
+    appearance: none;
+    -webkit-appearance: none;
+    background: #ccd7dc;
+    border: 0;
+    border-radius: 999px;
     cursor: pointer;
     flex-shrink: 0;
-    width: 1em;
-    height: 1em;
+    height: 1.25rem;
+    margin: 0;
+    position: relative;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    width: 2.25rem;
 }
 
-.form-check-stack .form-check-input:checked {
+.form-check-stack .optimizer-toggle::before {
+    background: #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(23, 33, 43, 0.2);
+    content: '';
+    height: 0.95rem;
+    left: 0.15rem;
+    position: absolute;
+    top: 0.15rem;
+    transition: transform 0.15s ease;
+    width: 0.95rem;
+}
+
+.form-check-stack .optimizer-toggle:checked {
     background-color: #197278;
-    border-color: #197278;
+}
+
+.form-check-stack .optimizer-toggle:checked::before {
+    transform: translateX(1rem);
+}
+
+.form-check-stack .optimizer-toggle:focus-visible {
+    box-shadow: 0 0 0 0.15rem rgba(25, 114, 120, 0.25);
+    outline: none;
 }
 
 .form-check-stack .form-check-label {
@@ -261,6 +289,46 @@ h1 {
     padding: 8px;
 }
 
+/* Quick filter chips: one-tap presets for the filter combinations people
+   reach for every week (value plays, reviewing locks/exclusions). */
+.quick-filters {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.quick-filters-label {
+    color: #6d7a82;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-right: 2px;
+}
+
+.quick-filter-chip {
+    background: #f4f7f8;
+    border: 1px solid #dce4e8;
+    border-radius: 999px;
+    color: #4c5a64;
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 12px;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.quick-filter-chip:hover {
+    border-color: #9fc9ca;
+}
+
+.quick-filter-chip.active {
+    background: #eaf6f6;
+    border-color: #197278;
+    color: #145d62;
+}
+
 .primary-filters,
 .secondary-filters {
     display: grid;
@@ -276,6 +344,19 @@ h1 {
     margin-top: 8px;
 }
 
+.active-filters-row {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+}
+
+.active-filters-count {
+    color: #6d7a82;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
 .clear-filters-button {
     align-items: center;
     background: #ffffff;
@@ -288,13 +369,12 @@ h1 {
     font-size: 0.72rem;
     font-weight: 700;
     gap: 5px;
-    margin-top: 8px;
     padding: 6px 10px;
     text-transform: uppercase;
     transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.clear-filters-button:hover:not(:disabled),
+.clear-filters-button:hover,
 .clear-filters-button:focus-visible {
     background: #eaf6f6;
     border-color: #197278;
@@ -307,15 +387,6 @@ h1 {
     font-size: 1rem;
     font-weight: 400;
     line-height: 0.8;
-}
-
-.clear-filters-button:disabled {
-    cursor: not-allowed;
-    background: #f6f8f9;
-    border-color: #d7e0e3;
-    box-shadow: none;
-    color: #8a969c;
-    opacity: 0.8;
 }
 
 /* Horizontal scrolling container for player pool table */
@@ -349,6 +420,11 @@ h1 {
     z-index: 10;
 }
 
+.player-pool-table thead th:focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: -3px;
+}
+
 .player-pool-table tbody td {
     color: #3f4d56;
     font-size: 0.75rem;
@@ -370,6 +446,34 @@ h1 {
     font-weight: 800;
     margin-left: 5px;
     white-space: nowrap;
+}
+
+/* Tags explaining *why* a player sits in the Unavailable tab -- their game
+   started, the user excluded them, or both -- rather than lumping every
+   reason under one generic label. */
+.unavailable-reason-tag {
+    border-radius: 4px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    margin-left: 6px;
+    padding: 2px 6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.unavailable-reason-tag.reason-started {
+    background: #f7dede;
+    color: #a33636;
+}
+
+.unavailable-reason-tag.reason-excluded {
+    background: #eef1f3;
+    color: #4c5a64;
+}
+
+.unavailable-reason-tag.reason-both {
+    background: #f3e3e3;
+    color: #8f3030;
 }
 
 .grade-badge {
@@ -403,6 +507,11 @@ h1 {
     color: #a33636;
 }
 
+.grade-f {
+    background: #f3d0d0;
+    color: #8a2020;
+}
+
 .pool-opponent-cell {
     align-items: center;
     display: inline-flex;
@@ -429,6 +538,26 @@ h1 {
 .results-panel table td:nth-child(1) {
     font-weight: 600;
     color: #17212b;
+}
+
+/* Salary delta with a directional glyph, not color alone. */
+.salary-delta {
+    align-items: center;
+    display: inline-flex;
+    font-weight: 600;
+    gap: 3px;
+}
+
+.salary-delta-up {
+    color: #28a745;
+}
+
+.salary-delta-down {
+    color: #dc3545;
+}
+
+.salary-delta-flat {
+    color: #8a969c;
 }
 
 /* Locked / Included Table Row Highlight */
@@ -478,14 +607,20 @@ h1 {
     transition: transform 0.15s ease, background-color 0.15s ease;
 }
 
-.action-button:hover:not(:disabled) {
+.action-button:hover {
     transform: scale(1.15);
     background-color: #eaf6f6;
 }
 
-.action-button:disabled {
-    cursor: not-allowed;
+/* Replaces the old `disabled` state: the button stays tappable (so its
+   `title` reason reaches mobile users on tap) but reads visually inert. */
+.action-button.is-unavailable {
     opacity: 0.35;
+}
+
+.action-button.is-unavailable:hover {
+    background-color: transparent;
+    transform: none;
 }
 
 .player-group {
