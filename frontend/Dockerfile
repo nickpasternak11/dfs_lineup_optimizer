@@ -6,6 +6,8 @@ COPY package.json package-lock.json ./
 
 RUN npm install
 
+# Keep source changes from being hidden by a stale layer while retaining the
+# cached dependency installation above.
 COPY . .
 
 RUN npm run build
