@@ -6,6 +6,35 @@ from zoneinfo import ZoneInfo
 import bs4
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
+
+_http = requests.Session()
+_http.mount(
+    "https://",
+    HTTPAdapter(
+        max_retries=Retry(
+            total=3,
+            backoff_factor=2,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=("GET",),
+        )
+    ),
+)
+
+
+def fetch(url: str, params: dict | None = None, headers: dict | None = None):
+    """GET with retries on transient failures; raises on any non-2xx."""
+    response = _http.get(url, params=params, headers=headers, timeout=30)
+    response.raise_for_status()
+    return response
+
 
 PLAYER_PATTERN = re.compile(
     r"^(?P<player>.*?)\s*\((?P<team>.*?)\s*-\s*(?P<position>.*?)\)"
@@ -30,33 +59,20 @@ DAY_OFFSETS = {
 def get_current_week() -> int:
     """Fetch the current NFL week number from FantasyPros.
 
-    Returns default_week if the request fails or parsing finds no match.
+    Raises rather than guessing: a wrong week would be written over real data
+    for that week.
     """
     url = "https://www.fantasypros.com/nfl/schedule.php"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        )
-    }
+    response = fetch(url, headers={"User-Agent": USER_AGENT})
 
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
+    soup = bs4.BeautifulSoup(response.text, "html.parser")
+    caption = soup.select_one("table#data caption.hidden-aria")
+    if caption and (
+        match := re.search(r"Week\s+(\d+)", caption.get_text(), re.IGNORECASE)
+    ):
+        return int(match.group(1))
 
-        soup = bs4.BeautifulSoup(response.text, "html.parser")
-        caption = soup.select_one("table#data caption.hidden-aria")
-
-        if caption and (
-            match := re.search(r"Week\s+(\d+)", caption.get_text(), re.IGNORECASE)
-        ):
-            return int(match.group(1))
-
-    except (requests.RequestException, ValueError) as e:
-        print(f"Warning: Failed to fetch current week ({e}). Defaulting to 1.")
-
-    return 1
+    raise RuntimeError("Could not find the current week on the FantasyPros schedule")
 
 
 def parse_currency(values: pd.Series) -> pd.Series:
@@ -90,16 +106,12 @@ def parse_kickoff(value: str, reference_date: date | None = None) -> datetime | 
 def get_salary_data(year: int) -> pd.DataFrame:
     url = "https://www.fantasypros.com/daily-fantasy/nfl/draftkings-salary-changes.php"
     params = {"year": year}
-    r = requests.get(
-        url,
-        params=params,
-        timeout=30,
-    )
+    r = fetch(url, params=params)
 
     try:
         df = pd.read_html(StringIO(r.text))[0]
-    except ValueError:
-        return pd.DataFrame()  # Return empty DataFrame if no tables are found
+    except ValueError as error:
+        raise RuntimeError(f"No salary table on the page for year={year}") from error
 
     df[["player", "team", "position"]] = df["Player"].str.extract(PLAYER_PATTERN)
     df["opponent"] = df["Opp"].astype("string").str.replace("@", "", regex=False)

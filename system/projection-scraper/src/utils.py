@@ -5,39 +5,54 @@ from io import StringIO
 import bs4
 import pandas as pd
 import requests
-from src.configs import PROJECTIONS_COLUMN_MAPPINGS, STATS_COLUMN_MAPPINGS
+from requests.adapters import HTTPAdapter
+from src.configs import PROJECTIONS_COLUMN_MAPPINGS, STATS_COLUMN_MAPPINGS, log
+from urllib3.util.retry import Retry
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
+
+_http = requests.Session()
+_http.mount(
+    "https://",
+    HTTPAdapter(
+        max_retries=Retry(
+            total=3,
+            backoff_factor=2,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=("GET",),
+        )
+    ),
+)
+
+
+def fetch(url: str, params: dict | None = None, headers: dict | None = None):
+    """GET with retries on transient failures; raises on any non-2xx."""
+    response = _http.get(url, params=params, headers=headers, timeout=30)
+    response.raise_for_status()
+    return response
 
 
 def get_current_week() -> int:
     """Fetch the current NFL week number from FantasyPros.
 
-    Returns default_week if the request fails or parsing finds no match.
+    Raises rather than guessing: a wrong week would be written over real data
+    for that week.
     """
     url = "https://www.fantasypros.com/nfl/schedule.php"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        )
-    }
+    response = fetch(url, headers={"User-Agent": USER_AGENT})
 
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
+    soup = bs4.BeautifulSoup(response.text, "html.parser")
+    caption = soup.select_one("table#data caption.hidden-aria")
+    if caption and (
+        match := re.search(r"Week\s+(\d+)", caption.get_text(), re.IGNORECASE)
+    ):
+        return int(match.group(1))
 
-        soup = bs4.BeautifulSoup(response.text, "html.parser")
-        caption = soup.select_one("table#data caption.hidden-aria")
-
-        if caption and (
-            match := re.search(r"Week\s+(\d+)", caption.get_text(), re.IGNORECASE)
-        ):
-            return int(match.group(1))
-
-    except (requests.RequestException, ValueError) as e:
-        print(f"Warning: Failed to fetch current week ({e}). Defaulting to 1.")
-
-    return 1
+    raise RuntimeError("Could not find the current week on the FantasyPros schedule")
 
 
 def get_weekly_rankings(position: str, year: int, week: int):
@@ -45,9 +60,10 @@ def get_weekly_rankings(position: str, year: int, week: int):
     position = position.upper()
     url = f"https://www.fantasypros.com/nfl/rankings/{'ppr-' if position not in ['QB', 'DST'] else ''}{position.lower()}.php"
     params = {"year": year, "week": week}
-    r = requests.get(url, params=params)
+    r = fetch(url, params=params)
     cxt = bs4.BeautifulSoup(r.text, features="lxml")
     script_tags = cxt.find_all("script", attrs={"type": "text/javascript"})
+    skipped = 0
     for script_tag in script_tags:
         script_text = script_tag.text.strip()
         if "var ecrData =" in script_text:
@@ -80,8 +96,19 @@ def get_weekly_rankings(position: str, year: int, week: int):
                                 "proj_fpts": float(fpts),
                             }
                         )
-                    except:
-                        pass
+                    except (KeyError, TypeError, ValueError):
+                        # Occasional entries lack a grade or rank; skip them,
+                        # but a page where most fail is reported below.
+                        skipped += 1
+    if skipped:
+        log.warning(
+            "%s rankings %s week %s: skipped %s malformed entries (kept %s)",
+            position,
+            year,
+            week,
+            skipped,
+            len(rankings_list),
+        )
     return pd.DataFrame(rankings_list)
 
 
@@ -98,7 +125,7 @@ def get_weekly_projections(
         "week": week,
         "scoring": scoring,
     }
-    r = requests.get(url, params=params)
+    r = fetch(url, params=params)
     df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0]
     df.columns = PROJECTIONS_COLUMN_MAPPINGS[position]
     player_col = (
@@ -140,7 +167,7 @@ def get_stats(
         "end_week": end,
         "scoring": scoring,
     }
-    r = requests.get(url, params=params)
+    r = fetch(url, params=params)
     df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
     df.columns = [
         (
@@ -186,8 +213,7 @@ def get_player_injuries(year: int, week: int) -> pd.DataFrame:
     """
     url = "https://www.fantasypros.com/nfl/players/injuries.php"
     params = {"year": year, "week": week}
-    response = requests.get(url, params=params, timeout=10)
-    response.raise_for_status()
+    response = fetch(url, params=params)
 
     tables = pd.read_html(StringIO(response.text))
     injury_tables = tables[:4]
