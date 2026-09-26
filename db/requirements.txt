@@ -1,0 +1,8 @@
+SQLAlchemy==2.0.36
+psycopg[binary]==3.2.3
+alembic==1.13.3
+# shared/dfs_db/__init__.py imports upsert.py (pandas/numpy) even though
+# Alembic itself never calls it -- importing dfs_db.config always runs the
+# package's __init__.
+pandas==2.3.3
+numpy==1.26.4

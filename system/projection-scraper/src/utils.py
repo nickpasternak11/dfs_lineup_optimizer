@@ -178,10 +178,15 @@ def get_stats(
     return df.drop(columns="fpts")
 
 
-def get_current_player_injuries() -> pd.DataFrame:
-    """Return current QB, RB, WR, and TE injury statuses from FantasyPros."""
+def get_player_injuries(year: int, week: int) -> pd.DataFrame:
+    """Return QB, RB, WR, and TE injury statuses for a season and week.
+
+    The page's team column reflects current rosters even for past weeks, so
+    only player, status and injury are kept.
+    """
     url = "https://www.fantasypros.com/nfl/players/injuries.php"
-    response = requests.get(url, timeout=10)
+    params = {"year": year, "week": week}
+    response = requests.get(url, params=params, timeout=10)
     response.raise_for_status()
 
     tables = pd.read_html(StringIO(response.text))

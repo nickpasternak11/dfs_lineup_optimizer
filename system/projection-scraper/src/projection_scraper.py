@@ -1,13 +1,16 @@
 from datetime import datetime
 
 import pandas as pd
+from dfs_db import PlayerProjection, replace_weeks, session_scope
 from src.configs import log
 from src.utils import (
-    get_current_player_injuries,
     get_current_week,
+    get_player_injuries,
     get_stats,
     get_weekly_rankings,
 )
+
+POSITIONS = ["QB", "RB", "WR", "TE", "DST"]
 
 
 class ProjectionScraper:
@@ -22,16 +25,8 @@ class ProjectionScraper:
             else self.current_year
         )
 
-    def get_salary_df(
-        self, year: int | None = None, week: int | None = None
-    ) -> pd.DataFrame:
-        year = self.current_year if year is None else year
-        week = self.current_week if week is None else week
-        path_to_csv = f"/app/data/salaries/dk_salary_{year}_w{week}.csv"
-        return pd.read_csv(path_to_csv)
-
     def scrape(self, year: int | None = None, week: int | None = None) -> None:
-        year = self.current_year if year is None else year
+        year = self.fp_year if year is None else year
         week = self.current_week if week is None else week
 
         log.info(
@@ -40,13 +35,13 @@ class ProjectionScraper:
 
         # Get weekly rankings and stats for all positions
         df = pd.DataFrame()
-        for pos in ["QB", "RB", "WR", "TE", "DST"]:
+        for pos in POSITIONS:
             df = pd.concat(
                 [
                     df,
                     pd.merge(
-                        get_weekly_rankings(pos, self.fp_year, week),
-                        get_stats(pos, self.fp_year, [week - 4, week - 1])[
+                        get_weekly_rankings(pos, year, week),
+                        get_stats(pos, year, [week - 4, week - 1])[
                             ["player", "avg_fpts"]
                         ],
                         how="left",
@@ -54,30 +49,14 @@ class ProjectionScraper:
                 ]
             )
 
-        # Merge with salary data and calculate value
-        df = df.merge(self.get_salary_df(year=year, week=week))
-        df = df[
-            [
-                "year",
-                "week",
-                "player",
-                "position",
-                "team",
-                "kickoff",
-                "opponent",
-                "home",
-                "grade",
-                "rank",
-                "avg_fpts",
-                "proj_fpts",
-                "salary",
-                "salary_change",
-            ]
-        ]
-        df["value"] = df["proj_fpts"] / (df["salary"] / 1000)
+        if df.empty:
+            log.warning("No projection data returned for year=%s, week=%s", year, week)
+            return
 
-        # Integrate player injury data
-        injuries_df = get_current_player_injuries().fillna("Healthy")
+        # Integrate the week's injury report. Players absent from it are left
+        # NULL rather than filled, so "no report" stays distinguishable from a
+        # real status.
+        injuries_df = get_player_injuries(year, week)
         df = pd.merge(
             df,
             injuries_df[["player", "injury_status", "injury_type"]],
@@ -85,13 +64,15 @@ class ProjectionScraper:
             on="player",
         )
 
+        # Salary, team, opponent, kickoff and home live on player_salaries and
+        # are joined back in by the weekly_player_pool view.
+        df = df.assign(year=year, week=week)
+
         log.info("Saving projection data..")
-        output_path = f"/app/data/projections/fp_projection_{year}_w{week}.csv"
-        df.fillna(0).drop_duplicates().to_csv(output_path, index=False)
+        with session_scope() as session:
+            rows = replace_weeks(session, PlayerProjection, df)
+        log.info("Upserted %s projection rows for year=%s, week=%s", rows, year, week)
 
 
 if __name__ == "__main__":
-    scraper = ProjectionScraper()
-    for year in range(2018, scraper.current_year + 1):
-        log.info(f"Scraping projection data for year {year}..")
-        scraper.scrape(year=year)
+    ProjectionScraper().scrape()
