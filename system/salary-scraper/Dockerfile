@@ -11,6 +11,13 @@ FROM base as builder
 COPY shared/ ./shared/
 COPY system/salary-scraper/ .
 
+# `make test` target; not part of the deployed image.
+FROM builder AS test
+COPY requirements-test.txt .
+RUN pip install -r requirements-test.txt
+ENV PYTHONPATH="${PYTHONPATH}:/app:/app/shared"
+CMD ["python", "-m", "pytest", "-q", "--import-mode=importlib", "tests"]
+
 FROM builder as service
 
 # Add the current directory and the shared package to PYTHONPATH
