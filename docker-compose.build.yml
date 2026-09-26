@@ -7,10 +7,12 @@ services:
     networks:
       - app_network
 
+  # Services below build from the repo root so they can copy in shared/dfs_db.
   dfs-api:
     image: dfs-api
     build:
-      context: api/.
+      context: .
+      dockerfile: api/Dockerfile
       target: service
     networks:
       - app_network
@@ -26,7 +28,8 @@ services:
   dfs-salary-scraper:
     image: dfs-salary-scraper
     build:
-      context: system/salary-scraper/.
+      context: .
+      dockerfile: system/salary-scraper/Dockerfile
       target: service
     networks:
       - app_network
@@ -34,7 +37,26 @@ services:
   dfs-projection-scraper:
     image: dfs-projection-scraper
     build:
-      context: system/projection-scraper/.
+      context: .
+      dockerfile: system/projection-scraper/Dockerfile
+      target: service
+    networks:
+      - app_network
+
+  dfs-migration:
+    image: dfs-migration
+    build:
+      context: .
+      dockerfile: migration/Dockerfile
+      target: service
+    networks:
+      - app_network
+
+  dfs-db-migrate:
+    image: dfs-db-migrate
+    build:
+      context: .
+      dockerfile: db/Dockerfile
       target: service
     networks:
       - app_network

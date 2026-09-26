@@ -222,6 +222,8 @@ const hasKickoffPassed = (kickoffStr) => {
 function LineupOptimizer() {
     const [year, setYear] = useState('');
     const [week, setWeek] = useState('');
+    const [currentYear, setCurrentYear] = useState('');
+    const [currentWeek, setCurrentWeek] = useState('');
     const [stackQBCount, setStackQBCount] = useState(0);
     const [avoidTEFlex, setAvoidTEFlex] = useState(false);
     const [includeStartedPlayers, setIncludeStartedPlayers] = useState(false);
@@ -554,10 +556,12 @@ function LineupOptimizer() {
     const fetchCurrentPeriod = async () => {
         const yearResponse = await axios.get(`${BASE_URL_API}/projections/current_year`);
         const weekResponse = await axios.get(`${BASE_URL_API}/projections/current_week`);
-        const currentYear = String(yearResponse.data);
-        const currentWeek = String(weekResponse.data);
-        setYear(currentYear);
-        setWeek(currentWeek);
+        const current_year = String(yearResponse.data);
+        const current_week = String(weekResponse.data);
+        setYear(current_year);
+        setWeek(current_week);
+        setCurrentYear(current_year);
+        setCurrentWeek(current_week);
         setKickoffCutoff(getDefaultCutoff());
         optimizeLineups(currentYear, currentWeek);
     };
@@ -825,8 +829,8 @@ function LineupOptimizer() {
                                             className="form-control form-control-sm"
                                             value={year}
                                             onChange={(e) => setYear(e.target.value)}
-                                            min="2024"
-                                            max="2026"
+                                            min="2018"
+                                            max={currentYear}
                                         />
                                     </div>
                                     <div className="form-group">

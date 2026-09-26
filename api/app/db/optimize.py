@@ -1,30 +1,60 @@
-from datetime import datetime
-
 import pandas as pd
 import pulp
+from dfs_db import get_engine
 from pulp import PULP_CBC_CMD
+from sqlalchemy import text
 
 from app.configs.configs import log
-from app.helpers.optimize import get_latest_week
+from app.helpers.optimize import (
+    dataframe_to_records,
+    get_current_season_year,
+    get_latest_week,
+)
+
+PLAYER_POOL_QUERY = text(
+    """
+    SELECT year, week, player, position, team, kickoff, opponent, home,
+           grade, rank, avg_fpts, proj_fpts, salary, salary_change, value,
+           injury_status, injury_type
+    FROM weekly_player_pool
+    WHERE year = :year
+      AND week = :week
+      AND salary IS NOT NULL
+      AND proj_fpts IS NOT NULL
+    ORDER BY position, rank
+    """
+)
+
+# NUMERIC comes back as Decimal, which neither pulp nor orjson can handle.
+FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value"]
 
 
 class DFSLineupOptimizer:
     def __init__(self, year: int | None = None, week: int | None = None):
-        self.current_year = datetime.now().year if year is None else year
+        self.current_year = get_current_season_year() if year is None else year
         self.current_week = (
             get_latest_week(year=self.current_year) if week is None else week
         )
-
-    def get_salary_df(self) -> pd.DataFrame:
-        path_to_csv = (
-            f"/app/data/salaries/dk_salary_{self.current_year}_w{self.current_week}.csv"
-        )
-        return pd.read_csv(path_to_csv)
+        self._projections_df: pd.DataFrame | None = None
 
     def get_projections_df(self) -> pd.DataFrame:
-        return pd.read_csv(
-            f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
-        )
+        """Load the week's player pool, once per optimizer instance.
+
+        get_optimal_lineups solves three times over the same pool, so the
+        result is cached; callers copy before mutating.
+        """
+        if self._projections_df is None:
+            with get_engine().connect() as connection:
+                self._projections_df = pd.read_sql(
+                    PLAYER_POOL_QUERY,
+                    connection,
+                    params={"year": self.current_year, "week": self.current_week},
+                )
+            for column in FLOAT_COLUMNS:
+                self._projections_df[column] = pd.to_numeric(
+                    self._projections_df[column], errors="coerce"
+                ).astype(float)
+        return self._projections_df
 
     def optimize(
         self,
@@ -44,10 +74,16 @@ class DFSLineupOptimizer:
         # Get data
         df = self.get_projections_df().copy()
 
+        if df.empty:
+            # Mapped to a 404 by the route, matching the old missing-CSV case.
+            raise FileNotFoundError(
+                f"No player pool for year={self.current_year}, "
+                f"week={self.current_week}"
+            )
+
         # By default, only players whose games have not started are eligible.
-        # Older projection files may not have kickoff data, so leave those
-        # slates unchanged.
-        if not include_started_players and "kickoff" in df.columns:
+        # Slates predating kickoff collection have it NULL and stay eligible.
+        if not include_started_players:
             kickoff = pd.to_datetime(df["kickoff"], errors="coerce", utc=True)
             df = df[kickoff.isna() | (kickoff > pd.Timestamp.now(tz="UTC"))]
 
@@ -63,9 +99,13 @@ class DFSLineupOptimizer:
 
         # Factor in avg_fpts if requested
         if use_avg_fpts and weights:
+            # Players with no recent stats (rookies, returns from injury) have
+            # NULL avg_fpts; fall back to their projection so the blend leaves
+            # them unchanged instead of going NaN.
+            avg_fpts = df["avg_fpts"].fillna(df["proj_fpts"])
             df["proj_fpts"] = (
                 df["proj_fpts"] * weights.get("proj_fpts", 1.0)
-                + df["avg_fpts"] * weights.get("avg_fpts", 0.0)
+                + avg_fpts * weights.get("avg_fpts", 0.0)
             ).round(1)
 
         # # Handle included players
@@ -252,5 +292,5 @@ class DFSLineupOptimizer:
                 excluded_players=excluded_players,
                 included_players=included_players,
             )
-            lineups.append(lineup.to_dict(orient="records"))
+            lineups.append(dataframe_to_records(lineup))
         return lineups

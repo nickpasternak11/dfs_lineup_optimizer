@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 
 from app.db.optimize import DFSLineupOptimizer
 from app.helpers.api_router import APIRouter
+from app.helpers.optimize import dataframe_to_records, get_current_season_year
 from app.models.requests.projections import GetProjectionsRequest
 from app.models.responses.projections import GetProjectionsResponse
 
@@ -15,7 +16,7 @@ router = APIRouter()
     description="Endpoint for getting the current projection year.",
 )
 async def get_current_year():
-    return DFSLineupOptimizer().current_year
+    return get_current_season_year()
 
 
 @router.get(
@@ -38,6 +39,6 @@ async def get_projections(data: GetProjectionsRequest):
     optimizer = DFSLineupOptimizer(year=data.year, week=data.week)
     try:
         df = optimizer.get_projections_df()
-        return df.to_dict(orient="records")
+        return dataframe_to_records(df)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

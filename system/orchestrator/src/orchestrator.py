@@ -1,9 +1,20 @@
+import os
 import time
 
 import backoff
 import docker
 import schedule
 from src.configs import log
+
+# Forwarded to scraper containers so they reach the same database as the API.
+DB_ENV_VARS = (
+    "POSTGRES_HOST",
+    "POSTGRES_PORT",
+    "POSTGRES_DB",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "DATABASE_URL",
+)
 
 
 class ScraperOrchestrator:
@@ -44,8 +55,10 @@ class ScraperOrchestrator:
             "detach": True,
             "network": self.network_name,
             "labels": {"logging": "promtail"},
-            "volumes": {
-                "/dfs_data": {"bind": "/app/data", "mode": "rw"},
+            "environment": {
+                name: os.environ[name]
+                for name in DB_ENV_VARS
+                if name in os.environ
             },
             "name": container_name,
             "auto_remove": True,
