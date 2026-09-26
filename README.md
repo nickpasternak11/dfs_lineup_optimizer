@@ -296,9 +296,24 @@ make run-salary-scraper       # scrape the current week (ARGS for other targets)
 make run-projection-scraper
 make backfill                 # this week of every past season (runs Tuesdays anyway)
 
+make test                     # run all test suites (see Testing)
 make db-upgrade               # schema migrations (see Schema Migrations)
 make migrate                  # CSV import (see Migrating from CSV)
 ```
+
+### Testing
+
+```bash
+make test                     # every suite
+make test-api                 # optimizer rules, JSON conversion, DB write guard
+make test-salary-scraper      # salary page parsing, kickoff and week handling
+make test-projection-scraper  # rankings, stats and injury parsing
+make test-frontend            # lineup slot ordering
+```
+
+Each suite runs in its service's `test` Docker build stage, with the same dependencies as the deployed image. No database, network access or running stack is needed. Scraper tests read saved HTML from each service's `tests/fixtures/` instead of FantasyPros. If FantasyPros changes a page layout, update the matching fixture along with the parser.
+
+Tests live in `api/tests/`, `shared/tests/` (run with the API suite), `system/*/tests/` and `frontend/src/**/*.test.js`.
 
 To run the frontend locally outside Docker:
 
