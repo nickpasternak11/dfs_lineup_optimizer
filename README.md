@@ -317,6 +317,8 @@ Each suite runs in its service's `test` Docker build stage, with the same depend
 
 Tests live in `api/tests/`, `shared/tests/` (run with the API suite), `system/*/tests/` and `frontend/src/**/*.test.js`.
 
+GitHub Actions runs `make test` on every push to every branch (`.github/workflows/tests.yml`), and pull requests show the result for their latest commit. New suites added to `make test` are picked up automatically.
+
 To run the frontend locally outside Docker:
 
 ```bash

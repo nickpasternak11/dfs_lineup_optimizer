@@ -1,0 +1,27 @@
+name: Tests
+
+# Every push, on every branch. A pull request from this repo shows the result
+# for its head commit, so it doesn't need its own trigger.
+on:
+  push:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes an in-progress run pointless.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Each suite builds its service's `test` Docker stage, so this runs with
+      # the same dependencies as production. -k keeps going after a failing
+      # suite, so one run reports every failure.
+      - name: Run all test suites
+        run: make -k test
