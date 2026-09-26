@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Each suite builds its service's `test` Docker stage, so this runs with
       # the same dependencies as production. -k keeps going after a failing
