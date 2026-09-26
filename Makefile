@@ -21,7 +21,8 @@ MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 .PHONY: down build run run-salary-scraper run-projection-scraper psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
-	backup list-backups restore
+	backup list-backups restore \
+	test test-api test-salary-scraper test-projection-scraper test-frontend
 
 down:
 	docker compose -f $(COMPOSE_RUN_FILE) down
@@ -43,6 +44,26 @@ run-salary-scraper:
 
 run-projection-scraper:
 	$(DOCKER_RUN) dfs-projection-scraper $(ARGS)
+
+# Tests run in each service's `test` build stage, with the same dependencies as
+# the deployed image. No database, network or running stack needed.
+test: test-api test-salary-scraper test-projection-scraper test-frontend
+
+test-api:
+	docker build -q --target test -f api/Dockerfile -t dfs-api-test . >/dev/null
+	docker run --rm dfs-api-test
+
+test-salary-scraper:
+	docker build -q --target test -f system/salary-scraper/Dockerfile -t dfs-salary-scraper-test . >/dev/null
+	docker run --rm dfs-salary-scraper-test
+
+test-projection-scraper:
+	docker build -q --target test -f system/projection-scraper/Dockerfile -t dfs-projection-scraper-test . >/dev/null
+	docker run --rm dfs-projection-scraper-test
+
+test-frontend:
+	docker build -q --target test -t dfs-frontend-test frontend >/dev/null
+	docker run --rm dfs-frontend-test
 
 psql:
 	docker compose -f $(COMPOSE_RUN_FILE) exec dfs-postgres \
