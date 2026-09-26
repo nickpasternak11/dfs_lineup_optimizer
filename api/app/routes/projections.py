@@ -16,7 +16,7 @@ router = APIRouter()
     response_model=int,
     description="Endpoint for getting the current projection year.",
 )
-async def get_current_year():
+def get_current_year():
     return current_season_year()
 
 
@@ -26,7 +26,7 @@ async def get_current_year():
     response_model=int,
     description="Endpoint for getting the current projection week.",
 )
-async def get_current_week():
+def get_current_week():
     return DFSLineupOptimizer().current_week
 
 
@@ -36,7 +36,7 @@ async def get_current_week():
     response_model=GetProjectionsResponse,
     description="Endpoint for getting weekly projections.",
 )
-async def get_projections(data: GetProjectionsRequest):
+def get_projections(data: GetProjectionsRequest):
     optimizer = DFSLineupOptimizer(year=data.year, week=data.week)
     try:
         df = optimizer.get_projections_df()
