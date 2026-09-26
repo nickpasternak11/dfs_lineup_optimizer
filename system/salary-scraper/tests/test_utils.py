@@ -4,7 +4,6 @@ import pandas as pd
 import pytest
 from src.utils import (
     EASTERN,
-    get_current_week,
     get_salary_data,
     parse_currency,
     parse_kickoff,
@@ -79,14 +78,3 @@ def test_get_salary_data_raises_when_the_page_has_no_table(fake_fetch):
     with pytest.raises(RuntimeError, match="No salary table"):
         get_salary_data(year=2025)
 
-
-def test_get_current_week_reads_the_schedule_caption(fake_fetch):
-    fake_fetch("schedule.html")
-    assert get_current_week() == 3
-
-
-def test_get_current_week_raises_instead_of_guessing(fake_fetch):
-    # Regression: this used to fall back to week 1 and overwrite it.
-    fake_fetch("empty.html")
-    with pytest.raises(RuntimeError, match="current week"):
-        get_current_week()

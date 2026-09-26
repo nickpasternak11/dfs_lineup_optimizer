@@ -1,30 +1,18 @@
-from datetime import datetime
-
 import pandas as pd
+from dfs_common.fantasypros import get_current_week
+from dfs_common.season import current_season_year
 from dfs_db import PlayerProjection, replace_weeks, session_scope
 from dfs_db.upsert import DEFAULT_MIN_RATIO
 from src.configs import log
-from src.utils import (
-    get_current_week,
-    get_player_injuries,
-    get_stats,
-    get_weekly_rankings,
-)
+from src.utils import get_player_injuries, get_stats, get_weekly_rankings
 
 POSITIONS = ["QB", "RB", "WR", "TE", "DST"]
 
 
 class ProjectionScraper:
     def __init__(self):
-        self.current_date = datetime.now()
-        self.current_year = self.current_date.year
         self.current_week = get_current_week()
-        # adjusted year for FantasyPro's site
-        self.fp_year = (
-            self.current_year - 1
-            if self.current_date.month in [1, 2]
-            else self.current_year
-        )
+        self.fp_year = current_season_year()
 
     def scrape(
         self,

@@ -34,7 +34,9 @@ dfs_lineup_optimizer/
 │   ├── orchestrator/                 # Scraper scheduling service
 │   ├── salary-scraper/               # DraftKings salary scraper
 │   └── projection-scraper/           # FantasyPros projection scraper
-├── shared/dfs_db/                    # Shared DB config, sessions, ORM models, writes
+├── shared/                           # Python packages copied into every service image
+│   ├── dfs_db/                       # DB config, sessions, ORM models, writes
+│   └── dfs_common/                   # Logging, season year, FantasyPros HTTP helpers
 ├── db/                               # Schema migrations (Alembic)
 │   └── migrations/versions/          # One file per schema change
 ├── migration/                        # One-time CSV → PostgreSQL data load

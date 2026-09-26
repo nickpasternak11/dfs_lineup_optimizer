@@ -7,7 +7,7 @@ services:
     networks:
       - app_network
 
-  # Services below build from the repo root so they can copy in shared/dfs_db.
+  # Services below build from the repo root so they can copy in shared/.
   dfs-api:
     image: dfs-api
     build:
@@ -20,7 +20,8 @@ services:
   dfs-orchestration:
     image: dfs-orchestration
     build:
-      context: system/orchestrator/.
+      context: .
+      dockerfile: system/orchestrator/Dockerfile
       target: service
     networks:
       - app_network
