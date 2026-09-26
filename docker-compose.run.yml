@@ -59,13 +59,11 @@ services:
       logging: "promtail"
     environment:
       <<: *postgres-env
-      # Host path: the orchestrator launches the backup container through the
-      # host's Docker socket, so this is resolved on the host, not in here.
-      BACKUP_DIR: ${BACKUP_DIR:-/dfs_backups}
       BACKUP_RETENTION: ${BACKUP_RETENTION:-14}
       BACKFILL_START_YEAR: ${BACKFILL_START_YEAR:-2018}
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
+      # Backups live on the host, outside the database volume.
+      - "${BACKUP_DIR:-/dfs_backups}:/backups"
     depends_on:
       dfs-postgres:
         condition: service_healthy
