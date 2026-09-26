@@ -17,6 +17,9 @@ DB_ENV_VARS = (
     "DATABASE_URL",
 )
 
+# First season the weekly backfill collects; it runs through last season.
+BACKFILL_START_YEAR = os.getenv("BACKFILL_START_YEAR", "2018")
+
 
 class ScraperOrchestrator:
     def __init__(self):
@@ -32,6 +35,11 @@ class ScraperOrchestrator:
         schedule.every().tuesday.at("09:00", "America/New_York").do(
             self.run_salary_scraper
         )
+        # Past-season backfill → Once per week, Tuesday 9:30 AM ET. The salary
+        # source only serves the current week, so each past season's copy of
+        # this week can only be collected now; after the 9:00 live scrape so
+        # the new week is already live, and before the 10:00 projection runs.
+        schedule.every().tuesday.at("09:30", "America/New_York").do(self.run_backfill)
         # Projection scraper → Every hour, Tue 10:00 AM through Thu 8:00 PM ET
         for day in ["tuesday", "wednesday", "thursday"]:
             for hour in range(10, 21):  # 10:00 AM to 8:00 PM inclusive
@@ -60,9 +68,20 @@ class ScraperOrchestrator:
         log.info("Starting scheduled projection scraper...")
         self.run_container("dfs-projection-scraper")
 
-    def run_container(self, container_name: str):
+    def run_backfill(self):
+        log.info(
+            "Starting scheduled backfill of this week for %s through last season...",
+            BACKFILL_START_YEAR,
+        )
+        args = ["--start-year", BACKFILL_START_YEAR]
+        self.run_container("dfs-salary-scraper", command=args)
+        self.run_container("dfs-projection-scraper", command=args)
+
+    def run_container(self, container_name: str, command: list[str] | None = None):
         container_config = {
             "image": container_name,
+            # Appended to the image's `python main.py` entrypoint.
+            "command": command,
             "detach": True,
             "network": self.network_name,
             "labels": {"logging": "promtail"},

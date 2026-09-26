@@ -63,6 +63,7 @@ services:
       # host's Docker socket, so this is resolved on the host, not in here.
       BACKUP_DIR: ${BACKUP_DIR:-/dfs_backups}
       BACKUP_RETENTION: ${BACKUP_RETENTION:-14}
+      BACKFILL_START_YEAR: ${BACKFILL_START_YEAR:-2018}
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
     depends_on:

@@ -14,10 +14,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--start-year",
         type=int,
-        help="with --end-year and --week, scrape that week for every season "
-        "from --start-year through --end-year",
+        help="scrape --week (default: current) for every season from "
+        "--start-year through --end-year",
     )
-    parser.add_argument("--end-year", type=int)
+    parser.add_argument(
+        "--end-year", type=int, help="with --start-year (default: last season)"
+    )
     parser.add_argument(
         "--allow-shrink",
         action="store_true",
@@ -36,14 +38,16 @@ if __name__ == "__main__":
         scraper.scrape(year=args.year, week=args.week, allow_shrink=args.allow_shrink)
         sys.exit(0)
 
-    if args.week is None or args.start_year is None or args.end_year is None:
-        raise SystemExit("--start-year/--end-year require each other and --week")
+    if args.start_year is None:
+        raise SystemExit("--end-year requires --start-year")
+    end_year = scraper.fp_year - 1 if args.end_year is None else args.end_year
+    week = scraper.current_week if args.week is None else args.week
 
     failed = []
-    for year in range(args.start_year, args.end_year + 1):
-        log.info("Scraping projection data for year=%s week=%s..", year, args.week)
+    for year in range(args.start_year, end_year + 1):
+        log.info("Scraping projection data for year=%s week=%s..", year, week)
         try:
-            scraper.scrape(year=year, week=args.week, allow_shrink=args.allow_shrink)
+            scraper.scrape(year=year, week=week, allow_shrink=args.allow_shrink)
         except Exception:  # noqa: BLE001 - one bad season shouldn't stop the rest
             log.exception("Projection scrape failed for year=%s", year)
             failed.append(year)

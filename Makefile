@@ -18,7 +18,7 @@ DOCKER_RUN := docker run --rm \
 # Migration tooling additionally needs the CSV data mount.
 MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
-.PHONY: down build run run-salary-scraper run-projection-scraper psql \
+.PHONY: down build run run-salary-scraper run-projection-scraper backfill psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
@@ -34,9 +34,7 @@ run: down
 	docker compose -f $(COMPOSE_RUN_FILE) up -d
 
 # Plain targets scrape the current week, matching the orchestrator's schedule.
-# Pass ARGS to backfill past seasons:
-#   make run-projection-scraper ARGS="--start-year 2018 --end-year 2025 --week 3"
-#   make run-salary-scraper     ARGS="--start-year 2018 --end-year 2025"
+# Pass ARGS for other targets, e.g. ARGS="--year 2024 --week 5" (projections).
 # The salary source only serves the current NFL week, so it takes no --week;
 # past seasons' salaries can only be collected during that week of the year.
 run-salary-scraper:
@@ -64,6 +62,13 @@ test-projection-scraper:
 test-frontend:
 	docker build -q --target test -t dfs-frontend-test frontend >/dev/null
 	docker run --rm dfs-frontend-test
+
+# The orchestrator's Tuesday 9:30 AM ET job: this week of every season from
+# BACKFILL_START_YEAR through last season. Safe to re-run.
+BACKFILL_START_YEAR ?= 2018
+backfill:
+	$(DOCKER_RUN) dfs-salary-scraper --start-year $(BACKFILL_START_YEAR)
+	$(DOCKER_RUN) dfs-projection-scraper --start-year $(BACKFILL_START_YEAR)
 
 psql:
 	docker compose -f $(COMPOSE_RUN_FILE) exec dfs-postgres \
