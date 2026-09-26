@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 from src.configs import log
 from src.salary_scraper import SalaryScraper
@@ -18,6 +19,12 @@ def parse_args() -> argparse.Namespace:
         "--start-year through --end-year",
     )
     parser.add_argument("--end-year", type=int)
+    parser.add_argument(
+        "--allow-shrink",
+        action="store_true",
+        help="replace a week even if the new scrape has far fewer rows than "
+        "what is stored (normally refused as a likely partial scrape)",
+    )
     return parser.parse_args()
 
 
@@ -25,16 +32,25 @@ if __name__ == "__main__":
     args = parse_args()
     scraper = SalaryScraper()
 
-    if args.start_year is not None or args.end_year is not None:
-        if args.start_year is None or args.end_year is None:
-            raise SystemExit("--start-year and --end-year must be used together")
-        for year in range(args.start_year, args.end_year + 1):
-            log.info(
-                "Scraping salary data for year=%s week=%s..",
-                year,
-                scraper.current_week,
-            )
-            scraper.scrape(year=year)
-    else:
+    if args.start_year is None and args.end_year is None:
         log.info("Starting salary scraper..")
-        scraper.scrape(year=args.year)
+        scraper.scrape(year=args.year, allow_shrink=args.allow_shrink)
+        sys.exit(0)
+
+    if args.start_year is None or args.end_year is None:
+        raise SystemExit("--start-year and --end-year must be used together")
+
+    failed = []
+    for year in range(args.start_year, args.end_year + 1):
+        log.info(
+            "Scraping salary data for year=%s week=%s..", year, scraper.current_week
+        )
+        try:
+            scraper.scrape(year=year, allow_shrink=args.allow_shrink)
+        except Exception:  # noqa: BLE001 - one bad season shouldn't stop the rest
+            log.exception("Salary scrape failed for year=%s", year)
+            failed.append(year)
+
+    if failed:
+        log.error("Salary scrape failed for years: %s", failed)
+        sys.exit(1)

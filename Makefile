@@ -5,6 +5,7 @@ COMPOSE_RUN_FILE := docker-compose.run.yml
 DATA_VOLUME := /dfs_data:/app/data
 NETWORK := dfs_optimizer_network
 ENV_FILE := .env
+BACKUP_DIR ?= /dfs_backups
 
 # One-off scraper containers need the app network and DB credentials; the
 # orchestrator supplies the same when it launches them on a schedule.
@@ -19,7 +20,8 @@ MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
 .PHONY: down build run run-salary-scraper run-projection-scraper psql \
 	migrate migrate-dry-run verify-migration \
-	db-upgrade db-downgrade db-stamp db-revision db-history db-current
+	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
+	backup list-backups restore
 
 down:
 	docker compose -f $(COMPOSE_RUN_FILE) down
@@ -45,6 +47,26 @@ run-projection-scraper:
 psql:
 	docker compose -f $(COMPOSE_RUN_FILE) exec dfs-postgres \
 		psql -U $${POSTGRES_USER:-dfs} -d $${POSTGRES_DB:-dfs}
+
+# Database backups. The orchestrator also runs one nightly at 3:00 AM ET.
+backup:
+	docker compose -f $(COMPOSE_RUN_FILE) exec dfs-orchestration python -m src.backup
+
+list-backups:
+	ls -lht $(BACKUP_DIR)
+
+# Destructive: replaces the database's contents with FILE. Stops the API and
+# orchestrator for the duration so nothing reads or writes mid-restore.
+# Usage: make restore FILE=dfs_20260926T070000Z.dump
+restore:
+	@test -n "$(FILE)" || (echo 'Usage: make restore FILE=<name from make list-backups>' && exit 1)
+	docker compose -f $(COMPOSE_RUN_FILE) stop dfs-api dfs-orchestration
+	docker run --rm --network $(NETWORK) --env-file $(ENV_FILE) \
+		-v $(BACKUP_DIR):/backups:ro -e FILE=$(FILE) postgres:16-alpine \
+		sh -c 'PGPASSWORD="$$POSTGRES_PASSWORD" pg_restore -h dfs-postgres \
+			-U "$${POSTGRES_USER:-dfs}" -d "$${POSTGRES_DB:-dfs}" \
+			--clean --if-exists --no-owner "/backups/$$FILE"'
+	docker compose -f $(COMPOSE_RUN_FILE) start dfs-api dfs-orchestration
 
 # Load the existing /dfs_data CSVs into Postgres. Idempotent; pass filters with
 # ARGS, e.g. `make migrate ARGS="--year 2025"`.

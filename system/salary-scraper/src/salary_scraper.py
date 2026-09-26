@@ -2,6 +2,7 @@ from datetime import datetime
 
 import pandas as pd
 from dfs_db import PlayerSalary, replace_weeks, session_scope
+from dfs_db.upsert import DEFAULT_MIN_RATIO
 from src.configs import log
 from src.utils import get_current_week, get_salary_data
 
@@ -20,7 +21,7 @@ class SalaryScraper:
             else self.current_year
         )
 
-    def scrape(self, year: int | None = None) -> None:
+    def scrape(self, year: int | None = None, allow_shrink: bool = False) -> None:
         # The salary-changes page honours `year` but always serves the current
         # NFL week, so the week is never a choice here: any other label would
         # file this week's salaries under the wrong week.
@@ -29,8 +30,7 @@ class SalaryScraper:
 
         df = get_salary_data(year=year)
         if df.empty:
-            log.warning("No salary data returned for year=%s, week=%s", year, week)
-            return
+            raise RuntimeError(f"Salary table was empty for year={year}, week={week}")
 
         df = df.assign(year=year, week=week)
         # parse_currency yields floats; the columns are INTEGER in Postgres and
@@ -46,7 +46,12 @@ class SalaryScraper:
 
         log.info("Saving salary data..")
         with session_scope() as session:
-            rows = replace_weeks(session, PlayerSalary, df)
+            rows = replace_weeks(
+                session,
+                PlayerSalary,
+                df,
+                min_ratio=0 if allow_shrink else DEFAULT_MIN_RATIO,
+            )
         log.info("Upserted %s salary rows for year=%s, week=%s", rows, year, week)
 
 

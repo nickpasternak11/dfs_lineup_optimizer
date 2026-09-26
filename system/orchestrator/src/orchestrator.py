@@ -4,6 +4,7 @@ import time
 import backoff
 import docker
 import schedule
+from src.backup import run_backup
 from src.configs import log
 
 # Forwarded to scraper containers so they reach the same database as the API.
@@ -37,7 +38,17 @@ class ScraperOrchestrator:
                 schedule.every().__getattribute__(day).at(
                     f"{hour:02d}:00", "America/New_York"
                 ).do(self.run_projection_scraper)
+        # Database backup → Daily, 3:00 AM ET
+        schedule.every().day.at("03:00", "America/New_York").do(self.run_backup)
         log.info("✅ Schedules set up successfully")
+
+    def run_backup(self):
+        # schedule re-raises job exceptions out of run_pending(), which would
+        # stop the scheduler loop; a failed backup must only be logged.
+        try:
+            run_backup(self.docker_client)
+        except Exception as e:  # noqa: BLE001
+            log.error(f"Database backup failed: {e!s}")
 
     @backoff.on_exception(backoff.expo, docker.errors.APIError, max_tries=3)
     def run_salary_scraper(self):

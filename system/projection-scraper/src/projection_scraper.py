@@ -2,6 +2,7 @@ from datetime import datetime
 
 import pandas as pd
 from dfs_db import PlayerProjection, replace_weeks, session_scope
+from dfs_db.upsert import DEFAULT_MIN_RATIO
 from src.configs import log
 from src.utils import (
     get_current_week,
@@ -25,7 +26,12 @@ class ProjectionScraper:
             else self.current_year
         )
 
-    def scrape(self, year: int | None = None, week: int | None = None) -> None:
+    def scrape(
+        self,
+        year: int | None = None,
+        week: int | None = None,
+        allow_shrink: bool = False,
+    ) -> None:
         year = self.fp_year if year is None else year
         week = self.current_week if week is None else week
 
@@ -36,11 +42,16 @@ class ProjectionScraper:
         # Get weekly rankings and stats for all positions
         df = pd.DataFrame()
         for pos in POSITIONS:
+            rankings = get_weekly_rankings(pos, year, week)
+            # One empty position would still leave a plausible-looking week,
+            # and saving it would replace a complete one.
+            if rankings.empty:
+                raise RuntimeError(f"No {pos} rankings for year={year}, week={week}")
             df = pd.concat(
                 [
                     df,
                     pd.merge(
-                        get_weekly_rankings(pos, year, week),
+                        rankings,
                         get_stats(pos, year, [week - 4, week - 1])[
                             ["player", "avg_fpts"]
                         ],
@@ -48,10 +59,6 @@ class ProjectionScraper:
                     ),
                 ]
             )
-
-        if df.empty:
-            log.warning("No projection data returned for year=%s, week=%s", year, week)
-            return
 
         # Integrate the week's injury report. Players absent from it are left
         # NULL rather than filled, so "no report" stays distinguishable from a
@@ -70,7 +77,12 @@ class ProjectionScraper:
 
         log.info("Saving projection data..")
         with session_scope() as session:
-            rows = replace_weeks(session, PlayerProjection, df)
+            rows = replace_weeks(
+                session,
+                PlayerProjection,
+                df,
+                min_ratio=0 if allow_shrink else DEFAULT_MIN_RATIO,
+            )
         log.info("Upserted %s projection rows for year=%s, week=%s", rows, year, week)
 
 

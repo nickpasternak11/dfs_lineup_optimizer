@@ -2,7 +2,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import delete, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -74,7 +74,22 @@ def upsert_dataframe(
     return len(records)
 
 
-def replace_weeks(session: Session, model: type, df: pd.DataFrame) -> int:
+class SnapshotShrankError(RuntimeError):
+    """A new snapshot is much smaller than the week it would replace."""
+
+
+# A healthy re-scrape of the same week varies by a few players. Losing more
+# than this share means the scrape was partial (a page failed or changed
+# layout), and replacing would throw away good data.
+DEFAULT_MIN_RATIO = 0.8
+
+
+def replace_weeks(
+    session: Session,
+    model: type,
+    df: pd.DataFrame,
+    min_ratio: float = DEFAULT_MIN_RATIO,
+) -> int:
     """Replace every (year, week) present in `df` with exactly its rows.
 
     A scrape is a complete snapshot of its week, so rows the new snapshot no
@@ -82,12 +97,34 @@ def replace_weeks(session: Session, model: type, df: pd.DataFrame) -> int:
     under an older spelling ("Packers" vs "Green Bay Packers") -- must go,
     which an upsert keyed on player name cannot do. Runs inside the caller's
     transaction, so readers never see a half-replaced week.
+
+    Raises SnapshotShrankError, before deleting anything, if a week's new row
+    count is below `min_ratio` of its current one. Pass min_ratio=0 to replace
+    regardless.
     """
     if df.empty:
         return 0
 
     table = model.__table__
-    for year, week in df[["year", "week"]].drop_duplicates().itertuples(index=False):
+    new_counts = (
+        df.drop_duplicates(subset=["year", "week", "player"])
+        .groupby(["year", "week"])
+        .size()
+    )
+
+    for (year, week), new_count in new_counts.items():
+        existing = session.execute(
+            select(func.count())
+            .select_from(table)
+            .where(table.c.year == int(year), table.c.week == int(week))
+        ).scalar_one()
+        if existing and new_count < existing * min_ratio:
+            raise SnapshotShrankError(
+                f"{table.name} {year} week {week}: new snapshot has {new_count} "
+                f"rows, current has {existing}; refusing to replace"
+            )
+
+    for year, week in new_counts.index:
         session.execute(
             delete(table).where(table.c.year == int(year), table.c.week == int(week))
         )

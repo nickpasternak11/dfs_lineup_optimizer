@@ -114,6 +114,7 @@ The stack must be running (`make run`), since the scrapers write to `dfs-postgre
 Scheduled runs (orchestrator):
 - **Salary scraper**: Tuesdays at 9:00 AM ET
 - **Projection scraper**: hourly, 10:00 AM–8:00 PM ET, Tuesday through Thursday
+- **Database backup**: daily at 3:00 AM ET
 
 ### Backfilling Past Seasons
 
@@ -136,6 +137,14 @@ What backfilled weeks contain:
 | Kickoff | `NULL`: the source only gives a weekday and time |
 
 Each scraper run replaces that week's rows entirely, so re-running a week is safe and removes stale or renamed players. A week appears in the player pool only once both scrapers have written it.
+
+Scrapers refuse to save a partial scrape. A run fails without writing anything if:
+- a page errors after 3 retries,
+- any position's rankings come back empty,
+- the current week can't be determined, or
+- the new scrape has under 80% of the rows already stored for that week.
+
+The last check exists because a changed page layout can return plausible-looking but incomplete data. If a week legitimately shrank, override it with `--allow-shrink`, e.g. `ARGS="--year 2025 --week 3 --allow-shrink"`. In a `--start-year`/`--end-year` backfill, a failing season is logged and skipped, and the run exits non-zero.
 
 Other scraper options: `--year` and (projections only) `--week` scrape a single target, e.g. `ARGS="--year 2024 --week 5"`.
 
@@ -204,7 +213,21 @@ To inspect the data:
 make psql
 ```
 
-The volume survives `make down` and restarts. **`docker compose -f docker-compose.run.yml down -v` or `docker volume rm dfs_postgres_data` deletes all data.**
+The volume survives `make down` and restarts. **`docker compose -f docker-compose.run.yml down -v` or `docker volume rm dfs_postgres_data` deletes all data**, and anything scraped since the CSV migration exists nowhere else. Keep backups (below).
+
+### Backups
+
+The orchestrator runs `pg_dump` every night at 3:00 AM ET and writes the result to `/dfs_backups` on the host. That directory is outside the Docker volume, so `down -v` doesn't touch it. It keeps the newest 14 dumps. A failed dump never deletes older ones.
+
+```bash
+make backup                                    # take a backup now
+make list-backups                              # newest first
+make restore FILE=dfs_20260926T070000Z.dump    # replace the database with a backup
+```
+
+`make restore` is destructive: it drops and recreates every table from the dump. It stops the API and orchestrator while it runs and starts them again afterwards. Change the location or retention with `BACKUP_DIR` and `BACKUP_RETENTION` in `.env`.
+
+`/dfs_backups` is on the same machine as the database, so it protects against deleted volumes and bad writes, not a lost disk. Copy it somewhere else periodically for that.
 
 ### Schema Migrations
 
@@ -256,6 +279,7 @@ make build                    # build all images
 make run                      # start the stack (stops it first)
 make down                     # stop the stack
 make psql                     # open a psql shell on the database
+make backup                   # back up the database now (see Backups)
 
 make run-salary-scraper       # scrape the current week (ARGS for backfill)
 make run-projection-scraper
