@@ -15,10 +15,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--start-year",
         type=int,
-        help="with --end-year, scrape the current week for every season from "
-        "--start-year through --end-year",
+        help="scrape the current week for every season from --start-year "
+        "through --end-year",
     )
-    parser.add_argument("--end-year", type=int)
+    parser.add_argument(
+        "--end-year", type=int, help="with --start-year (default: last season)"
+    )
     parser.add_argument(
         "--allow-shrink",
         action="store_true",
@@ -37,11 +39,12 @@ if __name__ == "__main__":
         scraper.scrape(year=args.year, allow_shrink=args.allow_shrink)
         sys.exit(0)
 
-    if args.start_year is None or args.end_year is None:
-        raise SystemExit("--start-year and --end-year must be used together")
+    if args.start_year is None:
+        raise SystemExit("--end-year requires --start-year")
+    end_year = scraper.fp_year - 1 if args.end_year is None else args.end_year
 
     failed = []
-    for year in range(args.start_year, args.end_year + 1):
+    for year in range(args.start_year, end_year + 1):
         log.info(
             "Scraping salary data for year=%s week=%s..", year, scraper.current_week
         )

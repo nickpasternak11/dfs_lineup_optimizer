@@ -113,19 +113,30 @@ The stack must be running (`make run`), since the scrapers write to `dfs-postgre
 
 Scheduled runs (orchestrator):
 - **Salary scraper**: Tuesdays at 9:00 AM ET
+- **Past-season backfill**: Tuesdays at 9:30 AM ET (see below)
 - **Projection scraper**: hourly, 10:00 AM–8:00 PM ET, Tuesday through Thursday
 - **Database backup**: daily at 3:00 AM ET
 
 ### Backfilling Past Seasons
 
-Both scrapers can collect past seasons, with one constraint: **the salary source only serves the current NFL week**. It accepts any season, but you can only collect past seasons' salaries for the week the live season is currently in. So during week N of the live season, backfill week N of every past season:
+Both scrapers can collect past seasons, with one constraint: **the salary source only serves the current NFL week**. It accepts any season, but you can only collect past seasons' salaries for the week the live season is currently in. So during week N of the live season, you backfill week N of every past season.
+
+**This runs automatically.** Every Tuesday at 9:30 AM ET the orchestrator backfills the current week for every season from 2018 through last season, so during 2026 week 3 it collects week 3 of 2018–2025. The history fills in one week at a time over the season. Set `BACKFILL_START_YEAR` in `.env` to change the first season.
+
+To run it by hand, e.g. if the stack was down on Tuesday, run it before the next week starts:
 
 ```bash
-make run-salary-scraper     ARGS="--start-year 2018 --end-year 2025"
-make run-projection-scraper ARGS="--start-year 2018 --end-year 2025 --week N"
+make backfill
 ```
 
-For example, during 2026 week 3 this collects week 3 of 2018–2025. Repeat each week to build out the history.
+Or with explicit options: `--start-year` alone covers through last season, and the projection scraper's `--week` defaults to the current week:
+
+```bash
+make run-salary-scraper     ARGS="--start-year 2018"
+make run-projection-scraper ARGS="--start-year 2018 --end-year 2020 --week 5"
+```
+
+A projection-only backfill works for any week at any time. Salaries don't.
 
 What backfilled weeks contain:
 
@@ -144,7 +155,7 @@ Scrapers refuse to save a partial scrape. A run fails without writing anything i
 - the current week can't be determined, or
 - the new scrape has under 80% of the rows already stored for that week.
 
-The last check exists because a changed page layout can return plausible-looking but incomplete data. If a week legitimately shrank, override it with `--allow-shrink`, e.g. `ARGS="--year 2025 --week 3 --allow-shrink"`. In a `--start-year`/`--end-year` backfill, a failing season is logged and skipped, and the run exits non-zero.
+The last check exists because a changed page layout can return plausible-looking but incomplete data. If a week legitimately shrank, override it with `--allow-shrink`, e.g. `ARGS="--year 2025 --week 3 --allow-shrink"`. In a `--start-year` backfill, a failing season is logged and skipped, and the run exits non-zero.
 
 Other scraper options: `--year` and (projections only) `--week` scrape a single target, e.g. `ARGS="--year 2024 --week 5"`.
 
@@ -281,8 +292,9 @@ make down                     # stop the stack
 make psql                     # open a psql shell on the database
 make backup                   # back up the database now (see Backups)
 
-make run-salary-scraper       # scrape the current week (ARGS for backfill)
+make run-salary-scraper       # scrape the current week (ARGS for other targets)
 make run-projection-scraper
+make backfill                 # this week of every past season (runs Tuesdays anyway)
 
 make db-upgrade               # schema migrations (see Schema Migrations)
 make migrate                  # CSV import (see Migrating from CSV)
