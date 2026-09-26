@@ -1,8 +1,9 @@
+from dfs_common.season import current_season_year
 from fastapi import HTTPException, status
 
 from app.db.optimize import DFSLineupOptimizer
 from app.helpers.api_router import APIRouter
-from app.helpers.optimize import dataframe_to_records, get_current_season_year
+from app.helpers.optimize import dataframe_to_records
 from app.models.requests.projections import GetProjectionsRequest
 from app.models.responses.projections import GetProjectionsResponse
 
@@ -16,7 +17,7 @@ router = APIRouter()
     description="Endpoint for getting the current projection year.",
 )
 async def get_current_year():
-    return get_current_season_year()
+    return current_season_year()
 
 
 @router.get(

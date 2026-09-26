@@ -1,15 +1,6 @@
-from datetime import datetime
-
 import pandas as pd
 from dfs_db import get_engine
 from sqlalchemy import text
-
-
-def get_current_season_year() -> int:
-    """NFL seasons span the new year; January and February belong to the prior
-    season, which is how both scrapers key their rows."""
-    now = datetime.now()
-    return now.year - 1 if now.month in [1, 2] else now.year
 
 
 def get_latest_week(year: int | None = None) -> int:

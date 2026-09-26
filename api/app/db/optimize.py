@@ -1,15 +1,12 @@
 import pandas as pd
 import pulp
+from dfs_common.season import current_season_year
 from dfs_db import get_engine
 from pulp import PULP_CBC_CMD
 from sqlalchemy import text
 
 from app.configs.configs import log
-from app.helpers.optimize import (
-    dataframe_to_records,
-    get_current_season_year,
-    get_latest_week,
-)
+from app.helpers.optimize import dataframe_to_records, get_latest_week
 
 PLAYER_POOL_QUERY = text(
     """
@@ -31,7 +28,7 @@ FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value"]
 
 class DFSLineupOptimizer:
     def __init__(self, year: int | None = None, week: int | None = None):
-        self.current_year = get_current_season_year() if year is None else year
+        self.current_year = current_season_year() if year is None else year
         self.current_week = (
             get_latest_week(year=self.current_year) if week is None else week
         )
