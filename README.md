@@ -117,7 +117,24 @@ Scheduled runs (orchestrator):
 - **Salary scraper**: Tuesdays at 9:00 AM ET
 - **Past-season backfill**: Tuesdays at 9:30 AM ET (see below)
 - **Projection scraper**: hourly, 10:00 AM–8:00 PM ET, Tuesday through Thursday
+- **Missed-run catch-up**: daily at noon ET, and whenever the orchestrator starts
 - **Database backup**: daily at 3:00 AM ET
+
+Scraper jobs are skipped March through August, when FantasyPros has no current week. Backups run year-round.
+
+### Missed Runs and Alerts
+
+The schedule only fires at fixed times, so if the stack is down on a Tuesday, that week's jobs never run. Past seasons' salaries in particular can only be collected during their week (see below). To cover this, the orchestrator checks the database at startup and daily at noon ET. If the current week has no live salaries, no live projections, or no past-season backfill, it runs what's missing.
+
+It doesn't check on Mondays or on Tuesdays before 10:00 AM ET. That leaves room for Tuesday's scheduled runs, and avoids the window where the week number has rolled over but the salary page hasn't, which would file last week's salaries under the new week.
+
+To be notified when a scheduled scrape, backfill, catch-up or backup fails, set a Slack or Discord incoming-webhook URL in `.env`:
+
+```bash
+ALERT_WEBHOOK_URL=https://discord.com/api/webhooks/...
+```
+
+Each alert includes the failed job's last 15 log lines. Without the URL, failures are only logged (`docker compose -f docker-compose.run.yml logs dfs-orchestration`).
 
 ### Backfilling Past Seasons
 

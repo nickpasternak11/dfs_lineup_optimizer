@@ -61,6 +61,7 @@ services:
       <<: *postgres-env
       BACKUP_RETENTION: ${BACKUP_RETENTION:-14}
       BACKFILL_START_YEAR: ${BACKFILL_START_YEAR:-2018}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
     volumes:
       # Backups live on the host, outside the database volume.
       - "${BACKUP_DIR:-/dfs_backups}:/backups"

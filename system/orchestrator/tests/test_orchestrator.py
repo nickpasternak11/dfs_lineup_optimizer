@@ -1,4 +1,5 @@
 import textwrap
+from datetime import datetime
 
 import pytest
 import schedule
@@ -32,11 +33,22 @@ def jobs_dir(tmp_path, monkeypatch):
     return tmp_path
 
 
+IN_SEASON = datetime(2026, 9, 30, 12, 0, tzinfo=orchestrator.EASTERN)  # a Wednesday
+
+
 @pytest.fixture
-def instance():
+def instance(monkeypatch):
+    monkeypatch.setattr(orchestrator, "now_eastern", lambda: IN_SEASON)
     created = ScraperOrchestrator()
     yield created
     schedule.clear()
+
+
+@pytest.fixture
+def alerts(monkeypatch):
+    sent = []
+    monkeypatch.setattr(orchestrator, "send_alert", sent.append)
+    return sent
 
 
 def test_scraper_runs_with_its_own_src_package_and_args(instance, jobs_dir, caplog, monkeypatch):
@@ -83,3 +95,83 @@ def test_schedule_is_unchanged(instance):
     assert ("run_backup", "None", "03:00:00") in jobs
     projection_runs = [job for job in jobs if job[0] == "run_projection_scraper"]
     assert len(projection_runs) == 3 * 11  # hourly 10:00-20:00, Tue-Thu
+
+
+def test_failed_scraper_alerts_with_its_last_log_lines(instance, jobs_dir, alerts, monkeypatch):
+    monkeypatch.setenv("FAKE_EXIT", "3")
+    instance.run_scraper("fake-scraper", ["--start-year", "2018"])
+    assert len(alerts) == 1
+    assert "fake-scraper --start-year 2018 exited with status code 3" in alerts[0]
+    assert "args: --start-year 2018" in alerts[0]
+
+
+def test_successful_scraper_sends_no_alert(instance, jobs_dir, alerts):
+    instance.run_scraper("fake-scraper")
+    assert alerts == []
+
+
+def test_failed_backup_alerts(instance, alerts, monkeypatch):
+    def fail():
+        raise RuntimeError("pg_dump failed: connection refused")
+
+    monkeypatch.setattr(orchestrator, "run_backup", fail)
+    instance.run_backup()
+    assert "Database backup failed: pg_dump failed: connection refused" in alerts[0]
+
+
+def test_scrapers_skip_the_off_season(instance, monkeypatch):
+    calls = []
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: calls.append(name))
+    monkeypatch.setattr(
+        orchestrator, "now_eastern", lambda: datetime(2026, 5, 5, 9, 0, tzinfo=orchestrator.EASTERN)
+    )
+    instance.run_salary_scraper()
+    instance.run_projection_scraper()
+    instance.run_backfill()
+    assert calls == []
+
+
+@pytest.fixture
+def catch_up_env(instance, monkeypatch):
+    """Catch-up with a fake week lookup and a configurable set of gaps."""
+    ran = []
+    state = {"missing": []}
+    monkeypatch.setattr(orchestrator, "get_current_week", lambda: 4)
+    monkeypatch.setattr(orchestrator, "missing_jobs", lambda season, week: state["missing"])
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: ran.append((name, args)))
+    return ran, state
+
+
+def test_catch_up_runs_only_what_is_missing(instance, catch_up_env):
+    ran, state = catch_up_env
+    state["missing"] = ["projections", "backfill"]
+    instance.catch_up()
+    assert ran == [
+        ("projection-scraper", None),
+        ("salary-scraper", ["--start-year", orchestrator.BACKFILL_START_YEAR]),
+        ("projection-scraper", ["--start-year", orchestrator.BACKFILL_START_YEAR]),
+    ]
+
+
+def test_catch_up_does_nothing_when_the_week_is_complete(instance, catch_up_env):
+    ran, _ = catch_up_env
+    instance.catch_up()
+    assert ran == []
+
+
+def test_catch_up_waits_for_tuesdays_scheduled_runs(instance, catch_up_env, monkeypatch):
+    ran, state = catch_up_env
+    state["missing"] = ["salaries"]
+    tuesday_morning = datetime(2026, 9, 29, 9, 45, tzinfo=orchestrator.EASTERN)
+    monkeypatch.setattr(orchestrator, "now_eastern", lambda: tuesday_morning)
+    instance.catch_up()
+    assert ran == []
+
+
+def test_catch_up_check_failure_alerts(instance, catch_up_env, alerts, monkeypatch):
+    def unreachable():
+        raise RuntimeError("Could not find the current week")
+
+    monkeypatch.setattr(orchestrator, "get_current_week", unreachable)
+    instance.catch_up()
+    assert "Catch-up check failed: Could not find the current week" in alerts[0]
