@@ -57,7 +57,7 @@ The runtime Compose configuration starts:
 - `dfs-api`: FastAPI application served on port `8080`
 - `dfs-orchestration`: scraper scheduling service
 
-The scrapers, schema tool (`dfs-db-migrate`) and CSV loader (`dfs-migration`) are one-off images, run by the orchestrator or by `make`. All services share the `dfs_optimizer_network` network.
+The orchestrator image bundles both scrapers and runs them on its schedule. The standalone scraper images, the schema tool (`dfs-db-migrate`) and the CSV loader (`dfs-migration`) are one-off images run by `make`. All services share the `dfs_optimizer_network` network.
 
 ## Getting Started
 
@@ -192,7 +192,7 @@ The API endpoints used by the frontend are:
 ## Key Components
 
 ### Orchestrator
-Runs the scraper schedule in its own container. It uses the Docker socket to launch scraper containers on the app network and passes them the database credentials.
+Runs the scraper and backup schedule in its own container. Both scrapers' code is copied into its image, and each scheduled scrape runs the scraper's `main.py` as a child process with the orchestrator's database credentials. It has no access to Docker, so a compromised dependency in it can't reach the host. Backups use a PostgreSQL 16 `pg_dump`, matching the server, installed in the same image.
 
 ### Salary Scraper
 Collects DraftKings salaries, opponents, home/away and kickoff times from the FantasyPros DraftKings salary-changes page, and writes them to `player_salaries`.

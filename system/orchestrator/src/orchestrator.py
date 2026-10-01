@@ -1,21 +1,15 @@
 import os
+import subprocess
+import sys
 import time
 
-import backoff
-import docker
 import schedule
 from src.backup import run_backup
 from src.configs import log
 
-# Forwarded to scraper containers so they reach the same database as the API.
-DB_ENV_VARS = (
-    "POSTGRES_HOST",
-    "POSTGRES_PORT",
-    "POSTGRES_DB",
-    "POSTGRES_USER",
-    "POSTGRES_PASSWORD",
-    "DATABASE_URL",
-)
+# The scrapers' code is copied into the image here (see the Dockerfile) and
+# each runs in its own child process -- no Docker socket needed.
+JOBS_DIR = os.getenv("JOBS_DIR", "/app/jobs")
 
 # First season the weekly backfill collects; it runs through last season.
 BACKFILL_START_YEAR = os.getenv("BACKFILL_START_YEAR", "2018")
@@ -23,10 +17,6 @@ BACKFILL_START_YEAR = os.getenv("BACKFILL_START_YEAR", "2018")
 
 class ScraperOrchestrator:
     def __init__(self):
-        # Docker client
-        self.docker_client = docker.DockerClient(base_url="unix://var/run/docker.sock")
-        self.network_name = "dfs_optimizer_network"
-        # Set up schedules
         self.setup_schedules()
 
     def setup_schedules(self):
@@ -43,7 +33,7 @@ class ScraperOrchestrator:
         # Projection scraper → Every hour, Tue 10:00 AM through Thu 8:00 PM ET
         for day in ["tuesday", "wednesday", "thursday"]:
             for hour in range(10, 21):  # 10:00 AM to 8:00 PM inclusive
-                schedule.every().__getattribute__(day).at(
+                getattr(schedule.every(), day).at(
                     f"{hour:02d}:00", "America/New_York"
                 ).do(self.run_projection_scraper)
         # Database backup → Daily, 3:00 AM ET
@@ -54,19 +44,17 @@ class ScraperOrchestrator:
         # schedule re-raises job exceptions out of run_pending(), which would
         # stop the scheduler loop; a failed backup must only be logged.
         try:
-            run_backup(self.docker_client)
+            run_backup()
         except Exception as e:  # noqa: BLE001
             log.error(f"Database backup failed: {e!s}")
 
-    @backoff.on_exception(backoff.expo, docker.errors.APIError, max_tries=3)
     def run_salary_scraper(self):
         log.info("Starting scheduled salary scraper...")
-        self.run_container("dfs-salary-scraper")
+        self.run_scraper("salary-scraper")
 
-    @backoff.on_exception(backoff.expo, docker.errors.APIError, max_tries=3)
     def run_projection_scraper(self):
         log.info("Starting scheduled projection scraper...")
-        self.run_container("dfs-projection-scraper")
+        self.run_scraper("projection-scraper")
 
     def run_backfill(self):
         log.info(
@@ -74,44 +62,42 @@ class ScraperOrchestrator:
             BACKFILL_START_YEAR,
         )
         args = ["--start-year", BACKFILL_START_YEAR]
-        self.run_container("dfs-salary-scraper", command=args)
-        self.run_container("dfs-projection-scraper", command=args)
+        self.run_scraper("salary-scraper", args)
+        self.run_scraper("projection-scraper", args)
 
-    def run_container(self, container_name: str, command: list[str] | None = None):
-        container_config = {
-            "image": container_name,
-            # Appended to the image's `python main.py` entrypoint.
-            "command": command,
-            "detach": True,
-            "network": self.network_name,
-            "labels": {"logging": "promtail"},
-            "environment": {
-                name: os.environ[name]
-                for name in DB_ENV_VARS
-                if name in os.environ
-            },
-            "name": container_name,
-            "auto_remove": True,
-        }
+    def run_scraper(self, name: str, args: list[str] | None = None) -> bool:
+        """Run a scraper's main.py in a child process, streaming its log.
+
+        Returns True if it exited cleanly. Never raises: a failed job must not
+        stop the scheduler loop.
+        """
+        workdir = os.path.join(JOBS_DIR, name)
+        # Each scraper, and the orchestrator itself, has a top-level `src`
+        # package, so the child must see only its own directory.
+        env = {**os.environ, "PYTHONPATH": f"{workdir}:/app/shared"}
+        command = [sys.executable, "main.py", *(args or [])]
 
         try:
-            container = self.docker_client.containers.run(**container_config)
+            process = subprocess.Popen(
+                command,
+                cwd=workdir,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            for line in process.stdout:
+                log.info(f"[{name}] {line.rstrip()}")
+            exit_code = process.wait()
+        except OSError as e:
+            log.error(f"Could not start {name}: {e!s}")
+            return False
 
-            # Stream logs while running
-            for line in container.logs(stream=True):
-                log.info(f"[{container_name}] {line.decode().strip()}")
-
-            # Capture exit status
-            exit_code = container.wait()["StatusCode"]
-            if exit_code == 0:
-                log.info(f"{container_name} completed successfully.")
-            else:
-                log.error(f"{container_name} exited with status code {exit_code}")
-
-        except docker.errors.APIError as e:
-            log.error(f"Docker API error running {container_name}: {e!s}")
-        except Exception as e:
-            log.error(f"Error running {container_name}: {e!s}")
+        if exit_code == 0:
+            log.info(f"{name} completed successfully.")
+            return True
+        log.error(f"{name} exited with status code {exit_code}")
+        return False
 
     def run(self):
         log.info("Starting scheduler loop...")
