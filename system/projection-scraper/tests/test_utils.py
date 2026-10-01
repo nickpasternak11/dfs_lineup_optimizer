@@ -29,6 +29,26 @@ def test_rankings_skip_malformed_entries_and_default_missing_points(fake_fetch):
     assert "Rookie Starter" in players
 
 
+def test_rankings_take_the_position_from_the_page_not_the_player_tag(fake_fetch, caplog):
+    fake_fetch("rankings_rb.html")
+
+    df = get_weekly_rankings("RB", 2026, 4).set_index("player")
+
+    # Tagged LB on the RB page; an LB row would fail the table's position check.
+    assert set(df["position"]) == {"RB"}
+    assert "DJ Herman" in df.index
+    assert "DJ Herman (LB)" in caplog.text
+
+
+def test_skipped_entry_warning_names_the_page_position(fake_fetch, caplog):
+    # The malformed entry is the page's last one, and is tagged LB.
+    fake_fetch("rankings_rb.html")
+
+    get_weekly_rankings("RB", 2026, 4)
+
+    assert "RB rankings 2026 week 4: skipped 1 malformed entries" in caplog.text
+
+
 @pytest.mark.parametrize(
     "position, page",
     [("QB", "qb.php"), ("DST", "dst.php"), ("RB", "ppr-rb.php"), ("WR", "ppr-wr.php")],
