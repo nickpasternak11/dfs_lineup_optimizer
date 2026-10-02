@@ -17,6 +17,7 @@ def get_weekly_rankings(position: str, year: int, week: int):
     cxt = bs4.BeautifulSoup(r.text, features="lxml")
     script_tags = cxt.find_all("script", attrs={"type": "text/javascript"})
     skipped = 0
+    mislabeled = []
     for script_tag in script_tags:
         script_text = script_tag.text.strip()
         if "var ecrData =" in script_text:
@@ -26,7 +27,13 @@ def get_weekly_rankings(position: str, year: int, week: int):
                 for player in players:
                     try:
                         player_name = player["player_name"]
-                        position = player["player_position_id"]
+                        # The page decides the position: FantasyPros occasionally
+                        # tags a player on it with another one (an LB on the RB
+                        # page), which the table's position check would reject.
+                        if player.get("player_position_id") != position:
+                            mislabeled.append(
+                                f"{player_name} ({player.get('player_position_id')})"
+                            )
                         rank = player["rank_ecr"]
                         rank_min = player["rank_min"]
                         rank_max = player["rank_max"]
@@ -61,6 +68,14 @@ def get_weekly_rankings(position: str, year: int, week: int):
             week,
             skipped,
             len(rankings_list),
+        )
+    if mislabeled:
+        log.warning(
+            "%s rankings %s week %s: kept players tagged with another position: %s",
+            position,
+            year,
+            week,
+            ", ".join(mislabeled),
         )
     return pd.DataFrame(rankings_list)
 
