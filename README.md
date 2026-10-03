@@ -196,6 +196,8 @@ The API endpoints used by the frontend are:
 - `POST /projections`
 - `POST /optimize`
 
+`POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, `avg_fpts`, injuries) are `null` there; `kickoff` is a string like `2026-10-04T20:05:00+0000`.
+
 ## Technology Stack
 
 | Layer | Technology | Purpose |
@@ -324,7 +326,7 @@ make migrate                  # CSV import (see Migrating from CSV)
 
 ```bash
 make test                     # every suite
-make test-api                 # optimizer rules, JSON conversion, DB write guard
+make test-api                 # optimizer rules, JSON conversion, response models, DB write guard
 make test-salary-scraper      # salary page parsing, kickoff and week handling
 make test-projection-scraper  # rankings, stats and injury parsing
 make test-frontend            # lineup slot ordering
