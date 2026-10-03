@@ -13,7 +13,7 @@ This project combines automated data collection with lineup optimization to gene
 - **Automated Data Collection**: Salary and projection scrapers for DraftKings and FantasyPros data
 - **Historical Backfill**: Scrapers can collect past seasons' data for the current week
 - **Lineup Optimization**: Generates multiple lineups using salary, position, projection, and player constraints
-- **Web Interface**: Filterable player pool with include/exclude actions and suggested lineup results
+- **Web Interface**: Player pool with headshots, team logos and filters; lock/exclude actions that re-optimize instantly; three lineup strategies side by side; light and dark themes
 - **Containerized**: Docker Compose build and runtime configurations for the application and data services
 
 ## Architecture
@@ -30,6 +30,12 @@ dfs_lineup_optimizer/
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/                         # React web application
+│   └── src/
+│       ├── api/                      # API client
+│       ├── hooks/                    # App state: optimizer, player pool filters, theme
+│       ├── components/               # header/, pool/, lineups/, common/ (avatars, logos, badges)
+│       ├── lib/                      # Pure logic with tests: roster rules, kickoffs, teams, formatting
+│       └── styles/theme.css          # Design tokens for the light and dark themes
 ├── system/
 │   ├── orchestrator/                 # Scraper scheduling service
 │   ├── salary-scraper/               # DraftKings salary scraper
@@ -180,14 +186,23 @@ Other scraper options: `--year` and (projections only) `--week` scrape a single 
 
 ### Generate Lineups in the Web App
 
-Use the settings panel to choose the year, week, defense, and optional one-tight-end constraint, then select **Optimize lineups**. The player pool supports:
+Open http://localhost:3000. The app loads the current week and optimizes right away; pick another **Season** and **Week** in the header to load an older slate (**Back to this week** returns). Any change re-runs the optimizer immediately, so there is no Optimize button.
 
-- Search by player name
-- Filtering by position, team, and opponent
-- Include and exclude actions for player constraints
-- Rank, grade, average FPTS, projected FPTS, and salary columns
+**Suggested lineups** (right; on top on phones):
 
-The suggested lineups panel displays multiple optimized results with player, position, team, opponent, projected FPTS, salary, and include/exclude actions.
+- Settings: QB stack (off, +1 or +2 pass catchers from the QB's team), avoid a TE in FLEX, and include players whose games have started.
+- Three lineups, one per strategy: **Projection** (FantasyPros projections), **90/10 blend** and **80/20 blend** (projection blended with the recent average). Each tab and card headlines the plain projected total so the three compare directly; blended lineups also show the score they were optimized on.
+- Each card shows salary used against the $50,000 cap, the roster in slot order with headshots and matchups, and a copy button that puts the lineup on the clipboard as text.
+- The lock button forces a player into every lineup; the exclude button removes them. Locks reset when the slate changes; exclusions are remembered per week in the browser.
+
+**Player pool** (left):
+
+- Position tabs, name search, a games filter (all, Friday or later, Sunday or later, Sunday 1 PM ET+; it defaults by day of the week), and team and opponent filters.
+- Quick filters: value plays (2.5x+), players in your lineups, locked, excluded.
+- Available and Unavailable tabs; Unavailable holds players whose games started and players you excluded, with a restore button for the latter.
+- Columns: matchup (green against a bottom-10 defense, red against a top-10 one, by that week's DST rank), grade, recent average, projection, salary, salary change and value. The dots after a name show which lineups the player is in.
+
+Headshots come from FantasyPros' image CDN by `fp_player_id`, and team logos from ESPN's; both are loaded by the viewer's browser. Weeks scraped before `fp_player_id` was collected show initials until they are scraped again.
 
 The API endpoints used by the frontend are:
 
@@ -196,7 +211,7 @@ The API endpoints used by the frontend are:
 - `POST /projections`
 - `POST /optimize`
 
-`POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, `avg_fpts`, injuries) are `null` there; `kickoff` is a string like `2026-10-04T20:05:00+0000`.
+`POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, `avg_fpts`, injuries, `fp_player_id`) are `null` there; `kickoff` is a string like `2026-10-04T20:05:00+0000`.
 
 ## Technology Stack
 
@@ -237,10 +252,10 @@ All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker
 | Object | Written by | Contents |
 |--------|-----------|----------|
 | `player_salaries` | Salary scraper | Salary, salary change, team, opponent, home/away, kickoff |
-| `player_projections` | Projection scraper | Rank, grade, projected and average FPTS, injury status |
+| `player_projections` | Projection scraper | Rank, grade, projected and average FPTS, injury status, FantasyPros player id |
 | `weekly_player_pool` (view) | — | Joins the two per `(year, week, player)` and derives `value`; this is what the API reads |
 
-Both tables are keyed on `(year, week, player)`. Columns that older data predates (`home`, `kickoff`, `salary_change`, `injury_status`, `injury_type`) are nullable.
+Both tables are keyed on `(year, week, player)`. Columns that older data predates (`home`, `kickoff`, `salary_change`, `injury_status`, `injury_type`, `fp_player_id`) are nullable.
 
 To inspect the data:
 ```bash
@@ -334,7 +349,7 @@ make test                     # every suite
 make test-api                 # optimizer rules, JSON conversion, response models, DB write guard
 make test-salary-scraper      # salary page parsing, kickoff and week handling
 make test-projection-scraper  # rankings, stats and injury parsing
-make test-frontend            # lineup slot ordering
+make test-frontend            # roster rules, kickoff filters, team logos, lineup order, app smoke test
 make test-db                  # ORM models match the Alembic migrations
 ```
 

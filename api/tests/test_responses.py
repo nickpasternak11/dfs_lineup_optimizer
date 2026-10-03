@@ -34,6 +34,8 @@ def full_pool(pool) -> pd.DataFrame:
     df["value"] = (df["proj_fpts"] / (df["salary"] / 1000)).round(2)
     df["injury_status"] = ["Questionable"] + [None] * (len(df) - 1)
     df["injury_type"] = ["Knee"] + [None] * (len(df) - 1)
+    # Integer ids come back as float64 once any is NULL.
+    df["fp_player_id"] = [17298.0] + [float("nan")] * (len(df) - 1)
     df.loc[0, "kickoff"] = pd.Timestamp("2099-09-27T17:00:00", tz="UTC")
     df.loc[1, "avg_fpts"] = float("nan")
     for column in FLOAT_COLUMNS:
@@ -56,6 +58,8 @@ def test_projection_records_validate(full_pool):
     assert current.kickoff == "2099-09-27T17:00:00+0000"
     assert current.home is True
     assert current.salary_change == 300
+    assert current.fp_player_id == 17298
+    assert historical.fp_player_id is None
     assert historical.kickoff is None
     assert historical.home is None
     assert historical.avg_fpts is None

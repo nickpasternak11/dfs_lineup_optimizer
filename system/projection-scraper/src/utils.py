@@ -54,6 +54,8 @@ def get_weekly_rankings(position: str, year: int, week: int):
                                 "std_rank": float(rank_std),
                                 "grade": str(grade),
                                 "proj_fpts": float(fpts),
+                                # Optional: only used for headshots.
+                                "fp_player_id": player.get("player_id"),
                             }
                         )
                     except (KeyError, TypeError, ValueError):
