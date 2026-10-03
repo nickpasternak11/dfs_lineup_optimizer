@@ -1,32 +1,38 @@
 import os
+import subprocess
+import sys
 import time
+from collections import deque
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-import backoff
-import docker
 import schedule
+from dfs_common.alerts import send_alert
+from dfs_common.fantasypros import get_current_week
+from dfs_common.season import current_season_year
 from src.backup import run_backup
+from src.catch_up import catch_up_allowed, in_season, missing_jobs
 from src.configs import log
 
-# Forwarded to scraper containers so they reach the same database as the API.
-DB_ENV_VARS = (
-    "POSTGRES_HOST",
-    "POSTGRES_PORT",
-    "POSTGRES_DB",
-    "POSTGRES_USER",
-    "POSTGRES_PASSWORD",
-    "DATABASE_URL",
-)
+EASTERN = ZoneInfo("America/New_York")
+
+# The scrapers' code is copied into the image here (see the Dockerfile) and
+# each runs in its own child process -- no Docker socket needed.
+JOBS_DIR = os.getenv("JOBS_DIR", "/app/jobs")
 
 # First season the weekly backfill collects; it runs through last season.
 BACKFILL_START_YEAR = os.getenv("BACKFILL_START_YEAR", "2018")
 
+# How much of a failed job's output goes into its alert.
+ALERT_LOG_LINES = 15
+
+
+def now_eastern() -> datetime:
+    return datetime.now(EASTERN)
+
 
 class ScraperOrchestrator:
     def __init__(self):
-        # Docker client
-        self.docker_client = docker.DockerClient(base_url="unix://var/run/docker.sock")
-        self.network_name = "dfs_optimizer_network"
-        # Set up schedules
         self.setup_schedules()
 
     def setup_schedules(self):
@@ -43,77 +49,124 @@ class ScraperOrchestrator:
         # Projection scraper → Every hour, Tue 10:00 AM through Thu 8:00 PM ET
         for day in ["tuesday", "wednesday", "thursday"]:
             for hour in range(10, 21):  # 10:00 AM to 8:00 PM inclusive
-                schedule.every().__getattribute__(day).at(
+                getattr(schedule.every(), day).at(
                     f"{hour:02d}:00", "America/New_York"
                 ).do(self.run_projection_scraper)
+        # Missed-run catch-up → Daily at noon ET (and at startup, see run())
+        schedule.every().day.at("12:00", "America/New_York").do(self.catch_up)
         # Database backup → Daily, 3:00 AM ET
         schedule.every().day.at("03:00", "America/New_York").do(self.run_backup)
         log.info("✅ Schedules set up successfully")
 
+    def alert(self, message: str) -> None:
+        log.error(message)
+        send_alert(f"DFS orchestrator: {message}")
+
     def run_backup(self):
         # schedule re-raises job exceptions out of run_pending(), which would
-        # stop the scheduler loop; a failed backup must only be logged.
+        # stop the scheduler loop; a failed backup must only be reported.
         try:
-            run_backup(self.docker_client)
+            run_backup()
         except Exception as e:  # noqa: BLE001
-            log.error(f"Database backup failed: {e!s}")
+            self.alert(f"Database backup failed: {e!s}")
 
-    @backoff.on_exception(backoff.expo, docker.errors.APIError, max_tries=3)
     def run_salary_scraper(self):
+        if self.skip_off_season("salary scraper"):
+            return
         log.info("Starting scheduled salary scraper...")
-        self.run_container("dfs-salary-scraper")
+        self.run_scraper("salary-scraper")
 
-    @backoff.on_exception(backoff.expo, docker.errors.APIError, max_tries=3)
     def run_projection_scraper(self):
+        if self.skip_off_season("projection scraper"):
+            return
         log.info("Starting scheduled projection scraper...")
-        self.run_container("dfs-projection-scraper")
+        self.run_scraper("projection-scraper")
 
     def run_backfill(self):
+        if self.skip_off_season("backfill"):
+            return
         log.info(
             "Starting scheduled backfill of this week for %s through last season...",
             BACKFILL_START_YEAR,
         )
         args = ["--start-year", BACKFILL_START_YEAR]
-        self.run_container("dfs-salary-scraper", command=args)
-        self.run_container("dfs-projection-scraper", command=args)
+        self.run_scraper("salary-scraper", args)
+        self.run_scraper("projection-scraper", args)
 
-    def run_container(self, container_name: str, command: list[str] | None = None):
-        container_config = {
-            "image": container_name,
-            # Appended to the image's `python main.py` entrypoint.
-            "command": command,
-            "detach": True,
-            "network": self.network_name,
-            "labels": {"logging": "promtail"},
-            "environment": {
-                name: os.environ[name]
-                for name in DB_ENV_VARS
-                if name in os.environ
-            },
-            "name": container_name,
-            "auto_remove": True,
-        }
+    def skip_off_season(self, job: str) -> bool:
+        # Off-season there is no current week to scrape; running would only
+        # fail and alert every week from March to August.
+        if in_season(now_eastern()):
+            return False
+        log.info("Off-season: skipping the %s", job)
+        return True
+
+    def catch_up(self):
+        """Run any of this week's scrapes that are missing from the database."""
+        now = now_eastern()
+        if not catch_up_allowed(now):
+            log.info("Catch-up: not checking now (off-season, Monday or early Tuesday)")
+            return
+        try:
+            week = get_current_week()
+            season = current_season_year(now.date())
+            missing = missing_jobs(season, week)
+        except Exception as e:  # noqa: BLE001
+            self.alert(f"Catch-up check failed: {e!s}")
+            return
+
+        if not missing:
+            log.info("Catch-up: %s week %s is complete", season, week)
+            return
+        log.warning("Catch-up: %s week %s is missing %s", season, week, ", ".join(missing))
+        if "salaries" in missing:
+            self.run_scraper("salary-scraper")
+        if "projections" in missing:
+            self.run_scraper("projection-scraper")
+        if "backfill" in missing:
+            self.run_backfill()
+
+    def run_scraper(self, name: str, args: list[str] | None = None) -> bool:
+        """Run a scraper's main.py in a child process, streaming its log.
+
+        Returns True if it exited cleanly. Never raises: a failed job must not
+        stop the scheduler loop.
+        """
+        workdir = os.path.join(JOBS_DIR, name)
+        # Each scraper, and the orchestrator itself, has a top-level `src`
+        # package, so the child must see only its own directory.
+        env = {**os.environ, "PYTHONPATH": f"{workdir}:/app/shared"}
+        command = [sys.executable, "main.py", *(args or [])]
+        label = " ".join([name, *(args or [])])
+        tail = deque(maxlen=ALERT_LOG_LINES)
 
         try:
-            container = self.docker_client.containers.run(**container_config)
+            process = subprocess.Popen(
+                command,
+                cwd=workdir,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            for line in process.stdout:
+                log.info(f"[{name}] {line.rstrip()}")
+                tail.append(line.rstrip())
+            exit_code = process.wait()
+        except OSError as e:
+            self.alert(f"Could not start {label}: {e!s}")
+            return False
 
-            # Stream logs while running
-            for line in container.logs(stream=True):
-                log.info(f"[{container_name}] {line.decode().strip()}")
-
-            # Capture exit status
-            exit_code = container.wait()["StatusCode"]
-            if exit_code == 0:
-                log.info(f"{container_name} completed successfully.")
-            else:
-                log.error(f"{container_name} exited with status code {exit_code}")
-
-        except docker.errors.APIError as e:
-            log.error(f"Docker API error running {container_name}: {e!s}")
-        except Exception as e:
-            log.error(f"Error running {container_name}: {e!s}")
+        if exit_code == 0:
+            log.info(f"{name} completed successfully.")
+            return True
+        output = "\n".join(tail)
+        self.alert(f"{label} exited with status code {exit_code}\n```\n{output}\n```")
+        return False
 
     def run(self):
+        # Catch up first: anything missed while the stack was down.
+        self.catch_up()
         log.info("Starting scheduler loop...")
         while True:
             schedule.run_pending()

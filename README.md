@@ -57,7 +57,7 @@ The runtime Compose configuration starts:
 - `dfs-api`: FastAPI application served on port `8080`
 - `dfs-orchestration`: scraper scheduling service
 
-The scrapers, schema tool (`dfs-db-migrate`) and CSV loader (`dfs-migration`) are one-off images, run by the orchestrator or by `make`. All services share the `dfs_optimizer_network` network.
+The orchestrator image bundles both scrapers and runs them on its schedule. The standalone scraper images, the schema tool (`dfs-db-migrate`) and the CSV loader (`dfs-migration`) are one-off images run by `make`. All services share the `dfs_optimizer_network` network.
 
 ## Getting Started
 
@@ -117,7 +117,24 @@ Scheduled runs (orchestrator):
 - **Salary scraper**: Tuesdays at 9:00 AM ET
 - **Past-season backfill**: Tuesdays at 9:30 AM ET (see below)
 - **Projection scraper**: hourly, 10:00 AM–8:00 PM ET, Tuesday through Thursday
+- **Missed-run catch-up**: daily at noon ET, and whenever the orchestrator starts
 - **Database backup**: daily at 3:00 AM ET
+
+Scraper jobs are skipped March through August, when FantasyPros has no current week. Backups run year-round.
+
+### Missed Runs and Alerts
+
+The schedule only fires at fixed times, so if the stack is down on a Tuesday, that week's jobs never run. Past seasons' salaries in particular can only be collected during their week (see below). To cover this, the orchestrator checks the database at startup and daily at noon ET. If the current week has no live salaries, no live projections, or no past-season backfill, it runs what's missing.
+
+It doesn't check on Mondays or on Tuesdays before 10:00 AM ET. That leaves room for Tuesday's scheduled runs, and avoids the window where the week number has rolled over but the salary page hasn't, which would file last week's salaries under the new week.
+
+To be notified when a scheduled scrape, backfill, catch-up or backup fails, set a Slack or Discord incoming-webhook URL in `.env`:
+
+```bash
+ALERT_WEBHOOK_URL=https://discord.com/api/webhooks/...
+```
+
+Each alert includes the failed job's last 15 log lines. Without the URL, failures are only logged (`docker compose -f docker-compose.run.yml logs dfs-orchestration`).
 
 ### Backfilling Past Seasons
 
@@ -192,7 +209,7 @@ The API endpoints used by the frontend are:
 ## Key Components
 
 ### Orchestrator
-Runs the scraper schedule in its own container. It uses the Docker socket to launch scraper containers on the app network and passes them the database credentials.
+Runs the scraper and backup schedule in its own container. Both scrapers' code is copied into its image, and each scheduled scrape runs the scraper's `main.py` as a child process with the orchestrator's database credentials. It has no access to Docker, so a compromised dependency in it can't reach the host. Backups use a PostgreSQL 16 `pg_dump`, matching the server, installed in the same image.
 
 ### Salary Scraper
 Collects DraftKings salaries, opponents, home/away and kickoff times from the FantasyPros DraftKings salary-changes page, and writes them to `player_salaries`.
@@ -316,6 +333,8 @@ make test-frontend            # lineup slot ordering
 Each suite runs in its service's `test` Docker build stage, with the same dependencies as the deployed image. No database, network access or running stack is needed. Scraper tests read saved HTML from each service's `tests/fixtures/` instead of FantasyPros. If FantasyPros changes a page layout, update the matching fixture along with the parser.
 
 Tests live in `api/tests/`, `shared/tests/` (run with the API suite), `system/*/tests/` and `frontend/src/**/*.test.js`.
+
+GitHub Actions runs `make test` on every push to every branch (`.github/workflows/tests.yml`), and pull requests show the result for their latest commit. New suites added to `make test` are picked up automatically.
 
 To run the frontend locally outside Docker:
 
