@@ -33,6 +33,10 @@ class ProjectionRecord(BaseModel):
     value: float | None = Field(description="proj_fpts per $1,000 of salary")
     injury_status: str | None
     injury_type: str | None
+    fp_player_id: int | None = Field(
+        description="FantasyPros player id, used for headshots; NULL for weeks "
+        "scraped before it was collected"
+    )
 
 
 GetProjectionsResponse = list[ProjectionRecord]
