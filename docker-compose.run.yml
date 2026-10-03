@@ -45,6 +45,11 @@ services:
       logging: "promtail"
     environment:
       <<: *postgres-env
+      # uvicorn worker processes; "auto" is one per core, up to 4. Each holds
+      # up to DB_POOL_SIZE + DB_MAX_OVERFLOW (default 10) DB connections.
+      API_WORKERS: ${API_WORKERS:-auto}
+      # Seconds each worker reuses a week's player pool; 0 disables.
+      API_CACHE_TTL_SECONDS: ${API_CACHE_TTL_SECONDS:-300}
     ports:
       - "8080:8080"
     depends_on:

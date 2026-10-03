@@ -228,6 +228,8 @@ The FastAPI service reads each week's player pool from PostgreSQL and exposes th
 - Enforces position limits
 - Excludes players whose games have already kicked off (unless requested)
 
+**Scaling:** the API runs `API_WORKERS` uvicorn processes (default `auto`: one per core, up to 4), since building the optimization model is CPU-bound and one process uses about one core. Each worker caches a week's player pool and the latest week for `API_CACHE_TTL_SECONDS` (default 300; `0` disables). Each worker also holds up to `DB_POOL_SIZE + DB_MAX_OVERFLOW` (default 10) database connections, so keep `API_WORKERS` × that well under Postgres' 100. Set `API_WORKERS` and `API_CACHE_TTL_SECONDS` in `.env`. `make load-test` measures throughput and latency; see [api/loadtest/README.md](api/loadtest/README.md) for the method and before/after results.
+
 ## Data Storage
 
 All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker volume.
@@ -320,6 +322,7 @@ make run-projection-scraper
 make backfill                 # this week of every past season (runs Tuesdays anyway)
 
 make test                     # run all test suites (see Testing)
+make load-test                # read-only API load test (see api/loadtest/README.md)
 make db-upgrade               # schema migrations (see Schema Migrations)
 make migrate                  # CSV import (see Migrating from CSV)
 ```
