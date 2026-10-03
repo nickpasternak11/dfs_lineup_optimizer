@@ -196,6 +196,8 @@ The API endpoints used by the frontend are:
 - `POST /projections`
 - `POST /optimize`
 
+`POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, `avg_fpts`, injuries) are `null` there; `kickoff` is a string like `2026-10-04T20:05:00+0000`.
+
 ## Technology Stack
 
 | Layer | Technology | Purpose |
@@ -275,6 +277,8 @@ make db-revision MSG="add some column" # autogenerate a migration from model cha
 
 After editing `models.py`, generate a revision, review the generated file in `db/migrations/versions/`, then run `make db-upgrade`. The `weekly_player_pool` view is not ORM-mapped, so changes to it must be written into a migration by hand.
 
+`make test-db` (part of `make test`, so CI runs it) checks that the models and migrations agree. It applies every migration to a throwaway Postgres, runs `alembic check`, then downgrades to base and upgrades again to prove each `downgrade()` works. If it fails with `New upgrade operations detected`, a model was changed without a migration (or the reverse): run `make db-revision MSG="..."`, review the generated file, and commit it with the model change. The check compares columns, types, nullability, server defaults, indexes and table comments, but not CHECK constraints or the view.
+
 ## Migrating from CSV
 
 Before the PostgreSQL migration, data was stored as CSV files in `/dfs_data/salaries/dk_salary_YYYY_wW.csv` and `/dfs_data/projections/fp_projection_YYYY_wW.csv`. The `migration/` tool loads them into the database once. The CSVs are only read, never modified.
@@ -327,13 +331,14 @@ make migrate                  # CSV import (see Migrating from CSV)
 
 ```bash
 make test                     # every suite
-make test-api                 # optimizer rules, JSON conversion, DB write guard
+make test-api                 # optimizer rules, JSON conversion, response models, DB write guard
 make test-salary-scraper      # salary page parsing, kickoff and week handling
 make test-projection-scraper  # rankings, stats and injury parsing
 make test-frontend            # lineup slot ordering
+make test-db                  # ORM models match the Alembic migrations
 ```
 
-Each suite runs in its service's `test` Docker build stage, with the same dependencies as the deployed image. No database, network access or running stack is needed. Scraper tests read saved HTML from each service's `tests/fixtures/` instead of FantasyPros. If FantasyPros changes a page layout, update the matching fixture along with the parser.
+Each suite runs in its service's `test` Docker build stage, with the same dependencies as the deployed image. No database, network access or running stack is needed; `test-db` starts its own throwaway Postgres container and removes it afterwards. Scraper tests read saved HTML from each service's `tests/fixtures/` instead of FantasyPros. If FantasyPros changes a page layout, update the matching fixture along with the parser.
 
 Tests live in `api/tests/`, `shared/tests/` (run with the API suite), `system/*/tests/` and `frontend/src/**/*.test.js`.
 
