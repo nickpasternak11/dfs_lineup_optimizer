@@ -1,0 +1,328 @@
+.lineup-panel {
+    min-width: 0;
+}
+
+/* Settings */
+.optimizer-settings {
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
+}
+
+.setting-row {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+}
+
+.setting-label {
+    align-items: center;
+    display: inline-flex;
+    font-size: 0.82rem;
+    font-weight: 700;
+    gap: 5px;
+}
+
+.setting-hint {
+    color: var(--text-faint);
+    display: block;
+    font-size: 0.72rem;
+}
+
+.locks {
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+}
+
+.locks-header {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+}
+
+.locks-salary {
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.locks-empty {
+    color: var(--text-faint);
+    font-size: 0.75rem;
+    margin: 0;
+}
+
+.lock-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.lock-chip {
+    align-items: center;
+    background: var(--accent-soft);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--accent-strong);
+    display: inline-flex;
+    font-size: 0.72rem;
+    font-weight: 700;
+    gap: 4px;
+    padding: 3px 8px 3px 10px;
+}
+
+.lock-chip:hover {
+    border-color: var(--accent);
+}
+
+.link-button {
+    background: none;
+    border: 0;
+    color: var(--accent-strong);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0;
+}
+
+.link-button:hover {
+    text-decoration: underline;
+}
+
+.excluded-link {
+    align-self: flex-start;
+    color: var(--text-muted);
+}
+
+/* Results */
+.lineup-results {
+    border-top: 1px solid var(--border);
+    padding: 14px 16px 16px;
+    transition: opacity 0.15s ease;
+}
+
+.lineup-results.is-busy {
+    opacity: 0.6;
+}
+
+.lineup-message {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 0;
+}
+
+.lineup-message strong {
+    font-size: 0.9rem;
+}
+
+.lineup-message span:not(.skeleton) {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.lineup-tabs {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(3, 1fr);
+    margin-bottom: 12px;
+}
+
+.lineup-tabs button {
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 7px 10px;
+    text-align: left;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.lineup-tabs button:hover {
+    border-color: var(--border-strong);
+}
+
+.lineup-tabs button[aria-selected='true'] {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+}
+
+.lineup-tab-label {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.lineup-tab-points {
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.lineup-tabs button[aria-selected='true'] .lineup-tab-label {
+    color: var(--accent-strong);
+}
+
+/* Lineup card */
+.lineup-summary {
+    align-items: center;
+    background: linear-gradient(135deg, var(--brand-raised), var(--brand));
+    border-radius: var(--radius-sm);
+    color: var(--on-brand);
+    display: flex;
+    gap: 16px;
+    padding: 12px 14px;
+}
+
+.lineup-summary .icon-button {
+    color: var(--on-brand-muted);
+}
+
+.lineup-summary .icon-button:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--on-brand);
+}
+
+.summary-points {
+    display: flex;
+    flex-direction: column;
+}
+
+.summary-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.summary-label,
+.summary-sub {
+    color: var(--on-brand-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.summary-label {
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.summary-salary {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.summary-salary-text {
+    display: flex;
+    font-size: 0.8rem;
+    font-weight: 700;
+    justify-content: space-between;
+}
+
+.summary-salary-text .muted {
+    color: var(--on-brand-muted);
+}
+
+.salary-bar {
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    height: 6px;
+    overflow: hidden;
+}
+
+.salary-bar span {
+    background: #22c55e;
+    border-radius: 999px;
+    display: block;
+    height: 100%;
+}
+
+.strategy-detail {
+    color: var(--text-faint);
+    font-size: 0.72rem;
+    margin: 8px 2px 6px;
+}
+
+.roster {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.roster-row {
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    gap: 10px;
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+    padding: 8px 2px;
+}
+
+.roster-row:last-child {
+    border-bottom: 0;
+}
+
+.roster-row.is-locked {
+    background: var(--row-locked);
+    border-radius: 6px;
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.roster-player {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.roster-name {
+    align-items: center;
+    display: flex;
+    font-weight: 700;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+/* Block, not flex, so a long matchup and kickoff end in an ellipsis
+   instead of running into the numbers column. */
+.roster-meta {
+    color: var(--text-muted);
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.roster-meta .team-logo {
+    margin-right: 1px;
+    vertical-align: -3px;
+}
+
+.roster-numbers {
+    align-items: flex-end;
+    display: flex;
+    flex-direction: column;
+}
+
+.roster-points {
+    font-weight: 800;
+}
+
+.roster-salary {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}

@@ -1,0 +1,74 @@
+.pos-badge {
+    border-radius: 6px;
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    min-width: 2.6rem;
+    padding: 3px 0;
+    text-align: center;
+}
+
+.pos-qb { background: var(--pos-qb-soft); color: var(--pos-qb); }
+.pos-rb { background: var(--pos-rb-soft); color: var(--pos-rb); }
+.pos-wr { background: var(--pos-wr-soft); color: var(--pos-wr); }
+.pos-te { background: var(--pos-te-soft); color: var(--pos-te); }
+.pos-dst { background: var(--pos-dst-soft); color: var(--pos-dst); }
+.pos-flex { background: var(--pos-flex-soft); color: var(--pos-flex); }
+
+.grade-badge {
+    border-radius: 6px;
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 800;
+    min-width: 1.9rem;
+    padding: 2px 5px;
+    text-align: center;
+}
+
+.grade-a { background: var(--good-soft); color: var(--good); }
+.grade-b { background: var(--info-soft); color: var(--info); }
+.grade-c { background: var(--warn-soft); color: var(--warn); }
+.grade-d,
+.grade-f { background: var(--bad-soft); color: var(--bad); }
+
+.injury-badge {
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    padding: 1px 4px;
+}
+
+.injury-q { background: var(--warn-soft); color: var(--warn); }
+.injury-d,
+.injury-o,
+.injury-ir,
+.injury-pup,
+.injury-sus { background: var(--bad-soft); color: var(--bad); }
+
+.salary-change {
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.salary-change-up { color: var(--good); }
+.salary-change-down { color: var(--bad); }
+.salary-change-flat { color: var(--text-faint); }
+
+.exposure-pips {
+    display: inline-flex;
+    gap: 3px;
+}
+
+.pip {
+    background: var(--border-strong);
+    border-radius: 50%;
+    height: 6px;
+    width: 6px;
+}
+
+.pip-on {
+    background: var(--accent);
+}

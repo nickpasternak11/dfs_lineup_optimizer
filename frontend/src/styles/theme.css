@@ -1,0 +1,411 @@
+/* Design tokens. Navy and green come from the app icon. Every color the
+   components use is defined here, once per theme. */
+:root {
+    color-scheme: light;
+    --brand: #061b3a;
+    --brand-raised: #0c2a52;
+    --on-brand: #ffffff;
+    --on-brand-muted: #a9b8cf;
+
+    --bg: #eef2f7;
+    --surface: #ffffff;
+    --surface-raised: #ffffff;
+    --surface-sunken: #f5f7fb;
+    --surface-hover: #f2f6fb;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --text: #0f1b2d;
+    --text-muted: #55657a;
+    --text-faint: #8794a7;
+
+    --accent: #16a34a;
+    --accent-strong: #15803d;
+    --accent-soft: #e7f6ec;
+    --on-accent: #ffffff;
+    --focus: rgba(22, 163, 74, 0.35);
+
+    --good: #15803d;
+    --good-soft: #e3f5e9;
+    --bad: #c62828;
+    --bad-soft: #fdeaea;
+    --warn: #a15c07;
+    --warn-soft: #fdf1d8;
+    --info: #1d5fbf;
+    --info-soft: #e5effc;
+
+    --pos-qb: #be123c;
+    --pos-qb-soft: #fde4ea;
+    --pos-rb: #047857;
+    --pos-rb-soft: #dcf5ea;
+    --pos-wr: #1d4ed8;
+    --pos-wr-soft: #e0e9fd;
+    --pos-te: #b45309;
+    --pos-te-soft: #fdeed7;
+    --pos-dst: #6d28d9;
+    --pos-dst-soft: #ede5fd;
+    --pos-flex: #475569;
+    --pos-flex-soft: #e8edf3;
+
+    --row-locked: #ecf8f0;
+    --row-unavailable: #fbf3f3;
+    --shadow: 0 1px 2px rgba(15, 27, 45, 0.06), 0 4px 16px rgba(15, 27, 45, 0.05);
+    --radius: 12px;
+    --radius-sm: 8px;
+}
+
+:root[data-theme='dark'] {
+    color-scheme: dark;
+    --brand: #050f22;
+    --brand-raised: #0d1f3d;
+    --on-brand-muted: #8fa1bd;
+
+    --bg: #0a111e;
+    --surface: #111b2c;
+    --surface-raised: #16233a;
+    --surface-sunken: #0d1626;
+    --surface-hover: #182742;
+    --border: #22314a;
+    --border-strong: #33455f;
+    --text: #e6edf7;
+    --text-muted: #9cabbf;
+    --text-faint: #6d7d94;
+
+    --accent: #22c55e;
+    --accent-strong: #4ade80;
+    --accent-soft: rgba(34, 197, 94, 0.14);
+    --on-accent: #052e14;
+    --focus: rgba(34, 197, 94, 0.4);
+
+    --good: #4ade80;
+    --good-soft: rgba(74, 222, 128, 0.13);
+    --bad: #f87171;
+    --bad-soft: rgba(248, 113, 113, 0.14);
+    --warn: #fbbf24;
+    --warn-soft: rgba(251, 191, 36, 0.14);
+    --info: #7cb0ff;
+    --info-soft: rgba(124, 176, 255, 0.14);
+
+    --pos-qb: #fb7193;
+    --pos-qb-soft: rgba(251, 113, 147, 0.15);
+    --pos-rb: #34d399;
+    --pos-rb-soft: rgba(52, 211, 153, 0.14);
+    --pos-wr: #7aa2ff;
+    --pos-wr-soft: rgba(122, 162, 255, 0.15);
+    --pos-te: #fbae4a;
+    --pos-te-soft: rgba(251, 174, 74, 0.15);
+    --pos-dst: #b89cff;
+    --pos-dst-soft: rgba(184, 156, 255, 0.15);
+    --pos-flex: #a3b1c4;
+    --pos-flex-soft: rgba(163, 177, 196, 0.14);
+
+    --row-locked: rgba(34, 197, 94, 0.09);
+    --row-unavailable: rgba(248, 113, 113, 0.06);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+    color: inherit;
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.num {
+    font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+    clip: rect(0 0 0 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+}
+
+/* Shared building blocks */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.eyebrow {
+    color: var(--text-faint);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    margin: 0 0 2px;
+    text-transform: uppercase;
+}
+
+.input,
+.select {
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    height: 34px;
+    min-width: 0;
+    padding: 0 10px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    width: 100%;
+}
+
+.select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238794a7' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 10px center;
+    background-repeat: no-repeat;
+    padding-right: 28px;
+}
+
+.input:focus,
+.select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus);
+    outline: none;
+}
+
+.button {
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    font-size: 0.8rem;
+    font-weight: 700;
+    gap: 6px;
+    height: 34px;
+    justify-content: center;
+    padding: 0 12px;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+    background: var(--surface-hover);
+}
+
+.button:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.button-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+}
+
+.button-primary:hover:not(:disabled) {
+    background: var(--accent-strong);
+    border-color: var(--accent-strong);
+}
+
+.button-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-muted);
+}
+
+.icon-button {
+    align-items: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--text-faint);
+    display: inline-flex;
+    height: 30px;
+    justify-content: center;
+    padding: 0;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    width: 30px;
+}
+
+.icon-button:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+.icon-button.is-active {
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+}
+
+.icon-button.is-danger:hover {
+    background: var(--bad-soft);
+    color: var(--bad);
+}
+
+/* Shown but inert: still clickable, so the reason reaches touch screens. */
+.icon-button.is-blocked {
+    opacity: 0.35;
+}
+
+/* Segmented control: a row of mutually exclusive options. */
+.segmented {
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+}
+
+.segmented button {
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    min-height: 28px;
+    padding: 0 10px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.segmented button:hover {
+    color: var(--text);
+}
+
+.segmented button[aria-pressed='true'],
+.segmented button[aria-selected='true'] {
+    background: var(--surface-raised);
+    box-shadow: 0 1px 2px rgba(15, 27, 45, 0.12);
+    color: var(--text);
+}
+
+.chip {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 11px;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.chip:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.chip[aria-pressed='true'] {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent-strong);
+}
+
+/* Toggle switch on a checkbox. */
+.switch {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+}
+
+.switch input {
+    appearance: none;
+    background: var(--border-strong);
+    border-radius: 999px;
+    cursor: pointer;
+    flex-shrink: 0;
+    height: 20px;
+    margin: 0;
+    position: relative;
+    transition: background-color 0.15s ease;
+    width: 36px;
+}
+
+.switch input::before {
+    background: #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    content: '';
+    height: 16px;
+    left: 2px;
+    position: absolute;
+    top: 2px;
+    transition: transform 0.15s ease;
+    width: 16px;
+}
+
+.switch input:checked {
+    background: var(--accent);
+}
+
+.switch input:checked::before {
+    transform: translateX(16px);
+}
+
+.spinner {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.skeleton {
+    animation: pulse 1.2s ease-in-out infinite;
+    background: var(--surface-sunken);
+    border-radius: 6px;
+    display: block;
+    height: 12px;
+}
+
+@keyframes pulse {
+    50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Toasts follow the theme. */
+.Toastify__toast {
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.85rem;
+}
