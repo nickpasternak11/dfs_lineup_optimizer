@@ -173,69 +173,53 @@ class DFSLineupOptimizer:
         #         1,
         #     )
 
-        # Create the optimization problem
+        # Create the optimization problem. Columns are read into plain lists
+        # once: per-cell df.loc lookups inside these loops (O(players x teams)
+        # with stacking) used to cost far more than the CBC solve itself.
         prob = pulp.LpProblem("DFS_Lineup_Optimization", pulp.LpMaximize)
         player_vars = pulp.LpVariable.dicts("Players", df.index, cat="Binary")
+        rows = list(
+            zip(
+                df.index,
+                df["position"].tolist(),
+                df["team"].tolist(),
+                df["proj_fpts"].tolist(),
+                df["salary"].tolist(),
+            )
+        )
+        position_vars: dict[str, list] = {}
+        for i, position, _, _, _ in rows:
+            position_vars.setdefault(position, []).append(player_vars[i])
+
+        def at_position(position: str) -> pulp.LpAffineExpression:
+            return pulp.lpSum(position_vars.get(position, []))
 
         # Objective function
-        prob += pulp.lpSum(df.loc[i, "proj_fpts"] * player_vars[i] for i in df.index)
+        prob += pulp.LpAffineExpression(
+            (player_vars[i], proj_fpts) for i, _, _, proj_fpts, _ in rows
+        )
 
         # Total roster constraint (9 players)
-        prob += pulp.lpSum(player_vars[i] for i in df.index) == total_players
+        prob += pulp.lpSum(player_vars.values()) == total_players
 
         # Position constraints
         # Total 9 players: 1 QB, 2 RB, 3 WR, 1 TE, 1 FLEX (RB/WR/TE), 1 DST
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "QB"
-            )
-            == QB_limit
-        )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "RB"
-            )
-            >= RB_limit
-        )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "RB"
-            )
-            <= RB_limit + FLEX_limit
-        )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "WR"
-            )
-            >= WR_limit
-        )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "WR"
-            )
-            <= WR_limit + FLEX_limit
-        )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "TE"
-            )
-            >= TE_limit
-        )
-        te_constraint = pulp.lpSum(
-            player_vars[i] for i in df.index if df.loc[i, "position"] == "TE"
-        )
+        prob += at_position("QB") == QB_limit
+        prob += at_position("RB") >= RB_limit
+        prob += at_position("RB") <= RB_limit + FLEX_limit
+        prob += at_position("WR") >= WR_limit
+        prob += at_position("WR") <= WR_limit + FLEX_limit
+        prob += at_position("TE") >= TE_limit
         te_maximum = TE_limit if avoid_te_flex else TE_limit + FLEX_limit
-        prob += te_constraint <= te_maximum
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "DST"
-            )
-            == DST_limit
-        )
+        prob += at_position("TE") <= te_maximum
+        prob += at_position("DST") == DST_limit
 
         # Salary cap constraint
         prob += (
-            pulp.lpSum(df.loc[i, "salary"] * player_vars[i] for i in df.index) <= budget
+            pulp.LpAffineExpression(
+                (player_vars[i], salary) for i, _, _, _, salary in rows
+            )
+            <= budget
         )
 
         # Enforce included players to be in the lineup
@@ -245,24 +229,20 @@ class DFSLineupOptimizer:
 
         # QB WR/TE stracking constraints
         if stack_qb_count:
-            teams = df["team"].unique()
-            for team in teams:
-                qb_vars = [
-                    player_vars[i]
-                    for i in df.index
-                    if df.loc[i, "team"] == team and df.loc[i, "position"] == "QB"
-                ]
-                pass_catcher_vars = [
-                    player_vars[i]
-                    for i in df.index
-                    if df.loc[i, "team"] == team
-                    and df.loc[i, "position"] in ["WR", "TE"]
-                ]
+            qb_vars: dict[str, list] = {}
+            pass_catcher_vars: dict[str, list] = {}
+            for i, position, team, _, _ in rows:
+                if position == "QB":
+                    qb_vars.setdefault(team, []).append(player_vars[i])
+                elif position in ["WR", "TE"]:
+                    pass_catcher_vars.setdefault(team, []).append(player_vars[i])
 
-                if qb_vars:
+            for team in df["team"].unique():
+                # A NULL team never matched a QB before either.
+                if pd.notna(team) and qb_vars.get(team):
                     prob += (
-                        pulp.lpSum(pass_catcher_vars)
-                        >= stack_qb_count * pulp.lpSum(qb_vars),
+                        pulp.lpSum(pass_catcher_vars.get(team, []))
+                        >= stack_qb_count * pulp.lpSum(qb_vars[team]),
                         f"QB_Stack_{team}_{stack_qb_count}",
                     )
 
