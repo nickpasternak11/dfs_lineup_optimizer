@@ -22,7 +22,8 @@ MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
-	test test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend
+	test test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend \
+	load-test
 
 down:
 	docker compose -f $(COMPOSE_RUN_FILE) down
@@ -66,6 +67,15 @@ test-orchestrator:
 test-frontend:
 	docker build -q --target test -t dfs-frontend-test frontend >/dev/null
 	docker run --rm dfs-frontend-test
+
+# Read-only load test against a running API (see api/loadtest/README.md).
+# Defaults to the stack's dfs-api; point LOAD_TEST_URL at another container on
+# the network to compare builds, and pass ARGS such as "--concurrency 1 5 --duration 10".
+LOAD_TEST_URL ?= http://dfs-api:8080
+load-test:
+	docker run --rm --network $(NETWORK) -v $(CURDIR)/api/loadtest:/loadtest:ro python:3.10-slim \
+		sh -c 'pip install -q --disable-pip-version-check --root-user-action=ignore \
+			-r /loadtest/requirements.txt && python /loadtest/loadtest.py --base-url $(LOAD_TEST_URL) $(ARGS)'
 
 # The orchestrator's Tuesday 9:30 AM ET job: this week of every season from
 # BACKFILL_START_YEAR through last season. Safe to re-run.
