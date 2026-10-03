@@ -23,6 +23,7 @@ MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
 	test test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend test-db \
+	test test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend test-db \
 	load-test
 
 down:
