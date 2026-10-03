@@ -9,6 +9,28 @@ log = get_logger("api")
 APP_NAME = "DFSLineupOptimizer"
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8080"))
 
+# Above this many cores, "auto" stops adding workers: each one holds its own
+# DB pool (DB_POOL_SIZE + DB_MAX_OVERFLOW connections), and Postgres allows 100.
+MAX_AUTO_WORKERS = 4
+
+
+def resolve_worker_count(raw: str | None, cpu_count: int | None) -> int:
+    """Number of uvicorn worker processes for API_WORKERS.
+
+    The optimizer's model building is CPU-bound Python, so one process tops out
+    at about one core however many threads serve requests. Unset, empty or
+    "auto" means one worker per core, capped at MAX_AUTO_WORKERS.
+    """
+    if raw is None or raw.strip().lower() in ("", "auto"):
+        return max(1, min(cpu_count or 1, MAX_AUTO_WORKERS))
+    workers = int(raw)
+    if workers < 1:
+        raise ValueError(f"API_WORKERS must be at least 1, got {workers}")
+    return workers
+
+
+API_WORKERS = resolve_worker_count(os.getenv("API_WORKERS"), os.cpu_count())
+
 
 class NFLTeam(Enum):
     ARIZONA_CARDINALS = "Cardinals"
