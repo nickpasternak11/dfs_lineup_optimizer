@@ -22,7 +22,7 @@ MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
-	test test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend \
+	test test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend test-db \
 	load-test
 
 down:
@@ -45,8 +45,9 @@ run-projection-scraper:
 	$(DOCKER_RUN) dfs-projection-scraper $(ARGS)
 
 # Tests run in each service's `test` build stage, with the same dependencies as
-# the deployed image. No database, network or running stack needed.
-test: test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend
+# the deployed image. No database, network or running stack needed (test-db
+# starts its own throwaway Postgres).
+test: test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend test-db
 
 test-api:
 	docker build -q --target test -f api/Dockerfile -t dfs-api-test . >/dev/null
@@ -67,6 +68,25 @@ test-orchestrator:
 test-frontend:
 	docker build -q --target test -t dfs-frontend-test frontend >/dev/null
 	docker run --rm dfs-frontend-test
+
+# Fails if shared/dfs_db/models.py and the Alembic migrations have drifted
+# apart (see the `test` stage in db/Dockerfile). Runs against a throwaway
+# Postgres on its own network, named per run and removed on exit either way,
+# so it never touches dfs-postgres, its volume or dfs_optimizer_network.
+test-db:
+	docker build -q --target test -f db/Dockerfile -t dfs-db-migrate-test . >/dev/null
+	@set -e; name=dfs-db-test-$$$$; \
+	trap 'docker rm -f $$name >/dev/null 2>&1; docker network rm $$name >/dev/null 2>&1' EXIT; \
+	trap 'exit 130' INT TERM; \
+	docker network create $$name >/dev/null; \
+	docker run -d --rm --name $$name --network $$name -e POSTGRES_USER=dfs \
+		-e POSTGRES_DB=dfs -e POSTGRES_PASSWORD=test postgres:16-alpine >/dev/null; \
+	i=0; until docker exec $$name pg_isready -q -h 127.0.0.1 -U dfs; do \
+		i=$$((i + 1)); [ $$i -lt 60 ] || { echo 'test-db: Postgres did not start'; exit 1; }; \
+		sleep 1; \
+	done; \
+	docker run --rm --network $$name -e POSTGRES_HOST=$$name -e POSTGRES_PASSWORD=test \
+		dfs-db-migrate-test
 
 # Read-only load test against a running API (see api/loadtest/README.md).
 # Defaults to the stack's dfs-api; point LOAD_TEST_URL at another container on
