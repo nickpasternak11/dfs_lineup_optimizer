@@ -5,7 +5,8 @@ from dfs_db import get_engine
 from pulp import PULP_CBC_CMD
 from sqlalchemy import text
 
-from app.configs.configs import log
+from app.configs.configs import API_CACHE_TTL_SECONDS, log
+from app.helpers.cache import TTLCache
 from app.helpers.optimize import dataframe_to_records, get_latest_week
 
 PLAYER_POOL_QUERY = text(
@@ -25,6 +26,21 @@ PLAYER_POOL_QUERY = text(
 # NUMERIC comes back as Decimal, which neither pulp nor orjson can handle.
 FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value"]
 
+# Player pools keyed by (year, week), shared by every request in this worker.
+# Each caller gets its own copy, so filtering or reweighting one request's
+# frame can never leak into another's.
+_player_pool_cache = TTLCache(API_CACHE_TTL_SECONDS, copy=pd.DataFrame.copy)
+
+
+def load_player_pool(year: int, week: int) -> pd.DataFrame:
+    with get_engine().connect() as connection:
+        df = pd.read_sql(
+            PLAYER_POOL_QUERY, connection, params={"year": year, "week": week}
+        )
+    for column in FLOAT_COLUMNS:
+        df[column] = pd.to_numeric(df[column], errors="coerce").astype(float)
+    return df
+
 
 class DFSLineupOptimizer:
     def __init__(self, year: int | None = None, week: int | None = None):
@@ -35,22 +51,16 @@ class DFSLineupOptimizer:
         self._projections_df: pd.DataFrame | None = None
 
     def get_projections_df(self) -> pd.DataFrame:
-        """Load the week's player pool, once per optimizer instance.
+        """The week's player pool, from the process-wide cache.
 
         get_optimal_lineups solves three times over the same pool, so the
-        result is cached; callers copy before mutating.
+        instance keeps its own copy; callers copy before mutating.
         """
         if self._projections_df is None:
-            with get_engine().connect() as connection:
-                self._projections_df = pd.read_sql(
-                    PLAYER_POOL_QUERY,
-                    connection,
-                    params={"year": self.current_year, "week": self.current_week},
-                )
-            for column in FLOAT_COLUMNS:
-                self._projections_df[column] = pd.to_numeric(
-                    self._projections_df[column], errors="coerce"
-                ).astype(float)
+            year, week = self.current_year, self.current_week
+            self._projections_df = _player_pool_cache.get_or_load(
+                (year, week), lambda: load_player_pool(year, week)
+            )
         return self._projections_df
 
     def optimize(
