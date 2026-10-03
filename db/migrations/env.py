@@ -35,7 +35,13 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            # Off by default; on so `alembic check` (make test-db) also
+            # catches a server_default added or dropped on only one side.
+            compare_server_default=True,
+        )
         with context.begin_transaction():
             context.run_migrations()
 

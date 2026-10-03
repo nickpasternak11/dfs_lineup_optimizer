@@ -2,9 +2,9 @@
 
 Base.metadata is what db/migrations/env.py autogenerates Alembic revisions
 against, so a column added here and not migrated (or migrated and not added
-here) will drift. The weekly_player_pool view is not mapped -- it has no
-primary key for the ORM to track -- and lives only in the Alembic revision
-that created it.
+here) will drift, and `make test-db` will fail. The weekly_player_pool view is
+not mapped -- it has no primary key for the ORM to track -- and lives only in
+the Alembic revision that created it.
 """
 
 from datetime import datetime
@@ -27,6 +27,9 @@ class Base(DeclarativeBase):
 
 class PlayerSalary(Base):
     __tablename__ = "player_salaries"
+    __table_args__ = {
+        "comment": "DraftKings salary + game context, written by dfs-salary-scraper."
+    }
 
     year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
@@ -46,6 +49,9 @@ class PlayerSalary(Base):
 
 class PlayerProjection(Base):
     __tablename__ = "player_projections"
+    __table_args__ = {
+        "comment": "FantasyPros rankings, grades and injuries, written by dfs-projection-scraper."
+    }
 
     year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
