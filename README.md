@@ -42,7 +42,8 @@ dfs_lineup_optimizer/
 ├── system/
 │   ├── orchestrator/                 # Scraper scheduling service
 │   ├── salary-scraper/               # DraftKings salary scraper
-│   └── projection-scraper/           # FantasyPros projection scraper
+│   ├── projection-scraper/           # FantasyPros projection scraper
+│   └── game-log-loader/              # nflverse games and weekly game logs
 ├── shared/                           # Python packages copied into every service image
 │   ├── dfs_db/                       # DB config, sessions, ORM models, writes
 │   └── dfs_common/                   # Logging, season year, FantasyPros HTTP helpers
@@ -66,7 +67,7 @@ The runtime Compose configuration starts:
 - `dfs-api`: FastAPI application served on port `8080`
 - `dfs-orchestration`: scraper scheduling service
 
-The orchestrator image bundles both scrapers and runs them on its schedule. The standalone scraper images, the schema tool (`dfs-db-migrate`) and the CSV loader (`dfs-migration`) are one-off images run by `make`. All services share the `dfs_optimizer_network` network.
+The orchestrator image bundles both scrapers and the game log loader, and runs them on its schedule. The standalone scraper images, the schema tool (`dfs-db-migrate`) and the CSV loader (`dfs-migration`) are one-off images run by `make`. All services share the `dfs_optimizer_network` network.
 
 ## Getting Started
 
@@ -126,10 +127,11 @@ Scheduled runs (orchestrator):
 - **Salary scraper**: Tuesdays at 9:00 AM ET
 - **Past-season backfill**: Tuesdays at 9:30 AM ET (see below)
 - **Projection scraper**: hourly, 10:00 AM–8:00 PM ET, Tuesday through Thursday
+- **Game log loader**: daily at 6:00 AM ET (see [Game Logs and Results](#game-logs-and-results))
 - **Missed-run catch-up**: daily at noon ET, and whenever the orchestrator starts
 - **Database backup**: daily at 3:00 AM ET
 
-Scraper jobs are skipped March through August, when FantasyPros has no current week. Backups run year-round.
+Scraper and game log jobs are skipped March through August, when FantasyPros has no current week. Backups run year-round.
 
 ### Missed Runs and Alerts
 
@@ -187,6 +189,31 @@ The last check exists because a changed page layout can return plausible-looking
 
 Other scraper options: `--year` and (projections only) `--week` scrape a single target, e.g. `ARGS="--year 2024 --week 5"`.
 
+### Game Logs and Results
+
+`dfs-game-log-loader` loads [nflverse](https://github.com/nflverse/nflverse-data) data: every game's kickoff, final score and closing Vegas lines, and each QB/RB/WR/TE and team defense's weekly stats scored with DraftKings rules. The orchestrator reloads the current season every morning; to load history once:
+
+```bash
+make backfill-game-logs                      # 2018 (BACKFILL_START_YEAR) through this season, ~30 seconds
+make run-game-log-loader ARGS="--year 2024"  # one season
+```
+
+Each run replaces whole seasons, since nflverse rebuilds its files with stat corrections, and refuses to replace one with under 80% of its rows (override with `--allow-shrink`).
+
+The `player_week_results` view puts every pool player's projection next to what they actually scored, the basis for variance estimates and backtesting:
+
+```sql
+SELECT year, week, player, position, salary, proj_fpts, actual_dk_points
+FROM player_week_results WHERE year = 2026 AND week = 3 ORDER BY salary DESC;
+```
+
+How pool players are linked to their game logs:
+- **QB/RB/WR/TE:** through `fp_player_id` and the DynastyProcess crosswalk to nflverse's player ids (`player_id_map`). For weeks with ids, about 95% of pool players and nearly all priced $5,000+ link. Weeks scraped before `fp_player_id` existed borrow it from the same player's other weeks, matching on exact name, so older seasons link less until the weekly backfill re-scrapes them.
+- **DST:** by team. Points allowed use the opponent's final score; DraftKings excludes points the defense didn't give up (a pick-six thrown by its own offense), which team-level data can't separate.
+- `actual_dk_points` is `NULL` when a linked player had no stats that week (inactive, or not played yet). When `gsis_id` is also `NULL`, the player couldn't be linked.
+
+Player scoring was checked against nflverse's own PPR totals across 2025: the two differ by exactly DraftKings' rules (yardage bonuses, −1 for interceptions and lost fumbles, offensive fumble-recovery TDs) on every player-week.
+
 ### Generate Lineups in the Web App
 
 Open http://localhost:3000. The app loads the current week and optimizes right away; pick another **Season** and **Week** in the header to load an older slate (**Back to this week** returns). Any change re-runs the optimizer immediately, so there is no Optimize button.
@@ -237,6 +264,9 @@ Collects DraftKings salaries, opponents, home/away and kickoff times from the Fa
 ### Projection Scraper
 Collects FantasyPros weekly rankings, expert grades, projected points, trailing four-week average points and injury reports for QB, RB, WR, TE and DST, and writes them to `player_projections`.
 
+### Game Log Loader
+Downloads nflverse's season files (schedules, weekly player and team stats) and the DynastyProcess player id crosswalk, scores each week with DraftKings rules, and writes `nfl_games`, `player_game_logs`, `dst_game_logs` and `player_id_map`.
+
 ### API and Lineup Optimizer
 The FastAPI service reads each week's player pool from PostgreSQL and exposes the projection and optimization endpoints. Its optimization engine constructs valid lineups within DraftKings constraints.
 
@@ -257,8 +287,13 @@ All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker
 | `player_salaries` | Salary scraper | Salary, salary change, team, opponent, home/away, kickoff |
 | `player_projections` | Projection scraper | Rank, grade, projected and average FPTS, injury status, FantasyPros player id |
 | `weekly_player_pool` (view) | — | Joins the two per `(year, week, player)` and derives `value`; this is what the API reads |
+| `nfl_games` | Game log loader | Every game's kickoff, final score, spread, total and moneylines |
+| `player_game_logs` | Game log loader | Weekly QB/RB/WR/TE stats and DraftKings points, keyed on nflverse's `gsis_id` |
+| `dst_game_logs` | Game log loader | Weekly team defense stats, points allowed and DraftKings points |
+| `player_id_map` | Game log loader | nflverse `gsis_id` to FantasyPros `fp_player_id` |
+| `player_week_results` (view) | — | Each pool player's projection beside their actual DraftKings points |
 
-Both tables are keyed on `(year, week, player)`. Columns that older data predates (`home`, `kickoff`, `salary_change`, `injury_status`, `injury_type`, `fp_player_id`) are nullable.
+The two scraped tables are keyed on `(year, week, player)`. Columns that older data predates (`home`, `kickoff`, `salary_change`, `injury_status`, `injury_type`, `fp_player_id`) are nullable.
 
 To inspect the data:
 ```bash
@@ -338,6 +373,8 @@ make backup                   # back up the database now (see Backups)
 make run-salary-scraper       # scrape the current week (ARGS for other targets)
 make run-projection-scraper
 make backfill                 # this week of every past season (runs Tuesdays anyway)
+make run-game-log-loader      # this season's nflverse game logs (runs daily anyway)
+make backfill-game-logs       # every season's game logs since 2018
 
 make test                     # run all test suites (see Testing)
 make load-test                # read-only API load test (see api/loadtest/README.md)
@@ -352,11 +389,12 @@ make test                     # every suite
 make test-api                 # optimizer rules, JSON conversion, response models, DB write guard
 make test-salary-scraper      # salary page parsing, kickoff and week handling
 make test-projection-scraper  # rankings, stats and injury parsing
+make test-game-log-loader     # DraftKings scoring, nflverse parsing, id crosswalk
 make test-frontend            # roster rules, kickoff filters, team logos, lineup order, app smoke test
 make test-db                  # ORM models match the Alembic migrations
 ```
 
-Each suite runs in its service's `test` Docker build stage, with the same dependencies as the deployed image. No database, network access or running stack is needed; `test-db` starts its own throwaway Postgres container and removes it afterwards. Scraper tests read saved HTML from each service's `tests/fixtures/` instead of FantasyPros. If FantasyPros changes a page layout, update the matching fixture along with the parser.
+Each suite runs in its service's `test` Docker build stage, with the same dependencies as the deployed image. No database, network access or running stack is needed; `test-db` starts its own throwaway Postgres container and removes it afterwards. Scraper tests read saved HTML from each service's `tests/fixtures/` instead of FantasyPros, and the game log loader's read saved nflverse rows. If FantasyPros changes a page layout, update the matching fixture along with the parser.
 
 Tests live in `api/tests/`, `shared/tests/` (run with the API suite), `system/*/tests/` and `frontend/src/**/*.test.{js,jsx}` (Vitest).
 

@@ -93,6 +93,7 @@ def test_schedule_is_unchanged(instance):
     assert ("run_salary_scraper", "tuesday", "09:00:00") in jobs
     assert ("run_backfill", "tuesday", "09:30:00") in jobs
     assert ("run_backup", "None", "03:00:00") in jobs
+    assert ("run_game_log_loader", "None", "06:00:00") in jobs
     projection_runs = [job for job in jobs if job[0] == "run_projection_scraper"]
     assert len(projection_runs) == 3 * 11  # hourly 10:00-20:00, Tue-Thu
 
@@ -128,7 +129,15 @@ def test_scrapers_skip_the_off_season(instance, monkeypatch):
     instance.run_salary_scraper()
     instance.run_projection_scraper()
     instance.run_backfill()
+    instance.run_game_log_loader()
     assert calls == []
+
+
+def test_game_log_loader_runs_the_current_season(instance, monkeypatch):
+    calls = []
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: calls.append((name, args)))
+    instance.run_game_log_loader()
+    assert calls == [("game-log-loader", None)]
 
 
 @pytest.fixture

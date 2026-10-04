@@ -18,11 +18,13 @@ DOCKER_RUN := docker run --rm \
 # Migration tooling additionally needs the CSV data mount.
 MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
-.PHONY: down build run run-salary-scraper run-projection-scraper backfill psql \
+.PHONY: down build run run-salary-scraper run-projection-scraper run-game-log-loader \
+	backfill backfill-game-logs psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
-	test test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend test-db \
+	test test-api test-salary-scraper test-projection-scraper test-game-log-loader \
+	test-orchestrator test-frontend test-db \
 	load-test
 
 down:
@@ -44,10 +46,16 @@ run-salary-scraper:
 run-projection-scraper:
 	$(DOCKER_RUN) dfs-projection-scraper $(ARGS)
 
+# nflverse games and game logs for the current season (ARGS="--year 2024" for
+# another). The orchestrator runs this daily at 6:00 AM ET in season.
+run-game-log-loader:
+	$(DOCKER_RUN) dfs-game-log-loader $(ARGS)
+
 # Tests run in each service's `test` build stage, with the same dependencies as
 # the deployed image. No database, network or running stack needed (test-db
 # starts its own throwaway Postgres).
-test: test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend test-db
+test: test-api test-salary-scraper test-projection-scraper test-game-log-loader test-orchestrator \
+	test-frontend test-db
 
 test-api:
 	docker build -q --target test -f api/Dockerfile -t dfs-api-test . >/dev/null
@@ -60,6 +68,10 @@ test-salary-scraper:
 test-projection-scraper:
 	docker build -q --target test -f system/projection-scraper/Dockerfile -t dfs-projection-scraper-test . >/dev/null
 	docker run --rm dfs-projection-scraper-test
+
+test-game-log-loader:
+	docker build -q --target test -f system/game-log-loader/Dockerfile -t dfs-game-log-loader-test . >/dev/null
+	docker run --rm dfs-game-log-loader-test
 
 test-orchestrator:
 	docker build -q --target test -f system/orchestrator/Dockerfile -t dfs-orchestration-test . >/dev/null
@@ -103,6 +115,11 @@ BACKFILL_START_YEAR ?= 2018
 backfill:
 	$(DOCKER_RUN) dfs-salary-scraper --start-year $(BACKFILL_START_YEAR)
 	$(DOCKER_RUN) dfs-projection-scraper --start-year $(BACKFILL_START_YEAR)
+
+# Every season of nflverse game logs from BACKFILL_START_YEAR through this one.
+# Each season is one download, so this takes well under a minute. Safe to re-run.
+backfill-game-logs:
+	$(DOCKER_RUN) dfs-game-log-loader --start-year $(BACKFILL_START_YEAR)
 
 psql:
 	docker compose -f $(COMPOSE_RUN_FILE) exec dfs-postgres \

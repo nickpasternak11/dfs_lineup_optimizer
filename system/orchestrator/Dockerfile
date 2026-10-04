@@ -24,7 +24,8 @@ WORKDIR /app
 RUN pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0
 
 # The scrapers run as child processes of the orchestrator, so it installs their
-# dependencies too (both scrapers pin the same set).
+# dependencies too (both scrapers pin the same set; the game log loader needs a
+# subset of it).
 COPY system/orchestrator/requirements.txt .
 COPY system/salary-scraper/requirements.txt scraper-requirements.txt
 RUN pip install -r requirements.txt -r scraper-requirements.txt
@@ -35,6 +36,7 @@ COPY shared/ ./shared/
 COPY system/orchestrator/ .
 COPY system/salary-scraper/ ./jobs/salary-scraper/
 COPY system/projection-scraper/ ./jobs/projection-scraper/
+COPY system/game-log-loader/ ./jobs/game-log-loader/
 
 # `make test` target; not part of the deployed image.
 FROM builder AS test
