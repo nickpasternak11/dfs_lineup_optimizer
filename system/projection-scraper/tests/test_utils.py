@@ -16,6 +16,7 @@ def test_rankings_are_parsed_from_the_embedded_ecr_data(fake_fetch):
     assert (lamar["min_rank"], lamar["max_rank"]) == (1, 3)
     assert (lamar["avg_rank"], lamar["std_rank"], lamar["proj_fpts"]) == (1.4, 0.6, 24.0)
     assert (lamar["year"], lamar["week"]) == (2025, 3)
+    assert lamar["fp_player_id"] == 17233
 
 
 def test_rankings_skip_malformed_entries_and_default_missing_points(fake_fetch):

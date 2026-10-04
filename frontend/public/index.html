@@ -10,6 +10,14 @@
   <meta name="theme-color" content="#061B3A" />
   <meta name="description" content="NFL daily fantasy sports lineup optimization and analysis." />
   <title>DFS Optimizer</title>
+  <script>
+    // Apply the saved or system theme before first paint, so dark mode doesn't flash light.
+    try {
+      var theme = localStorage.getItem('dfs-lineup-optimizer-theme');
+      document.documentElement.dataset.theme = theme === 'light' || theme === 'dark' ? theme
+        : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    } catch (e) {}
+  </script>
 </head>
 
 <body>

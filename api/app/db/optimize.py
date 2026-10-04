@@ -13,7 +13,7 @@ PLAYER_POOL_QUERY = text(
     """
     SELECT year, week, player, position, team, kickoff, opponent, home,
            grade, rank, avg_fpts, proj_fpts, salary, salary_change, value,
-           injury_status, injury_type
+           injury_status, injury_type, fp_player_id
     FROM weekly_player_pool
     WHERE year = :year
       AND week = :week

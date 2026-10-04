@@ -70,6 +70,8 @@ class PlayerProjection(Base):
     scraped_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # FantasyPros' id for the player; the frontend builds headshot URLs from it.
+    fp_player_id: Mapped[int | None] = mapped_column(Integer)
 
 
 WEEKLY_PLAYER_POOL_COLUMNS = [
@@ -90,4 +92,5 @@ WEEKLY_PLAYER_POOL_COLUMNS = [
     "value",
     "injury_status",
     "injury_type",
+    "fp_player_id",
 ]
