@@ -220,7 +220,7 @@ The API endpoints used by the frontend are:
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **Frontend** | React, JavaScript, CSS, HTML | Interactive UI for lineup management |
+| **Frontend** | React 18, Vite, Vitest, CSS | Interactive UI for lineup management |
 | **Backend** | Python, FastAPI, Pandas, PuLP | API and optimization engine |
 | **Database** | PostgreSQL, SQLAlchemy, Alembic | Storage, data access and schema migrations |
 | **Scraping** | Requests, BeautifulSoup, Pandas | Salary and projection collection |
@@ -358,7 +358,7 @@ make test-db                  # ORM models match the Alembic migrations
 
 Each suite runs in its service's `test` Docker build stage, with the same dependencies as the deployed image. No database, network access or running stack is needed; `test-db` starts its own throwaway Postgres container and removes it afterwards. Scraper tests read saved HTML from each service's `tests/fixtures/` instead of FantasyPros. If FantasyPros changes a page layout, update the matching fixture along with the parser.
 
-Tests live in `api/tests/`, `shared/tests/` (run with the API suite), `system/*/tests/` and `frontend/src/**/*.test.js`.
+Tests live in `api/tests/`, `shared/tests/` (run with the API suite), `system/*/tests/` and `frontend/src/**/*.test.{js,jsx}` (Vitest).
 
 GitHub Actions runs `make test` on every push to every branch (`.github/workflows/tests.yml`), and pull requests show the result for their latest commit. New suites added to `make test` are picked up automatically.
 
@@ -366,8 +366,9 @@ To run the frontend locally outside Docker:
 
 ```bash
 cd frontend
-npm install
-npm start
+npm ci
+npm run dev     # http://localhost:3000, expects the API on port 8080
+npm test        # Vitest, once
 ```
 
-The legacy Create React App toolchain may require `NODE_OPTIONS=--openssl-legacy-provider` with newer Node versions.
+Requires Node 22.12 or newer, matching the `node:22-slim` build image.

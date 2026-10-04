@@ -20,6 +20,9 @@ RUN apt-get update \
 
 WORKDIR /app
 
+# The base image's pip and setuptools have known vulnerabilities.
+RUN pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0
+
 # The scrapers run as child processes of the orchestrator, so it installs their
 # dependencies too (both scrapers pin the same set).
 COPY system/orchestrator/requirements.txt .

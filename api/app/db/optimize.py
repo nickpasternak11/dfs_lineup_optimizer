@@ -23,7 +23,7 @@ PLAYER_POOL_QUERY = text(
     """
 )
 
-# NUMERIC comes back as Decimal, which neither pulp nor orjson can handle.
+# NUMERIC comes back as Decimal, which pulp can't handle.
 FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value"]
 
 # Player pools keyed by (year, week), shared by every request in this worker.

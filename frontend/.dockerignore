@@ -1,0 +1,3 @@
+# Installed fresh by npm ci in the image; a host copy would shadow it.
+node_modules
+dist
