@@ -4,7 +4,10 @@ A full-stack application for optimizing DraftKings NFL daily fantasy sports (DFS
 
 ## Overview
 
-![WebApp](media/dfs_optimizer_img.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="media/dfs_optimizer_img_dark.png">
+  <img alt="DFS Lineup Optimizer web app: player pool with headshots and team logos beside the suggested lineups" src="media/dfs_optimizer_img.png">
+</picture>
 
 This project combines automated data collection with lineup optimization to generate DraftKings NFL DFS lineups. It consists of Dockerized scraper services, a FastAPI backend, a React frontend, and a PostgreSQL database that all services share.
 
