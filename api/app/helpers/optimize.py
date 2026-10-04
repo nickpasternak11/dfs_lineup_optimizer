@@ -37,8 +37,8 @@ def _query_latest_week(year: int | None) -> int:
 def dataframe_to_records(df: pd.DataFrame) -> list[dict]:
     """Convert a frame to JSON-safe records.
 
-    Rows from weeks predating a column carry NaT/NA, which orjson refuses to
-    serialise; they have to become None.
+    Rows from weeks predating a column carry NaT/NA, which can't be
+    serialised to JSON; they have to become None.
     """
     if df.empty:
         return []

@@ -3,6 +3,9 @@ FROM python:3.10-slim as base
 
 WORKDIR /app
 
+# The base image's pip and setuptools have known vulnerabilities.
+RUN pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0
+
 COPY system/projection-scraper/requirements.txt .
 RUN pip install -r requirements.txt
 
