@@ -1,6 +1,5 @@
 import React from 'react';
 import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
 import AppHeader from './components/header/AppHeader';
 import LineupPanel from './components/lineups/LineupPanel';
 import PlayerPool from './components/pool/PlayerPool';

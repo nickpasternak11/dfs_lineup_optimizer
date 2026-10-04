@@ -1,15 +1,10 @@
-/**
- * @jest-environment jsdom-fourteen
- */
-// Testing Library's async queries need MutationObserver, which the default
-// jsdom 11 environment in react-scripts 3 lacks.
 import React from 'react';
-import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import App from './App';
 import * as client from './api/client';
 
-jest.mock('./api/client');
+vi.mock('./api/client');
 
 const player = (name, position, team, salary, proj, extra = {}) => ({
     year: 2026, week: 4, player: name, position, team, opponent: 'OPP', home: true,

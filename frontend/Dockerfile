@@ -1,27 +1,23 @@
-FROM node:14 as base
+FROM node:22-slim AS base
 
 WORKDIR /app
 
+# npm ci installs exactly what package-lock.json records.
 COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
-RUN npm install
-
-# Keep source changes from being hidden by a stale layer while retaining the
-# cached dependency installation above.
 COPY . .
 
 # `make test` target; not part of the deployed image.
-FROM base as test
-ENV CI=true
-CMD ["npm", "test", "--", "--watchAll=false"]
+FROM base AS test
+CMD ["npx", "vitest", "run"]
 
-FROM base as build
-
+FROM base AS build
 RUN npm run build
 
-FROM nginx:alpine as service
+FROM nginx:alpine AS service
 
-COPY --from=build /app/build /usr/share/nginx/html
+COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 

@@ -14,7 +14,7 @@ export default function AppHeader({ slate, current, onChangeSlate, theme, onTogg
         <header className="app-header">
             <div className="app-header-inner">
                 <div className="brand">
-                    <img src={`${process.env.PUBLIC_URL}/favicon-192x192.png`} alt="" />
+                    <img src={`${import.meta.env.BASE_URL}favicon-192x192.png`} alt="" />
                     <div>
                         <span className="brand-name">DFS Lineup Optimizer</span>
                         <span className="brand-tagline">DraftKings NFL classic</span>

@@ -400,12 +400,18 @@ button {
     }
 }
 
-/* Toasts follow the theme. */
-.Toastify__toast {
-    background: var(--surface-raised);
+/* Toasts follow the theme. react-toastify 11 injects its stylesheet at
+   runtime, after this one, so the attribute selector is what lets these win. */
+:root[data-theme] {
+    --toastify-color-light: var(--surface-raised);
+    --toastify-color-dark: var(--surface-raised);
+    --toastify-text-color-light: var(--text);
+    --toastify-text-color-dark: var(--text);
+    --toastify-font-family: inherit;
+    --toastify-toast-bd-radius: var(--radius-sm);
+}
+
+:root[data-theme] .Toastify__toast {
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text);
-    font-family: inherit;
     font-size: 0.85rem;
 }
