@@ -5,6 +5,7 @@ from dfs_db.models import (
     PlayerProjection,
     PlayerSalary,
 )
+from dfs_db.names import normalize_names, reconcile_week_names
 from dfs_db.session import (
     get_engine,
     get_session,
@@ -23,6 +24,8 @@ __all__ = [
     "get_engine",
     "get_session",
     "get_session_factory",
+    "normalize_names",
+    "reconcile_week_names",
     "replace_weeks",
     "session_scope",
     "upsert_dataframe",

@@ -18,7 +18,7 @@ DOCKER_RUN := docker run --rm \
 # Migration tooling additionally needs the CSV data mount.
 MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
-.PHONY: down build run run-salary-scraper run-projection-scraper backfill psql \
+.PHONY: down build run run-salary-scraper run-projection-scraper backfill normalize-names psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
@@ -103,6 +103,12 @@ BACKFILL_START_YEAR ?= 2018
 backfill:
 	$(DOCKER_RUN) dfs-salary-scraper --start-year $(BACKFILL_START_YEAR)
 	$(DOCKER_RUN) dfs-projection-scraper --start-year $(BACKFILL_START_YEAR)
+
+# One-time: rename players stored under other spellings (legacy CSVs, the
+# salary page) to FantasyPros' rankings spelling. Safe to re-run; preview with
+# ARGS=--dry-run. The scrapers keep each new week consistent on their own.
+normalize-names:
+	$(DOCKER_RUN) dfs-db-migrate python -m dfs_db.normalize $(ARGS)
 
 psql:
 	docker compose -f $(COMPOSE_RUN_FILE) exec dfs-postgres \

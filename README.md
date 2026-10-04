@@ -267,6 +267,15 @@ make psql
 
 The volume survives `make down` and restarts. **`docker compose -f docker-compose.run.yml down -v` or `docker volume rm dfs_postgres_data` deletes all data**, and anything scraped since the CSV migration exists nowhere else. Keep backups (below).
 
+### Player Names
+
+Players are stored under FantasyPros' rankings spelling ("A.J. Brown", "Ja'Marr Chase", "Patrick Mahomes II"), which `weekly_player_pool` joins salaries to projections on. Other sources drop characters: the legacy CSVs strip punctuation and suffixes, and the salary page sometimes drops a suffix ("KC Concepcion" for "KC Concepcion Jr.").
+
+- **Each week:** after writing, both scrapers rename that week's salary rows to the projections' spelling of the same player, so a mismatch can't drop him from the pool.
+- **History:** `make normalize-names` renames every older spelling to FantasyPros', once (`ARGS=--dry-run` to preview). It is safe to re-run.
+
+Two spellings count as the same player when they share a position and the same letters, ignoring case, punctuation and a trailing Jr./Sr./II–V. A spelling scraped with a FantasyPros id is canonical; otherwise the longest wins, since other sources only ever remove characters. A rename never applies to seasons before the canonical spelling first appears, so a father's seasons keep his name (Frank Gore's 2018–20 rows stay; Frank Gore Jr.'s are renamed), and never to a week that already has the canonical spelling.
+
 ### Backups
 
 The orchestrator runs `pg_dump` every night at 3:00 AM ET and writes the result to `/dfs_backups` on the host. That directory is outside the Docker volume, so `down -v` doesn't touch it. It keeps the newest 14 dumps. A failed dump never deletes older ones.
@@ -338,6 +347,7 @@ make backup                   # back up the database now (see Backups)
 make run-salary-scraper       # scrape the current week (ARGS for other targets)
 make run-projection-scraper
 make backfill                 # this week of every past season (runs Tuesdays anyway)
+make normalize-names          # one-time: rename stored players to FantasyPros' spelling
 
 make test                     # run all test suites (see Testing)
 make load-test                # read-only API load test (see api/loadtest/README.md)
