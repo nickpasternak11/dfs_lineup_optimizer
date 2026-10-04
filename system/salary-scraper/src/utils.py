@@ -3,9 +3,8 @@ from datetime import date, datetime, timedelta
 from io import StringIO
 from zoneinfo import ZoneInfo
 
-import bs4
 import pandas as pd
-import requests
+from dfs_common.fantasypros import fetch
 
 PLAYER_PATTERN = re.compile(
     r"^(?P<player>.*?)\s*\((?P<team>.*?)\s*-\s*(?P<position>.*?)\)"
@@ -25,38 +24,6 @@ DAY_OFFSETS = {
     "fri": -2,
     "sat": -1,
 }
-
-
-def get_current_week() -> int:
-    """Fetch the current NFL week number from FantasyPros.
-
-    Returns default_week if the request fails or parsing finds no match.
-    """
-    url = "https://www.fantasypros.com/nfl/schedule.php"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        )
-    }
-
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-
-        soup = bs4.BeautifulSoup(response.text, "html.parser")
-        caption = soup.select_one("table#data caption.hidden-aria")
-
-        if caption and (
-            match := re.search(r"Week\s+(\d+)", caption.get_text(), re.IGNORECASE)
-        ):
-            return int(match.group(1))
-
-    except (requests.RequestException, ValueError) as e:
-        print(f"Warning: Failed to fetch current week ({e}). Defaulting to 1.")
-
-    return 1
 
 
 def parse_currency(values: pd.Series) -> pd.Series:
@@ -90,16 +57,12 @@ def parse_kickoff(value: str, reference_date: date | None = None) -> datetime | 
 def get_salary_data(year: int) -> pd.DataFrame:
     url = "https://www.fantasypros.com/daily-fantasy/nfl/draftkings-salary-changes.php"
     params = {"year": year}
-    r = requests.get(
-        url,
-        params=params,
-        timeout=30,
-    )
+    r = fetch(url, params=params)
 
     try:
         df = pd.read_html(StringIO(r.text))[0]
-    except ValueError:
-        return pd.DataFrame()  # Return empty DataFrame if no tables are found
+    except ValueError as error:
+        raise RuntimeError(f"No salary table on the page for year={year}") from error
 
     df[["player", "team", "position"]] = df["Player"].str.extract(PLAYER_PATTERN)
     df["opponent"] = df["Opp"].astype("string").str.replace("@", "", regex=False)

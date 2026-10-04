@@ -14,7 +14,7 @@ router = APIRouter()
     response_model=OptimizeResponse,
     description="Endpoint for getting optimized DFS lineups with parameters.",
 )
-async def optimize(data: OptimizeRequest):
+def optimize(data: OptimizeRequest):
     # get optimal lineups
     try:
         optimizer = DFSLineupOptimizer(year=data.year, week=data.week)

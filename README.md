@@ -4,15 +4,19 @@ A full-stack application for optimizing DraftKings NFL daily fantasy sports (DFS
 
 ## Overview
 
-![WebApp](media/dfs_optimizer_img.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="media/dfs_optimizer_img_dark.png">
+  <img alt="DFS Lineup Optimizer web app: player pool with headshots and team logos beside the suggested lineups" src="media/dfs_optimizer_img.png">
+</picture>
 
-This project combines automated data collection with lineup optimization to generate DraftKings NFL DFS lineups. It consists of Dockerized scraper services, a FastAPI backend, a React frontend, and shared CSV data mounted at `/dfs_data`.
+This project combines automated data collection with lineup optimization to generate DraftKings NFL DFS lineups. It consists of Dockerized scraper services, a FastAPI backend, a React frontend, and a PostgreSQL database that all services share.
 
 ### Key Features
 
 - **Automated Data Collection**: Salary and projection scrapers for DraftKings and FantasyPros data
+- **Historical Backfill**: Scrapers can collect past seasons' data for the current week
 - **Lineup Optimization**: Generates multiple lineups using salary, position, projection, and player constraints
-- **Web Interface**: Filterable player pool with include/exclude actions and suggested lineup results
+- **Web Interface**: Player pool with headshots, team logos and filters; lock/exclude actions that re-optimize instantly; three lineup strategies side by side; light and dark themes
 - **Containerized**: Docker Compose build and runtime configurations for the application and data services
 
 ## Architecture
@@ -23,24 +27,33 @@ dfs_lineup_optimizer/
 │   ├── main.py                       # Uvicorn entrypoint
 │   ├── app/
 │   │   ├── routes/                   # Projection and optimization endpoints
-│   │   ├── db/                       # Projection loading and lineup optimization
+│   │   ├── db/                       # Player pool loading and lineup optimization
 │   │   ├── models/                   # Request and response models
 │   │   └── configs/                  # API configuration
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/                         # React web application
-│   ├── src/components/               # Lineup optimizer UI
-│   ├── public/
-│   ├── Dockerfile
-│   └── package.json
+│   └── src/
+│       ├── api/                      # API client
+│       ├── hooks/                    # App state: optimizer, player pool filters, theme
+│       ├── components/               # header/, pool/, lineups/, common/ (avatars, logos, badges)
+│       ├── lib/                      # Pure logic with tests: roster rules, kickoffs, teams, formatting
+│       └── styles/theme.css          # Design tokens for the light and dark themes
 ├── system/
 │   ├── orchestrator/                 # Scraper scheduling service
 │   ├── salary-scraper/               # DraftKings salary scraper
-│   └── projection-scraper/            # Player projection scraper
-├── data/                             # Stored CSV projections, salaries, and props
+│   └── projection-scraper/           # FantasyPros projection scraper
+├── shared/                           # Python packages copied into every service image
+│   ├── dfs_db/                       # DB config, sessions, ORM models, writes
+│   └── dfs_common/                   # Logging, season year, FantasyPros HTTP helpers
+├── db/                               # Schema migrations (Alembic)
+│   └── migrations/versions/          # One file per schema change
+├── migration/                        # One-time CSV → PostgreSQL data load
+├── data/                             # Legacy CSV salaries and projections
 ├── docker-compose.build.yml          # Image build definitions
-├── docker-compose.run.yml            # Runtime services and ports
-├── Makefile                          # Build, run, and scraper shortcuts
+├── docker-compose.run.yml            # Runtime services, ports and volumes
+├── .env.example                      # Database credentials template
+├── Makefile                          # Build, run, scraper and database shortcuts
 └── README.md
 ```
 
@@ -48,11 +61,12 @@ dfs_lineup_optimizer/
 
 The runtime Compose configuration starts:
 
+- `dfs-postgres`: PostgreSQL 16, data in the `dfs_postgres_data` Docker volume, port `5432` on `127.0.0.1` only
 - `dfs-frontend`: React application served on port `3000`
 - `dfs-api`: FastAPI application served on port `8080`
 - `dfs-orchestration`: scraper scheduling service
 
-The salary scraper also uses `selenium-web-driver` when run manually. All services share the `dfs_optimizer_network` network. The API and scraper services use `/dfs_data` as the container-mounted data directory.
+The orchestrator image bundles both scrapers and runs them on its schedule. The standalone scraper images, the schema tool (`dfs-db-migrate`) and the CSV loader (`dfs-migration`) are one-off images run by `make`. All services share the `dfs_optimizer_network` network.
 
 ## Getting Started
 
@@ -73,38 +87,125 @@ git clone https://github.com/nickpasternak11/dfs_lineup_optimizer.git
 cd dfs_lineup_optimizer
 ```
 
-2. Build and start all services:
+2. Create `.env` and set a real `POSTGRES_PASSWORD`. `.env` is git-ignored; never commit it.
+```bash
+cp .env.example .env
+```
+
+3. Build and start all services, then create the database schema:
 ```bash
 make build
 make run
+make db-upgrade
 ```
 
-3. Access the application at http://localhost:3000
-
-The frontend loads the current projection year and week from the API, displays the available player pool, and submits optimization requests to the API. The API is available at http://localhost:8080.
-
-## Usage
-
-### Running Scrapers
-
-**Collect salary data and projections:**
+4. Load data, either by scraping the current week or by importing the legacy CSVs (see [Migrating from CSV](#migrating-from-csv)):
 ```bash
 make run-salary-scraper
 make run-projection-scraper
 ```
 
-Both scraper targets stop the current runtime stack before running. Run `make run` afterward to start the application stack again. The salary scraper starts Selenium automatically. The orchestrator runs as part of `make run` and manages scheduled scraper execution inside its container.
+5. Access the application at http://localhost:3000
+
+The frontend loads the current season and week from the API, displays the available player pool, and submits optimization requests to the API. The API is available at http://localhost:8080.
+
+## Usage
+
+### Running Scrapers
+
+With no arguments, each scraper collects the current week, the same as the orchestrator's schedule:
+
+```bash
+make run-salary-scraper
+make run-projection-scraper
+```
+
+The stack must be running (`make run`), since the scrapers write to `dfs-postgres`.
+
+Scheduled runs (orchestrator):
+- **Salary scraper**: Tuesdays at 9:00 AM ET
+- **Past-season backfill**: Tuesdays at 9:30 AM ET (see below)
+- **Projection scraper**: hourly, 10:00 AM–8:00 PM ET, Tuesday through Thursday
+- **Missed-run catch-up**: daily at noon ET, and whenever the orchestrator starts
+- **Database backup**: daily at 3:00 AM ET
+
+Scraper jobs are skipped March through August, when FantasyPros has no current week. Backups run year-round.
+
+### Missed Runs and Alerts
+
+The schedule only fires at fixed times, so if the stack is down on a Tuesday, that week's jobs never run. Past seasons' salaries in particular can only be collected during their week (see below). To cover this, the orchestrator checks the database at startup and daily at noon ET. If the current week has no live salaries, no live projections, or no past-season backfill, it runs what's missing.
+
+It doesn't check on Mondays or on Tuesdays before 10:00 AM ET. That leaves room for Tuesday's scheduled runs, and avoids the window where the week number has rolled over but the salary page hasn't, which would file last week's salaries under the new week.
+
+To be notified when a scheduled scrape, backfill, catch-up or backup fails, set a Slack or Discord incoming-webhook URL in `.env`:
+
+```bash
+ALERT_WEBHOOK_URL=https://discord.com/api/webhooks/...
+```
+
+Each alert includes the failed job's last 15 log lines. Without the URL, failures are only logged (`docker compose -f docker-compose.run.yml logs dfs-orchestration`).
+
+### Backfilling Past Seasons
+
+Both scrapers can collect past seasons, with one constraint: **the salary source only serves the current NFL week**. It accepts any season, but you can only collect past seasons' salaries for the week the live season is currently in. So during week N of the live season, you backfill week N of every past season.
+
+**This runs automatically.** Every Tuesday at 9:30 AM ET the orchestrator backfills the current week for every season from 2018 through last season, so during 2026 week 3 it collects week 3 of 2018–2025. The history fills in one week at a time over the season. Set `BACKFILL_START_YEAR` in `.env` to change the first season.
+
+To run it by hand, e.g. if the stack was down on Tuesday, run it before the next week starts:
+
+```bash
+make backfill
+```
+
+Or with explicit options: `--start-year` alone covers through last season, and the projection scraper's `--week` defaults to the current week:
+
+```bash
+make run-salary-scraper     ARGS="--start-year 2018"
+make run-projection-scraper ARGS="--start-year 2018 --end-year 2020 --week 5"
+```
+
+A projection-only backfill works for any week at any time. Salaries don't.
+
+What backfilled weeks contain:
+
+| Field | Past seasons |
+|-------|--------------|
+| Rankings, grades, projected and average FPTS | Real, week-specific |
+| Injury status and type | Real, week-specific |
+| Salary, opponent, home/away | Real, for the current week number only |
+| Kickoff | `NULL`: the source only gives a weekday and time |
+
+Each scraper run replaces that week's rows entirely, so re-running a week is safe and removes stale or renamed players. A week appears in the player pool only once both scrapers have written it.
+
+Scrapers refuse to save a partial scrape. A run fails without writing anything if:
+- a page errors after 3 retries,
+- any position's rankings come back empty,
+- the current week can't be determined, or
+- the new scrape has under 80% of the rows already stored for that week.
+
+The last check exists because a changed page layout can return plausible-looking but incomplete data. If a week legitimately shrank, override it with `--allow-shrink`, e.g. `ARGS="--year 2025 --week 3 --allow-shrink"`. In a `--start-year` backfill, a failing season is logged and skipped, and the run exits non-zero.
+
+Other scraper options: `--year` and (projections only) `--week` scrape a single target, e.g. `ARGS="--year 2024 --week 5"`.
 
 ### Generate Lineups in the Web App
 
-Use the settings panel to choose the year, week, defense, and optional one-tight-end constraint, then select **Optimize lineups**. The player pool supports:
+Open http://localhost:3000. The app loads the current week and optimizes right away; pick another **Season** and **Week** in the header to load an older slate (**Back to this week** returns). Any change re-runs the optimizer immediately, so there is no Optimize button.
 
-- Search by player name
-- Filtering by position, team, and opponent
-- Include and exclude actions for player constraints
-- Rank, grade, average FPTS, projected FPTS, and salary columns
+**Suggested lineups** (right; on top on phones):
 
-The suggested lineups panel displays multiple optimized results with player, position, team, opponent, projected FPTS, salary, and include/exclude actions.
+- Settings: QB stack (off, +1 or +2 pass catchers from the QB's team), avoid a TE in FLEX, and include players whose games have started.
+- Three lineups, one per strategy: **Projection** (FantasyPros projections), **90/10 blend** and **80/20 blend** (projection blended with the recent average). Each tab and card headlines the plain projected total so the three compare directly; blended lineups also show the score they were optimized on.
+- Each card shows salary used against the $50,000 cap, the roster in slot order with headshots and matchups, and a copy button that puts the lineup on the clipboard as text.
+- The lock button forces a player into every lineup; the exclude button removes them. Locks reset when the slate changes; exclusions are remembered per week in the browser.
+
+**Player pool** (left):
+
+- Position tabs, name search, a games filter (all, Friday or later, Sunday or later, Sunday 1 PM ET+; it defaults by day of the week), and team and opponent filters.
+- Quick filters: value plays (2.5x+), players in your lineups, locked, excluded.
+- Available and Unavailable tabs; Unavailable holds players whose games started and players you excluded, with a restore button for the latter.
+- Columns: matchup (green against a bottom-10 defense, red against a top-10 one, by that week's DST rank), grade, recent average, projection, salary, salary change and value. The dots after a name show which lineups the player is in.
+
+Headshots come from FantasyPros' image CDN by `fp_player_id`, and team logos from ESPN's; both are loaded by the viewer's browser. Weeks scraped before `fp_player_id` was collected show initials until they are scraped again.
 
 The API endpoints used by the frontend are:
 
@@ -113,78 +214,161 @@ The API endpoints used by the frontend are:
 - `POST /projections`
 - `POST /optimize`
 
+`POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, `avg_fpts`, injuries, `fp_player_id`) are `null` there; `kickoff` is a string like `2026-10-04T20:05:00+0000`.
+
 ## Technology Stack
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **Frontend** | React, JavaScript, CSS, HTML | Interactive UI for lineup management |
-| **Backend** | Python, Pandas, NumPy | Data processing & optimization engine |
-| **Scraping** | BeautifulSoup, Selenium, Requests | Web scraping for salary & projection data |
-| **Orchestration** | Docker, Docker Compose, APScheduler | Container management & task scheduling |
-| **Deployment** | Docker | Containerized microservices |
+| **Frontend** | React 18, Vite, Vitest, CSS | Interactive UI for lineup management |
+| **Backend** | Python, FastAPI, Pandas, PuLP | API and optimization engine |
+| **Database** | PostgreSQL, SQLAlchemy, Alembic | Storage, data access and schema migrations |
+| **Scraping** | Requests, BeautifulSoup, Pandas | Salary and projection collection |
+| **Orchestration** | Docker, Docker Compose, schedule | Container management and task scheduling |
 
 ## Key Components
 
 ### Orchestrator
-Runs the scraper scheduling workflow in its own container. It shares the data directory and Docker socket so scheduled scraper jobs can run alongside the application services.
+Runs the scraper and backup schedule in its own container. Both scrapers' code is copied into its image, and each scheduled scrape runs the scraper's `main.py` as a child process with the orchestrator's database credentials. It has no access to Docker, so a compromised dependency in it can't reach the host. Backups use a PostgreSQL 16 `pg_dump`, matching the server, installed in the same image.
 
 ### Salary Scraper
-Extracts player salary data from DraftKings using Selenium and Chromium. The manual Make target starts the Selenium WebDriver container before running the scraper.
-
-**Supports multiple contest slates:**
-- Thu-Mon, Fri-Mon, Sat-Mon, Sat-Sun
+Collects DraftKings salaries, opponents, home/away and kickoff times from the FantasyPros DraftKings salary-changes page, and writes them to `player_salaries`.
 
 ### Projection Scraper
-Fetches player projections and historical stats from FantasyPros and stores weekly projection CSVs.
-
-**Data collected:**
-- Weekly projections by position (QB, RB, WR, TE, DST)
-- Historical performance stats
-- Expert consensus grades
+Collects FantasyPros weekly rankings, expert grades, projected points, trailing four-week average points and injury reports for QB, RB, WR, TE and DST, and writes them to `player_projections`.
 
 ### API and Lineup Optimizer
-The FastAPI service loads stored weekly data and exposes the projection and optimization endpoints. Its optimization engine constructs valid lineups within DraftKings constraints.
+The FastAPI service reads each week's player pool from PostgreSQL and exposes the projection and optimization endpoints. Its optimization engine constructs valid lineups within DraftKings constraints.
 
 **Optimization approach:**
 - Maximizes projected fantasy points
 - Respects salary cap
 - Enforces position limits
-- Removes low-graded players
+- Excludes players whose games have already kicked off (unless requested)
+
+**Scaling:** the API runs `API_WORKERS` uvicorn processes (default `auto`: one per core, up to 4), since building the optimization model is CPU-bound and one process uses about one core. Each worker caches a week's player pool and the latest week for `API_CACHE_TTL_SECONDS` (default 300; `0` disables). Each worker also holds up to `DB_POOL_SIZE + DB_MAX_OVERFLOW` (default 10) database connections, so keep `API_WORKERS` × that well under Postgres' 100. Set `API_WORKERS` and `API_CACHE_TTL_SECONDS` in `.env`. `make load-test` measures throughput and latency; see [api/loadtest/README.md](api/loadtest/README.md) for the method and before/after results.
+
+## Data Storage
+
+All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker volume.
+
+| Object | Written by | Contents |
+|--------|-----------|----------|
+| `player_salaries` | Salary scraper | Salary, salary change, team, opponent, home/away, kickoff |
+| `player_projections` | Projection scraper | Rank, grade, projected and average FPTS, injury status, FantasyPros player id |
+| `weekly_player_pool` (view) | — | Joins the two per `(year, week, player)` and derives `value`; this is what the API reads |
+
+Both tables are keyed on `(year, week, player)`. Columns that older data predates (`home`, `kickoff`, `salary_change`, `injury_status`, `injury_type`, `fp_player_id`) are nullable.
+
+To inspect the data:
+```bash
+make psql
+```
+
+The volume survives `make down` and restarts. **`docker compose -f docker-compose.run.yml down -v` or `docker volume rm dfs_postgres_data` deletes all data**, and anything scraped since the CSV migration exists nowhere else. Keep backups (below).
+
+### Backups
+
+The orchestrator runs `pg_dump` every night at 3:00 AM ET and writes the result to `/dfs_backups` on the host. That directory is outside the Docker volume, so `down -v` doesn't touch it. It keeps the newest 14 dumps. A failed dump never deletes older ones.
+
+```bash
+make backup                                    # take a backup now
+make list-backups                              # newest first
+make restore FILE=dfs_20260926T070000Z.dump    # replace the database with a backup
+```
+
+`make restore` is destructive: it drops and recreates every table from the dump. It stops the API and orchestrator while it runs and starts them again afterwards. Change the location or retention with `BACKUP_DIR` and `BACKUP_RETENTION` in `.env`.
+
+`/dfs_backups` is on the same machine as the database, so it protects against deleted volumes and bad writes, not a lost disk. Copy it somewhere else periodically for that.
+
+### Schema Migrations
+
+The schema is managed by Alembic in `db/migrations/`. The ORM models in `shared/dfs_db/models.py` must match it.
+
+```bash
+make db-upgrade                        # apply pending migrations
+make db-downgrade                      # roll back one migration (or REV=<id>)
+make db-current                        # show the applied revision
+make db-history                        # list all revisions
+make db-revision MSG="add some column" # autogenerate a migration from model changes
+```
+
+After editing `models.py`, generate a revision, review the generated file in `db/migrations/versions/`, then run `make db-upgrade`. The `weekly_player_pool` view is not ORM-mapped, so changes to it must be written into a migration by hand.
+
+`make test-db` (part of `make test`, so CI runs it) checks that the models and migrations agree. It applies every migration to a throwaway Postgres, runs `alembic check`, then downgrades to base and upgrades again to prove each `downgrade()` works. If it fails with `New upgrade operations detected`, a model was changed without a migration (or the reverse): run `make db-revision MSG="..."`, review the generated file, and commit it with the model change. The check compares columns, types, nullability, server defaults, indexes and table comments, but not CHECK constraints or the view.
+
+## Migrating from CSV
+
+Before the PostgreSQL migration, data was stored as CSV files in `/dfs_data/salaries/dk_salary_YYYY_wW.csv` and `/dfs_data/projections/fp_projection_YYYY_wW.csv`. The `migration/` tool loads them into the database once. The CSVs are only read, never modified.
+
+**Fresh database** (no schema yet):
+```bash
+make build
+make run
+make db-upgrade          # create the schema
+make migrate-dry-run     # parse every CSV and report what would be written
+make migrate             # write to PostgreSQL
+make verify-migration    # compare every CSV against the database
+```
+
+**Database created before Alembic was added** (the schema already exists from the old `db/init` script): run `make db-stamp` once instead of `make db-upgrade`. It records the initial migration as applied without re-running it.
+
+What the loader does:
+- Takes year and week from the filename.
+- **Skips files whose rows come from a different season than their filename.** Some legacy files were written by a buggy backfill that mixed the current season's rankings with past seasons' salaries. Override with `ARGS="--allow-year-mismatch"`.
+- Nulls kickoffs that fall outside the season (August through February).
+- Leaves columns missing from older files `NULL`.
+- Upserts, so it is safe to re-run after a partial failure.
+
+`make migrate` and `make migrate-dry-run` accept filters, e.g. `ARGS="--year 2025"` or `ARGS="--dataset salaries --year 2024 --week 3"`. `verify-migration` accepts `--year`, `--week` and `--show-missing`.
+
+> **Do not re-run `make migrate` after the scrapers have written the same weeks.** The legacy CSVs spell some names differently (e.g. `Packers` vs `Green Bay Packers`), so the loader would add duplicate players to weeks the scrapers have since replaced.
 
 ## Development
 
 ### Docker and Make Commands
 
 ```bash
-# Build all images
-make build
+make build                    # build all images
+make run                      # start the stack (stops it first)
+make down                     # stop the stack
+make psql                     # open a psql shell on the database
+make backup                   # back up the database now (see Backups)
 
-# Start the application stack
-make run
-
-# Stop services
-make down
-
-# Run the data scrapers manually
-make run-salary-scraper
+make run-salary-scraper       # scrape the current week (ARGS for other targets)
 make run-projection-scraper
+make backfill                 # this week of every past season (runs Tuesdays anyway)
+
+make test                     # run all test suites (see Testing)
+make load-test                # read-only API load test (see api/loadtest/README.md)
+make db-upgrade               # schema migrations (see Schema Migrations)
+make migrate                  # CSV import (see Migrating from CSV)
 ```
+
+### Testing
+
+```bash
+make test                     # every suite
+make test-api                 # optimizer rules, JSON conversion, response models, DB write guard
+make test-salary-scraper      # salary page parsing, kickoff and week handling
+make test-projection-scraper  # rankings, stats and injury parsing
+make test-frontend            # roster rules, kickoff filters, team logos, lineup order, app smoke test
+make test-db                  # ORM models match the Alembic migrations
+```
+
+Each suite runs in its service's `test` Docker build stage, with the same dependencies as the deployed image. No database, network access or running stack is needed; `test-db` starts its own throwaway Postgres container and removes it afterwards. Scraper tests read saved HTML from each service's `tests/fixtures/` instead of FantasyPros. If FantasyPros changes a page layout, update the matching fixture along with the parser.
+
+Tests live in `api/tests/`, `shared/tests/` (run with the API suite), `system/*/tests/` and `frontend/src/**/*.test.{js,jsx}` (Vitest).
+
+GitHub Actions runs `make test` on every push to every branch (`.github/workflows/tests.yml`), and pull requests show the result for their latest commit. New suites added to `make test` are picked up automatically.
 
 To run the frontend locally outside Docker:
 
 ```bash
 cd frontend
-npm install
-npm start
+npm ci
+npm run dev     # http://localhost:3000, expects the API on port 8080
+npm test        # Vitest, once
 ```
 
-The legacy Create React App toolchain may require `NODE_OPTIONS=--openssl-legacy-provider` with newer Node versions.
-
-## Data Storage
-
-- **Salary data**: `data/salaries/dk_salary_YYYY_wW.csv`
-- **Projections**: `data/projections/fp_projection_YYYY_wW.csv`
-- **Player props**: `data/props/player_props_*.csv`
-
-At runtime, these files are mounted into containers through `/dfs_data:/app/data`. The API reads stored projections and salary data when handling requests; optimized lineups are returned in the API response and are not currently written to a separate lineups directory.
-
+Requires Node 22.12 or newer, matching the `node:22-slim` build image.

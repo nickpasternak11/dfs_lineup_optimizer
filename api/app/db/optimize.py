@@ -1,30 +1,67 @@
-from datetime import datetime
-
 import pandas as pd
 import pulp
+from dfs_common.season import current_season_year
+from dfs_db import get_engine
 from pulp import PULP_CBC_CMD
+from sqlalchemy import text
 
-from app.configs.configs import log
-from app.helpers.optimize import get_latest_week
+from app.configs.configs import API_CACHE_TTL_SECONDS, log
+from app.helpers.cache import TTLCache
+from app.helpers.optimize import dataframe_to_records, get_latest_week
+
+PLAYER_POOL_QUERY = text(
+    """
+    SELECT year, week, player, position, team, kickoff, opponent, home,
+           grade, rank, avg_fpts, proj_fpts, salary, salary_change, value,
+           injury_status, injury_type, fp_player_id
+    FROM weekly_player_pool
+    WHERE year = :year
+      AND week = :week
+      AND salary IS NOT NULL
+      AND proj_fpts IS NOT NULL
+    ORDER BY position, rank
+    """
+)
+
+# NUMERIC comes back as Decimal, which pulp can't handle.
+FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value"]
+
+# Player pools keyed by (year, week), shared by every request in this worker.
+# Each caller gets its own copy, so filtering or reweighting one request's
+# frame can never leak into another's.
+_player_pool_cache = TTLCache(API_CACHE_TTL_SECONDS, copy=pd.DataFrame.copy)
+
+
+def load_player_pool(year: int, week: int) -> pd.DataFrame:
+    with get_engine().connect() as connection:
+        df = pd.read_sql(
+            PLAYER_POOL_QUERY, connection, params={"year": year, "week": week}
+        )
+    for column in FLOAT_COLUMNS:
+        df[column] = pd.to_numeric(df[column], errors="coerce").astype(float)
+    return df
 
 
 class DFSLineupOptimizer:
     def __init__(self, year: int | None = None, week: int | None = None):
-        self.current_year = datetime.now().year if year is None else year
+        self.current_year = current_season_year() if year is None else year
         self.current_week = (
             get_latest_week(year=self.current_year) if week is None else week
         )
-
-    def get_salary_df(self) -> pd.DataFrame:
-        path_to_csv = (
-            f"/app/data/salaries/dk_salary_{self.current_year}_w{self.current_week}.csv"
-        )
-        return pd.read_csv(path_to_csv)
+        self._projections_df: pd.DataFrame | None = None
 
     def get_projections_df(self) -> pd.DataFrame:
-        return pd.read_csv(
-            f"/app/data/projections/fp_projection_{self.current_year}_w{self.current_week}.csv"
-        )
+        """The week's player pool, from the process-wide cache.
+
+        get_optimal_lineups solves three times over the same pool, so the
+        instance keeps its own copy; callers copy before mutating.
+        """
+        if self._projections_df is None:
+            year, week = self.current_year, self.current_week
+            self._projections_df = _player_pool_cache.get_or_load(
+                (year, week), lambda: load_player_pool(year, week)
+            )
+        return self._projections_df
 
     def optimize(
         self,
@@ -44,10 +81,16 @@ class DFSLineupOptimizer:
         # Get data
         df = self.get_projections_df().copy()
 
+        if df.empty:
+            # Mapped to a 404 by the route, matching the old missing-CSV case.
+            raise FileNotFoundError(
+                f"No player pool for year={self.current_year}, "
+                f"week={self.current_week}"
+            )
+
         # By default, only players whose games have not started are eligible.
-        # Older projection files may not have kickoff data, so leave those
-        # slates unchanged.
-        if not include_started_players and "kickoff" in df.columns:
+        # Slates predating kickoff collection have it NULL and stay eligible.
+        if not include_started_players:
             kickoff = pd.to_datetime(df["kickoff"], errors="coerce", utc=True)
             df = df[kickoff.isna() | (kickoff > pd.Timestamp.now(tz="UTC"))]
 
@@ -63,9 +106,13 @@ class DFSLineupOptimizer:
 
         # Factor in avg_fpts if requested
         if use_avg_fpts and weights:
+            # Players with no recent stats (rookies, returns from injury) have
+            # NULL avg_fpts; fall back to their projection so the blend leaves
+            # them unchanged instead of going NaN.
+            avg_fpts = df["avg_fpts"].fillna(df["proj_fpts"])
             df["proj_fpts"] = (
                 df["proj_fpts"] * weights.get("proj_fpts", 1.0)
-                + df["avg_fpts"] * weights.get("avg_fpts", 0.0)
+                + avg_fpts * weights.get("avg_fpts", 0.0)
             ).round(1)
 
         # # Handle included players
@@ -126,69 +173,53 @@ class DFSLineupOptimizer:
         #         1,
         #     )
 
-        # Create the optimization problem
+        # Create the optimization problem. Columns are read into plain lists
+        # once: per-cell df.loc lookups inside these loops (O(players x teams)
+        # with stacking) used to cost far more than the CBC solve itself.
         prob = pulp.LpProblem("DFS_Lineup_Optimization", pulp.LpMaximize)
         player_vars = pulp.LpVariable.dicts("Players", df.index, cat="Binary")
+        rows = list(
+            zip(
+                df.index,
+                df["position"].tolist(),
+                df["team"].tolist(),
+                df["proj_fpts"].tolist(),
+                df["salary"].tolist(),
+            )
+        )
+        position_vars: dict[str, list] = {}
+        for i, position, _, _, _ in rows:
+            position_vars.setdefault(position, []).append(player_vars[i])
+
+        def at_position(position: str) -> pulp.LpAffineExpression:
+            return pulp.lpSum(position_vars.get(position, []))
 
         # Objective function
-        prob += pulp.lpSum(df.loc[i, "proj_fpts"] * player_vars[i] for i in df.index)
+        prob += pulp.LpAffineExpression(
+            (player_vars[i], proj_fpts) for i, _, _, proj_fpts, _ in rows
+        )
 
         # Total roster constraint (9 players)
-        prob += pulp.lpSum(player_vars[i] for i in df.index) == total_players
+        prob += pulp.lpSum(player_vars.values()) == total_players
 
         # Position constraints
         # Total 9 players: 1 QB, 2 RB, 3 WR, 1 TE, 1 FLEX (RB/WR/TE), 1 DST
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "QB"
-            )
-            == QB_limit
-        )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "RB"
-            )
-            >= RB_limit
-        )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "RB"
-            )
-            <= RB_limit + FLEX_limit
-        )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "WR"
-            )
-            >= WR_limit
-        )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "WR"
-            )
-            <= WR_limit + FLEX_limit
-        )
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "TE"
-            )
-            >= TE_limit
-        )
-        te_constraint = pulp.lpSum(
-            player_vars[i] for i in df.index if df.loc[i, "position"] == "TE"
-        )
+        prob += at_position("QB") == QB_limit
+        prob += at_position("RB") >= RB_limit
+        prob += at_position("RB") <= RB_limit + FLEX_limit
+        prob += at_position("WR") >= WR_limit
+        prob += at_position("WR") <= WR_limit + FLEX_limit
+        prob += at_position("TE") >= TE_limit
         te_maximum = TE_limit if avoid_te_flex else TE_limit + FLEX_limit
-        prob += te_constraint <= te_maximum
-        prob += (
-            pulp.lpSum(
-                player_vars[i] for i in df.index if df.loc[i, "position"] == "DST"
-            )
-            == DST_limit
-        )
+        prob += at_position("TE") <= te_maximum
+        prob += at_position("DST") == DST_limit
 
         # Salary cap constraint
         prob += (
-            pulp.lpSum(df.loc[i, "salary"] * player_vars[i] for i in df.index) <= budget
+            pulp.LpAffineExpression(
+                (player_vars[i], salary) for i, _, _, _, salary in rows
+            )
+            <= budget
         )
 
         # Enforce included players to be in the lineup
@@ -198,24 +229,20 @@ class DFSLineupOptimizer:
 
         # QB WR/TE stracking constraints
         if stack_qb_count:
-            teams = df["team"].unique()
-            for team in teams:
-                qb_vars = [
-                    player_vars[i]
-                    for i in df.index
-                    if df.loc[i, "team"] == team and df.loc[i, "position"] == "QB"
-                ]
-                pass_catcher_vars = [
-                    player_vars[i]
-                    for i in df.index
-                    if df.loc[i, "team"] == team
-                    and df.loc[i, "position"] in ["WR", "TE"]
-                ]
+            qb_vars: dict[str, list] = {}
+            pass_catcher_vars: dict[str, list] = {}
+            for i, position, team, _, _ in rows:
+                if position == "QB":
+                    qb_vars.setdefault(team, []).append(player_vars[i])
+                elif position in ["WR", "TE"]:
+                    pass_catcher_vars.setdefault(team, []).append(player_vars[i])
 
-                if qb_vars:
+            for team in df["team"].unique():
+                # A NULL team never matched a QB before either.
+                if pd.notna(team) and qb_vars.get(team):
                     prob += (
-                        pulp.lpSum(pass_catcher_vars)
-                        >= stack_qb_count * pulp.lpSum(qb_vars),
+                        pulp.lpSum(pass_catcher_vars.get(team, []))
+                        >= stack_qb_count * pulp.lpSum(qb_vars[team]),
                         f"QB_Stack_{team}_{stack_qb_count}",
                     )
 
@@ -252,5 +279,5 @@ class DFSLineupOptimizer:
                 excluded_players=excluded_players,
                 included_players=included_players,
             )
-            lineups.append(lineup.to_dict(orient="records"))
+            lineups.append(dataframe_to_records(lineup))
         return lineups

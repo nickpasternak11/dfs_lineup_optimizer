@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192x192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#061B3A" />
+  <meta name="description" content="NFL daily fantasy sports lineup optimization and analysis." />
+  <title>DFS Optimizer</title>
+  <script>
+    // Apply the saved or system theme before first paint, so dark mode doesn't flash light.
+    try {
+      var theme = localStorage.getItem('dfs-lineup-optimizer-theme');
+      document.documentElement.dataset.theme = theme === 'light' || theme === 'dark' ? theme
+        : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    } catch (e) {}
+  </script>
+</head>
+
+<body>
+  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <div id="root"></div>
+  <script type="module" src="/src/index.jsx"></script>
+</body>
+
+</html>

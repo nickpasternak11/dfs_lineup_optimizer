@@ -1,0 +1,38 @@
+/* The pool stays wide; the lineup panel sits beside it and stays in view
+   while the pool scrolls. On narrow screens the lineups come first. */
+.app-layout {
+    align-items: start;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) 420px;
+    margin: 0 auto;
+    max-width: 1680px;
+    padding: 16px 20px 32px;
+}
+
+.app-sidebar {
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    position: sticky;
+    top: 16px;
+}
+
+@media (max-width: 1100px) {
+    .app-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-sidebar {
+        max-height: none;
+        order: -1;
+        overflow: visible;
+        position: static;
+    }
+}
+
+@media (max-width: 720px) {
+    .app-layout {
+        gap: 12px;
+        padding: 12px 8px 24px;
+    }
+}

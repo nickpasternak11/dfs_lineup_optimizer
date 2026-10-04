@@ -1,7 +1,2 @@
-pandas==2.3.3
-numpy==1.26.4
-requests==2.31.0
-docker==7.0.0
 schedule==1.2.2
 pytz==2026.3.post1
-backoff==2.2.1

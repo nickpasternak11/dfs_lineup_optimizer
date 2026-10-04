@@ -1,39 +1,40 @@
-import logging
 import os
 from enum import Enum
 
-from datetime import datetime
-import pytz
+from dfs_common.logs import get_logger
 
-class ESTFormatter(logging.Formatter):
-    """Custom logging formatter to use Eastern Time for timestamps."""
-    def __init__(self, fmt=None, datefmt=None):
-        super().__init__(fmt, datefmt)
-        self.est_tz = pytz.timezone('America/New_York')
-
-    def formatTime(self, record, datefmt=None):
-        # Convert the timestamp to a datetime object in EST
-        dt = datetime.fromtimestamp(record.created, self.est_tz)
-        if datefmt:
-            s = dt.strftime(datefmt)
-        else:
-            try:
-                s = dt.isoformat(timespec='milliseconds')
-            except TypeError:
-                s = dt.isoformat()
-        return s
-
-formatter = ESTFormatter(fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-
-log = logging.getLogger("api")
-log.setLevel(logging.INFO)
-log.addHandler(handler)
+log = get_logger("api")
 
 
 APP_NAME = "DFSLineupOptimizer"
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8080"))
+
+# Above this many cores, "auto" stops adding workers: each one holds its own
+# DB pool (DB_POOL_SIZE + DB_MAX_OVERFLOW connections), and Postgres allows 100.
+MAX_AUTO_WORKERS = 4
+
+
+def resolve_worker_count(raw: str | None, cpu_count: int | None) -> int:
+    """Number of uvicorn worker processes for API_WORKERS.
+
+    The optimizer's model building is CPU-bound Python, so one process tops out
+    at about one core however many threads serve requests. Unset, empty or
+    "auto" means one worker per core, capped at MAX_AUTO_WORKERS.
+    """
+    if raw is None or raw.strip().lower() in ("", "auto"):
+        return max(1, min(cpu_count or 1, MAX_AUTO_WORKERS))
+    workers = int(raw)
+    if workers < 1:
+        raise ValueError(f"API_WORKERS must be at least 1, got {workers}")
+    return workers
+
+
+API_WORKERS = resolve_worker_count(os.getenv("API_WORKERS"), os.cpu_count())
+
+# How long each worker reuses a week's player pool and the latest-week lookup
+# before re-reading Postgres. Projections are re-scraped hourly at most, so a
+# few minutes of staleness is harmless; 0 disables caching.
+API_CACHE_TTL_SECONDS = float(os.getenv("API_CACHE_TTL_SECONDS", "300"))
 
 
 class NFLTeam(Enum):

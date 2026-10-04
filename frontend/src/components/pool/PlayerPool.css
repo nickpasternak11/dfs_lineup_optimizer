@@ -1,0 +1,343 @@
+.player-pool {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.card-header {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 16px 16px 12px;
+}
+
+.card-header h2 {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+
+.tab-count {
+    background: var(--accent-soft);
+    border-radius: 999px;
+    color: var(--accent-strong);
+    font-size: 0.68rem;
+    margin-left: 6px;
+    padding: 1px 7px;
+}
+
+.tab-count-muted {
+    background: var(--surface-hover);
+    color: var(--text-muted);
+}
+
+/* Filters */
+.pool-filters {
+    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px;
+}
+
+.pool-filters-row {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pool-filters-row > .select {
+    flex: 1 1 160px;
+}
+
+.search-field {
+    align-items: center;
+    display: flex;
+    flex: 1 1 200px;
+    position: relative;
+}
+
+.search-field .icon {
+    color: var(--text-faint);
+    left: 10px;
+    pointer-events: none;
+    position: absolute;
+}
+
+.search-field .input {
+    padding-left: 32px;
+}
+
+.pool-filters-footer {
+    justify-content: space-between;
+}
+
+.quick-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.filter-summary {
+    align-items: center;
+    color: var(--text-faint);
+    display: flex;
+    font-size: 0.75rem;
+    font-weight: 700;
+    gap: 6px;
+}
+
+.filter-summary .button {
+    height: 28px;
+    padding: 0 8px;
+}
+
+/* Table */
+.pool-table-wrap {
+    max-height: calc(100vh - 290px);
+    min-height: 420px;
+    overflow: auto;
+}
+
+.pool-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 860px;
+    width: 100%;
+}
+
+.pool-table th {
+    background: var(--surface-sunken);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-faint);
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    padding: 8px 10px;
+    position: sticky;
+    text-transform: uppercase;
+    top: 0;
+    white-space: nowrap;
+    z-index: 2;
+}
+
+.sort-button {
+    align-items: center;
+    background: none;
+    border: 0;
+    color: inherit;
+    display: inline-flex;
+    font: inherit;
+    gap: 3px;
+    letter-spacing: inherit;
+    padding: 0;
+    text-transform: inherit;
+}
+
+.sort-button .icon {
+    opacity: 0.5;
+}
+
+.sort-button:hover,
+.sort-button.is-active {
+    color: var(--text);
+}
+
+.sort-button.is-active .icon {
+    color: var(--accent);
+    opacity: 1;
+}
+
+.pool-table td {
+    border-bottom: 1px solid var(--border);
+    font-size: 0.82rem;
+    padding: 7px 10px;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.pool-table tbody tr {
+    transition: background-color 0.1s ease;
+}
+
+/* The player column stays put when the table scrolls sideways (phones). */
+.pool-table th:first-child,
+.pool-table td:first-child {
+    left: 0;
+    position: sticky;
+    z-index: 1;
+}
+
+.pool-table th:first-child {
+    z-index: 3;
+}
+
+.pool-table td:first-child {
+    background: var(--surface);
+}
+
+.pool-table tbody tr:hover td {
+    background: var(--surface-hover);
+}
+
+.pool-table tr.row-locked td {
+    background: var(--row-locked);
+}
+
+.pool-table tr.row-locked td:first-child {
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.pool-table tr.row-unavailable td {
+    background: var(--row-unavailable);
+}
+
+/* Row tints are translucent in dark mode; the pinned cell needs a solid base
+   so scrolled cells don't show through it. */
+.pool-table tr.row-locked td:first-child {
+    background: linear-gradient(var(--row-locked), var(--row-locked)) var(--surface);
+}
+
+.pool-table tr.row-unavailable td:first-child {
+    background: linear-gradient(var(--row-unavailable), var(--row-unavailable)) var(--surface);
+}
+
+.pool-table tr.row-unavailable .player-name,
+.pool-table tr.row-unavailable .num {
+    color: var(--text-muted);
+}
+
+.align-left { text-align: left; }
+.align-center { text-align: center; }
+.align-right { text-align: right; }
+th.align-right .sort-button { flex-direction: row; }
+
+.muted { color: var(--text-muted); }
+.strong { font-weight: 800; }
+
+.player-cell {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+}
+
+.player-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.player-name {
+    align-items: center;
+    display: inline-flex;
+    font-weight: 700;
+    gap: 6px;
+}
+
+.player-meta {
+    align-items: center;
+    color: var(--text-muted);
+    display: inline-flex;
+    font-size: 0.72rem;
+    font-weight: 600;
+    gap: 5px;
+}
+
+.player-meta .pos-badge {
+    font-size: 0.6rem;
+    min-width: 2.2rem;
+    padding: 1px 0;
+}
+
+.reason-tag {
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    margin-left: 2px;
+    padding: 1px 5px;
+    text-transform: uppercase;
+}
+
+.reason-started,
+.reason-both { background: var(--bad-soft); color: var(--bad); }
+.reason-excluded { background: var(--surface-sunken); color: var(--text-muted); }
+
+.matchup-cell {
+    align-items: center;
+    display: inline-flex;
+    gap: 8px;
+}
+
+.matchup-cell > span {
+    display: flex;
+    flex-direction: column;
+}
+
+.matchup {
+    font-weight: 700;
+}
+
+.matchup-tough { color: var(--bad); }
+.matchup-soft { color: var(--good); }
+
+.kickoff {
+    color: var(--text-faint);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.value-hot {
+    color: var(--good);
+    font-weight: 800;
+}
+
+.row-actions {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.row-status {
+    color: var(--text-faint);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.empty-state {
+    color: var(--text-muted);
+    padding: 48px 16px !important;
+    text-align: center;
+}
+
+.skeleton-row td {
+    padding-bottom: 12px;
+    padding-top: 12px;
+}
+
+@media (max-width: 720px) {
+    .card-header,
+    .pool-filters {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .pool-filters .segmented {
+        overflow-x: auto;
+        width: 100%;
+    }
+
+    .pool-filters .segmented button {
+        flex: 1;
+    }
+
+    .pool-table-wrap {
+        max-height: 70vh;
+    }
+}

@@ -1,0 +1,45 @@
+.team-logo {
+    display: inline-block;
+    flex-shrink: 0;
+    object-fit: contain;
+    vertical-align: middle;
+}
+
+.team-logo-fallback {
+    align-items: center;
+    border-radius: 50%;
+    color: #ffffff;
+    display: inline-flex;
+    font-weight: 800;
+    justify-content: center;
+    letter-spacing: -0.02em;
+}
+
+.avatar {
+    align-items: center;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: inline-flex;
+    flex-shrink: 0;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.avatar img {
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+    width: 100%;
+}
+
+.avatar-team {
+    background: var(--surface);
+}
+
+.avatar-initials {
+    border: 0;
+    color: #ffffff;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
