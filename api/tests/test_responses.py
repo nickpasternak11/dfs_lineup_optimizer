@@ -13,9 +13,16 @@ from app.models.responses.projections import GetProjectionsResponse, ProjectionR
 
 
 def query_columns() -> list[str]:
-    select = re.search(r"SELECT(.*?)FROM", PLAYER_POOL_QUERY.text, re.S).group(1)
-    # "pool.year" -> "year"
-    return [column.strip().split(".")[-1] for column in select.split(",")]
+    # The main SELECT, not the CTE's: the one listing more than four columns.
+    select = next(
+        s for s in re.findall(r"SELECT(.*?)\bFROM\b", PLAYER_POOL_QUERY.text, re.S)
+        if s.count(",") > 4
+    )
+    # "pool.year" -> "year"; "COALESCE(...) AS avg_fpts" -> "avg_fpts"
+    return [
+        column.rsplit(" AS ", 1)[1] if " AS " in column else column.strip().split(".")[-1]
+        for column in re.sub(r"\([^)]*\)", "()", select).split(",")
+    ]
 
 
 @pytest.fixture

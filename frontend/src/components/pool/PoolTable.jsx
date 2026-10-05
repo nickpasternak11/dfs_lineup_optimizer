@@ -12,7 +12,7 @@ const COLUMNS = [
     { key: 'player', label: 'Player' },
     { key: 'opponent', label: 'Matchup' },
     { key: 'grade', label: 'Grade', align: 'center' },
-    { key: 'avg_fpts', label: 'Avg', title: 'Average fantasy points over recent games', sortable: true, align: 'right' },
+    { key: 'avg_fpts', label: 'Avg', title: 'DraftKings points per game over the last four weeks (last season in week 1)', sortable: true, align: 'right' },
     { key: 'proj_fpts', label: 'Proj', title: 'Projected fantasy points', sortable: true, align: 'right' },
     // Shown once any player has a final score for the week.
     { key: 'actual_dk_points', label: 'Actual', title: 'DraftKings points actually scored this week', sortable: true, align: 'right', actuals: true },

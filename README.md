@@ -231,6 +231,7 @@ Open http://localhost:3000. The app loads the current week and optimizes right a
 - Quick filters: value plays (2.5x+), players in your lineups, locked, excluded.
 - Available and Unavailable tabs; Unavailable holds players whose games started and players you excluded, with a restore button for the latter.
 - Columns: matchup (green against a bottom-10 defense, red against a top-10 one, by that week's DST rank), grade, recent average, projection, salary, salary change and value. The dots after a name show which lineups the player is in.
+- **Avg** is DraftKings points per game over the four weeks before the slate (all of last regular season in week 1), scored from the nflverse game logs so it matches the Actual column and the player card. FantasyPros' own average is full PPR: no 3-point bonuses at 300 passing, 100 rushing or 100 receiving yards, and −2 rather than −1 for an interception or lost fumble, which put it about 0.4 points a game below DraftKings (1.2 for QBs). The few players we can't link to nflverse keep FantasyPros' number. The projection is still FantasyPros' full-PPR projection.
 - **Actual** appears once any game that week is final: the DraftKings points each player scored, marked ▲ if they beat their projection and ▼ if not. Sortable, like the projection.
 - Click a player (or their name, from the keyboard) for their card: headshot, team and matchup, bio (age, height, weight, college, draft), this week's salary, projection, actual, value and grade, and their game log by season. The chart shows DraftKings points per game, with our projection as a dot for the weeks we had one, and the table below it lists each game's result and stats. Lock and exclude work from the card too. Esc or a click outside closes it.
 
@@ -245,7 +246,7 @@ The API endpoints used by the frontend are:
 - `GET /game-logs/players/{gsis_id}`: a player's bio and every game since 2018
 - `GET /game-logs/dst/{team}`: a defense's every game since 2018 (either `LAR` or `LA` works)
 
-`POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Each record also carries `gsis_id` (for the game log endpoint) and `actual_dk_points`, `null` until the game is final. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, `avg_fpts`, injuries, `fp_player_id`) are `null` there; `kickoff` is a string like `2026-10-04T20:05:00+0000`.
+`POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Each record also carries `gsis_id` (for the game log endpoint) and `actual_dk_points`, `null` until the game is final. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, injuries, `fp_player_id`) are `null` there, and `avg_fpts` is `null` for a player with no games in its window (a rookie in week 1); `kickoff` is a string like `2026-10-04T20:05:00+0000`.
 
 ## Technology Stack
 

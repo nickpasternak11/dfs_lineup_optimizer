@@ -9,13 +9,38 @@ from app.configs.configs import API_CACHE_TTL_SECONDS, log
 from app.helpers.cache import TTLCache
 from app.helpers.optimize import dataframe_to_records, get_latest_week
 
+# The weeks FantasyPros' recent average covers: the four before the slate,
+# or all of last regular season in week 1.
+_RECENT_WEEKS = """
+    season_type = 'REG'
+    AND CASE WHEN :week = 1 THEN year = :year - 1
+             ELSE year = :year AND week BETWEEN :week - 4 AND :week - 1 END
+"""
+
 # player_week_results adds each player's nflverse id (for their game log)
 # and, once the game is final, the DraftKings points they actually scored.
+#
+# avg_fpts is rescored in DraftKings points from the game logs: FantasyPros'
+# own average is full PPR, which has no yardage bonuses and takes 2 for a
+# turnover, so it ran ~0.4 points a game below DraftKings (1.2 for QBs).
+# Players we can't link to nflverse keep FantasyPros' number.
 PLAYER_POOL_QUERY = text(
-    """
+    f"""
+    WITH recent AS (
+        SELECT gsis_id, NULL AS team, round(avg(dk_points), 2) AS dk_avg
+        FROM player_game_logs
+        WHERE {_RECENT_WEEKS}
+        GROUP BY gsis_id
+        UNION ALL
+        SELECT NULL, nfl_team(team), round(avg(dk_points), 2)
+        FROM dst_game_logs
+        WHERE {_RECENT_WEEKS}
+        GROUP BY nfl_team(team)
+    )
     SELECT pool.year, pool.week, pool.player, pool.position, pool.team,
            pool.kickoff, pool.opponent, pool.home, pool.grade, pool.rank,
-           pool.avg_fpts, pool.proj_fpts, pool.salary, pool.salary_change,
+           COALESCE(recent.dk_avg, pool.avg_fpts) AS avg_fpts,
+           pool.proj_fpts, pool.salary, pool.salary_change,
            pool.value, pool.injury_status, pool.injury_type, pool.fp_player_id,
            results.gsis_id, results.actual_dk_points
     FROM weekly_player_pool AS pool
@@ -23,6 +48,9 @@ PLAYER_POOL_QUERY = text(
       ON results.year = pool.year
      AND results.week = pool.week
      AND results.player = pool.player
+    LEFT JOIN recent
+      ON CASE WHEN pool.position = 'DST' THEN recent.team = nfl_team(pool.team)
+              ELSE recent.gsis_id = results.gsis_id END
     WHERE pool.year = :year
       AND pool.week = :week
       AND pool.salary IS NOT NULL
