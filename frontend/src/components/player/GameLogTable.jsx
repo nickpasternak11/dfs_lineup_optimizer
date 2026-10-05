@@ -53,7 +53,7 @@ export default function GameLogTable({ games, position }) {
                         <th>Wk</th>
                         <th>Opp</th>
                         <th>Result</th>
-                        <th className="align-right">DK</th>
+                        <th className="align-right">FPTS</th>
                         <th className="align-right">Proj</th>
                         <th className="align-right">Salary</th>
                         {stats.map(([label]) => <th key={label} className="align-right">{label}</th>)}

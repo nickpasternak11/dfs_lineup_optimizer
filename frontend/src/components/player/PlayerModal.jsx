@@ -175,7 +175,7 @@ export default function PlayerModal({ player, unavailableReason, optimizer, slat
                                 </div>
                                 <p className="log-summary num">
                                     {summary.games} {summary.games === 1 ? 'game' : 'games'}
-                                    {' · '}avg {formatPoints(summary.average)} DK
+                                    {' · '}avg {formatPoints(summary.average)} FPTS
                                     {' · '}best {formatPoints(summary.best)}
                                     {summary.projected > 0 && (
                                         <>
@@ -192,7 +192,7 @@ export default function PlayerModal({ player, unavailableReason, optimizer, slat
                             <PointsChart
                                 key={shownSeason}
                                 games={seasonGames}
-                                title={`${player.player}: DraftKings points per game, ${shownSeason}`}
+                                title={`${player.player}: FPTS per game, ${shownSeason}`}
                             />
                             <GameLogTable games={seasonGames} position={player.position} />
                         </>

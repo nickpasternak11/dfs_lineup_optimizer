@@ -105,7 +105,7 @@ test('clicking a pool row opens the player with bio, chart and game log', async 
     const dialog = await screen.findByRole('dialog', { name: /Josh Allen/ });
     expect(client.fetchPlayerGameLog).toHaveBeenCalledWith('00-0034857');
     expect(await within(dialog).findByText(/6'5" · 237 lbs · Wyoming · 2018 · Rd 1, #7 overall/)).toBeInTheDocument();
-    expect(within(dialog).getByRole('img', { name: /DraftKings points per game, 2026/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole('img', { name: /FPTS per game, 2026/ })).toBeInTheDocument();
     // Game log table: newest first, with the opponent and the passing line.
     const rows = within(dialog).getAllByRole('row');
     expect(rows[1]).toHaveTextContent('W3');

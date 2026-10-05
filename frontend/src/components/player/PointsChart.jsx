@@ -64,7 +64,7 @@ export default function PointsChart({ games, title }) {
     return (
         <figure className="points-chart">
             <figcaption className="chart-legend">
-                <span><span className="legend-swatch legend-bar" />Actual DK points</span>
+                <span><span className="legend-swatch legend-bar" />Actual FPTS</span>
                 {hasProjection && <span><span className="legend-swatch legend-dot" />Our projection</span>}
             </figcaption>
             <div className="chart-frame" ref={ref}>
@@ -78,7 +78,7 @@ export default function PointsChart({ games, title }) {
                     {games.map((game, i) => {
                         const x = center(i) - barWidth / 2;
                         const proj = game.proj_fpts;
-                        const label = `${weekLabel(game)} ${opponentLabel(game)}: ${formatPoints(game.dk_points)} DK points`
+                        const label = `${weekLabel(game)} ${opponentLabel(game)}: ${formatPoints(game.dk_points)} FPTS`
                             + `${proj !== null && proj !== undefined ? `, projected ${formatPoints(proj)}` : ''}`;
                         return (
                             <g
@@ -121,7 +121,7 @@ export default function PointsChart({ games, title }) {
                         style={{ left: Math.min(Math.max(center(active), 80), width - 80), top: Math.max(y(Math.max(shown.dk_points, shown.proj_fpts ?? 0)) - 8, 0) }}
                         role="status"
                     >
-                        <strong>{formatPoints(shown.dk_points)}<span> DK pts</span></strong>
+                        <strong>{formatPoints(shown.dk_points)}<span> FPTS</span></strong>
                         {shown.proj_fpts !== null && shown.proj_fpts !== undefined && (
                             <span className="tooltip-row"><span className="tooltip-key tooltip-key-dot" />Projected {formatPoints(shown.proj_fpts)}</span>
                         )}
