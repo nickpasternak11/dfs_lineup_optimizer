@@ -208,7 +208,7 @@ FROM player_week_results WHERE year = 2026 AND week = 3 ORDER BY salary DESC;
 ```
 
 How pool players are linked to their game logs:
-- **QB/RB/WR/TE:** through `fp_player_id` and the DynastyProcess crosswalk to nflverse's player ids (`player_id_map`). For weeks with ids, about 95% of pool players and nearly all priced $5,000+ link. Weeks scraped before `fp_player_id` existed borrow it from the same player's other weeks, matching on exact name, so older seasons link less until the weekly backfill re-scrapes them.
+- **QB/RB/WR/TE:** through `fp_player_id` and the DynastyProcess crosswalk to nflverse's player ids (`nfl_players`). For weeks with ids, about 95% of pool players and nearly all priced $5,000+ link. Weeks scraped before `fp_player_id` existed borrow it from the same player's other weeks, matching on exact name, so older seasons link less until the weekly backfill re-scrapes them.
 - **DST:** by team. Points allowed use the opponent's final score; DraftKings excludes points the defense didn't give up (a pick-six thrown by its own offense), which team-level data can't separate.
 - `actual_dk_points` is `NULL` when a linked player had no stats that week (inactive, or not played yet). When `gsis_id` is also `NULL`, the player couldn't be linked.
 
@@ -216,7 +216,7 @@ Player scoring was checked against nflverse's own PPR totals across 2025: the tw
 
 ### Generate Lineups in the Web App
 
-Open http://localhost:3000. The app loads the current week and optimizes right away; pick another **Season** and **Week** in the header to load an older slate (**Back to this week** returns). Any change re-runs the optimizer immediately, so there is no Optimize button.
+Open http://localhost:3000. The app loads the current week and optimizes right away; pick another **Season** and **Week** in the header to load an older slate (**Back to this week** returns). Any change re-runs the optimizer immediately, so there is no Optimize button. On a past week every game has kicked off, so all players count: started games are included and the games filter starts on all games.
 
 **Suggested lineups** (right; on top on phones):
 
@@ -231,6 +231,8 @@ Open http://localhost:3000. The app loads the current week and optimizes right a
 - Quick filters: value plays (2.5x+), players in your lineups, locked, excluded.
 - Available and Unavailable tabs; Unavailable holds players whose games started and players you excluded, with a restore button for the latter.
 - Columns: matchup (green against a bottom-10 defense, red against a top-10 one, by that week's DST rank), grade, recent average, projection, salary, salary change and value. The dots after a name show which lineups the player is in.
+- **Actual** appears once any game that week is final: the DraftKings points each player scored, marked ▲ if they beat their projection and ▼ if not. Sortable, like the projection.
+- Click a player (or their name, from the keyboard) for their card: headshot, team and matchup, bio (age, height, weight, college, draft), this week's salary, projection, actual, value and grade, and their game log by season. The chart shows DraftKings points per game, with our projection as a dot for the weeks we had one, and the table below it lists each game's result and stats. Lock and exclude work from the card too. Esc or a click outside closes it.
 
 Headshots come from FantasyPros' image CDN by `fp_player_id`, and team logos from ESPN's; both are loaded by the viewer's browser. Weeks scraped before `fp_player_id` was collected show initials until they are scraped again.
 
@@ -240,8 +242,10 @@ The API endpoints used by the frontend are:
 - `GET /projections/current_week`
 - `POST /projections`
 - `POST /optimize`
+- `GET /game-logs/players/{gsis_id}`: a player's bio and every game since 2018
+- `GET /game-logs/dst/{team}`: a defense's every game since 2018 (either `LAR` or `LA` works)
 
-`POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, `avg_fpts`, injuries, `fp_player_id`) are `null` there; `kickoff` is a string like `2026-10-04T20:05:00+0000`.
+`POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Each record also carries `gsis_id` (for the game log endpoint) and `actual_dk_points`, `null` until the game is final. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, `avg_fpts`, injuries, `fp_player_id`) are `null` there; `kickoff` is a string like `2026-10-04T20:05:00+0000`.
 
 ## Technology Stack
 
@@ -265,7 +269,7 @@ Collects DraftKings salaries, opponents, home/away and kickoff times from the Fa
 Collects FantasyPros weekly rankings, expert grades, projected points, trailing four-week average points and injury reports for QB, RB, WR, TE and DST, and writes them to `player_projections`.
 
 ### Game Log Loader
-Downloads nflverse's season files (schedules, weekly player and team stats) and the DynastyProcess player id crosswalk, scores each week with DraftKings rules, and writes `nfl_games`, `player_game_logs`, `dst_game_logs` and `player_id_map`.
+Downloads nflverse's season files (schedules, weekly player and team stats) and the DynastyProcess player id crosswalk, scores each week with DraftKings rules, and writes `nfl_games`, `player_game_logs`, `dst_game_logs` and `nfl_players`.
 
 ### API and Lineup Optimizer
 The FastAPI service reads each week's player pool from PostgreSQL and exposes the projection and optimization endpoints. Its optimization engine constructs valid lineups within DraftKings constraints.
@@ -290,7 +294,7 @@ All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker
 | `nfl_games` | Game log loader | Every game's kickoff, final score, spread, total and moneylines |
 | `player_game_logs` | Game log loader | Weekly QB/RB/WR/TE stats and DraftKings points, keyed on nflverse's `gsis_id` |
 | `dst_game_logs` | Game log loader | Weekly team defense stats, points allowed and DraftKings points |
-| `player_id_map` | Game log loader | nflverse `gsis_id` to FantasyPros `fp_player_id` |
+| `nfl_players` | Game log loader | nflverse `gsis_id` to FantasyPros `fp_player_id`, plus birth date, height, weight, college and draft |
 | `player_week_results` (view) | — | Each pool player's projection beside their actual DraftKings points |
 
 The two scraped tables are keyed on `(year, week, player)`. Columns that older data predates (`home`, `kickoff`, `salary_change`, `injury_status`, `injury_type`, `fp_player_id`) are nullable.

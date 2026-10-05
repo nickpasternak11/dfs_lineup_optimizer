@@ -31,8 +31,14 @@ const uniqueSorted = (pool, field) => [...new Set(pool.map(p => p[field]).filter
 
 // Filtering, sorting and the Available/Unavailable split for the pool table,
 // plus per-player context the table shows (lineup exposure, matchup strength).
-export default function usePlayerPool({ pool, lineups, locked, excluded, includeStarted }) {
+export default function usePlayerPool({ pool, lineups, locked, excluded, includeStarted, isPastSlate }) {
     const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS, cutoff: defaultKickoffCutoff() }));
+
+    // The kickoff cutoff defaults by today's weekday, which only means
+    // something for the live week; a past week starts on all games.
+    useEffect(() => {
+        setFilters(prev => ({ ...prev, cutoff: isPastSlate ? '' : defaultKickoffCutoff() }));
+    }, [isPastSlate]);
     const [sort, setSort] = useState({ column: 'salary', direction: 'desc' });
     const [tab, setTab] = useState('available');
     const now = useNow(60 * 1000);

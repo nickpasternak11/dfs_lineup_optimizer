@@ -14,6 +14,8 @@ const COLUMNS = [
     { key: 'grade', label: 'Grade', align: 'center' },
     { key: 'avg_fpts', label: 'Avg', title: 'Average fantasy points over recent games', sortable: true, align: 'right' },
     { key: 'proj_fpts', label: 'Proj', title: 'Projected fantasy points', sortable: true, align: 'right' },
+    // Shown once any player has a final score for the week.
+    { key: 'actual_dk_points', label: 'Actual', title: 'DraftKings points actually scored this week', sortable: true, align: 'right', actuals: true },
     { key: 'salary', label: 'Salary', sortable: true, align: 'right' },
     { key: 'salary_change', label: 'Δ', title: 'Salary change since last week', sortable: true, align: 'right' },
     { key: 'value', label: 'Value', title: 'Projected points per $1,000 of salary', sortable: true, align: 'right' },
@@ -62,16 +64,39 @@ function SkeletonRows() {
     ));
 }
 
-export default function PoolTable({ rows, playerPool, optimizer, lineupCount, loading, emptyMessage }) {
+// Points scored against the projection, with a glyph so beat/missed doesn't
+// rest on color alone.
+function ActualPoints({ player }) {
+    const actual = player.actual_dk_points;
+    if (actual === null || actual === undefined) return <span className="muted">–</span>;
+    const beat = actual >= player.proj_fpts;
+    return (
+        <span className={beat ? 'actual-beat' : 'actual-missed'} title={`Projected ${formatPoints(player.proj_fpts)}`}>
+            {formatPoints(actual)}
+            <span className="actual-glyph" aria-hidden="true">{beat ? '▲' : '▼'}</span>
+        </span>
+    );
+}
+
+export default function PoolTable({ rows, playerPool, optimizer, lineupCount, loading, emptyMessage, onOpenPlayer }) {
     const { sort, toggleSort, exposure, defenseRank, unavailableReason } = playerPool;
-    const { locked } = optimizer;
+    const { locked, pool } = optimizer;
+    // Judged on the whole pool, so filtering never adds or removes the column.
+    const hasActuals = pool.some(p => p.actual_dk_points !== null && p.actual_dk_points !== undefined);
+    const columns = hasActuals ? COLUMNS : COLUMNS.filter(column => !column.actuals);
+
+    // A click anywhere on the row opens the player, except on its buttons.
+    const openFromRow = player => (event) => {
+        if (event.target.closest('button, a, input, select')) return;
+        onOpenPlayer(player);
+    };
 
     return (
         <div className="pool-table-wrap">
             <table className="pool-table">
                 <thead>
                     <tr>
-                        {COLUMNS.map(column => (column.sortable ? (
+                        {columns.map(column => (column.sortable ? (
                             <SortHeader key={column.key} column={column} sort={sort} onSort={toggleSort} />
                         ) : (
                             <th key={column.key} className={`align-${column.align || 'left'}`} title={column.title}>
@@ -84,7 +109,7 @@ export default function PoolTable({ rows, playerPool, optimizer, lineupCount, lo
                     {loading && <SkeletonRows />}
                     {!loading && rows.length === 0 && (
                         <tr>
-                            <td className="empty-state" colSpan={COLUMNS.length}>{emptyMessage}</td>
+                            <td className="empty-state" colSpan={columns.length}>{emptyMessage}</td>
                         </tr>
                     )}
                     {!loading && rows.map((player) => {
@@ -93,14 +118,22 @@ export default function PoolTable({ rows, playerPool, optimizer, lineupCount, lo
                         return (
                             <tr
                                 key={player.player}
-                                className={`${isLocked ? 'row-locked' : ''} ${reason ? 'row-unavailable' : ''}`.trim()}
+                                className={`row-clickable ${isLocked ? 'row-locked' : ''} ${reason ? 'row-unavailable' : ''}`.trim()}
+                                onClick={openFromRow(player)}
                             >
                                 <td>
                                     <span className="player-cell">
                                         <PlayerAvatar player={player} size={34} />
                                         <span className="player-text">
                                             <span className="player-name">
-                                                {player.player}
+                                                {/* The keyboard way in; the row handles mouse clicks. */}
+                                                <button
+                                                    type="button"
+                                                    className="player-name-button"
+                                                    onClick={() => onOpenPlayer(player)}
+                                                >
+                                                    {player.player}
+                                                </button>
                                                 <InjuryBadge player={player} />
                                                 <ExposurePips indexes={exposure[player.player]} total={lineupCount} />
                                             </span>
@@ -130,6 +163,9 @@ export default function PoolTable({ rows, playerPool, optimizer, lineupCount, lo
                                 <td className="align-center"><GradeBadge grade={player.grade} /></td>
                                 <td className="align-right num muted">{formatPoints(player.avg_fpts)}</td>
                                 <td className="align-right num strong">{formatPoints(player.proj_fpts)}</td>
+                                {hasActuals && (
+                                    <td className="align-right num"><ActualPoints player={player} /></td>
+                                )}
                                 <td className="align-right num">{formatSalary(player.salary)}</td>
                                 <td className="align-right num"><SalaryChange value={player.salary_change} /></td>
                                 <td className="align-right num">

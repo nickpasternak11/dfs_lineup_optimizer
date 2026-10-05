@@ -298,6 +298,38 @@ th.align-right .sort-button { flex-direction: row; }
     font-weight: 800;
 }
 
+.row-clickable {
+    cursor: pointer;
+}
+
+.player-name-button {
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    padding: 0;
+    text-align: left;
+}
+
+.player-name-button:hover {
+    color: var(--accent-strong);
+    text-decoration: underline;
+}
+
+.actual-beat,
+.actual-missed {
+    font-weight: 800;
+}
+
+.actual-beat { color: var(--good); }
+.actual-missed { color: var(--bad); }
+
+.actual-glyph {
+    font-size: 0.6rem;
+    margin-left: 3px;
+}
+
 .row-actions {
     display: inline-flex;
     gap: 2px;

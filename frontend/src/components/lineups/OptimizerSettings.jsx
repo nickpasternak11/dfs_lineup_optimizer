@@ -10,7 +10,7 @@ const STACK_OPTIONS = [
 ];
 
 export default function OptimizerSettings({ optimizer, onReviewExcluded }) {
-    const { settings, updateSettings, locked, excluded, pool, toggleLock, clearLocks } = optimizer;
+    const { settings, updateSettings, includeStarted, isPastSlate, locked, excluded, pool, toggleLock, clearLocks } = optimizer;
     const lockedPlayers = locked.map(name => pool.find(p => p.player === name)).filter(Boolean);
     const lockedSalary = lockedPlayers.reduce((sum, p) => sum + (p.salary || 0), 0);
 
@@ -48,12 +48,15 @@ export default function OptimizerSettings({ optimizer, onReviewExcluded }) {
             <label className="switch setting-row">
                 <span>
                     <span className="setting-label">Include started games</span>
-                    <span className="setting-hint">Allow players whose games already kicked off</span>
+                    <span className="setting-hint">
+                        {isPastSlate ? 'Always on for a past week' : 'Allow players whose games already kicked off'}
+                    </span>
                 </span>
                 <input
                     type="checkbox"
                     role="switch"
-                    checked={settings.includeStarted}
+                    checked={includeStarted}
+                    disabled={isPastSlate}
                     onChange={e => updateSettings({ includeStarted: e.target.checked })}
                 />
             </label>
