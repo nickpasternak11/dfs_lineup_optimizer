@@ -9,22 +9,30 @@ from app.configs.configs import API_CACHE_TTL_SECONDS, log
 from app.helpers.cache import TTLCache
 from app.helpers.optimize import dataframe_to_records, get_latest_week
 
+# player_week_results adds each player's nflverse id (for their game log)
+# and, once the game is final, the DraftKings points they actually scored.
 PLAYER_POOL_QUERY = text(
     """
-    SELECT year, week, player, position, team, kickoff, opponent, home,
-           grade, rank, avg_fpts, proj_fpts, salary, salary_change, value,
-           injury_status, injury_type, fp_player_id
-    FROM weekly_player_pool
-    WHERE year = :year
-      AND week = :week
-      AND salary IS NOT NULL
-      AND proj_fpts IS NOT NULL
-    ORDER BY position, rank
+    SELECT pool.year, pool.week, pool.player, pool.position, pool.team,
+           pool.kickoff, pool.opponent, pool.home, pool.grade, pool.rank,
+           pool.avg_fpts, pool.proj_fpts, pool.salary, pool.salary_change,
+           pool.value, pool.injury_status, pool.injury_type, pool.fp_player_id,
+           results.gsis_id, results.actual_dk_points
+    FROM weekly_player_pool AS pool
+    LEFT JOIN player_week_results AS results
+      ON results.year = pool.year
+     AND results.week = pool.week
+     AND results.player = pool.player
+    WHERE pool.year = :year
+      AND pool.week = :week
+      AND pool.salary IS NOT NULL
+      AND pool.proj_fpts IS NOT NULL
+    ORDER BY pool.position, pool.rank
     """
 )
 
 # NUMERIC comes back as Decimal, which pulp can't handle.
-FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value"]
+FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value", "actual_dk_points"]
 
 # Player pools keyed by (year, week), shared by every request in this worker.
 # Each caller gets its own copy, so filtering or reweighting one request's

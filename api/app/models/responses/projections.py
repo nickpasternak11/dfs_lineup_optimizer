@@ -37,6 +37,14 @@ class ProjectionRecord(BaseModel):
         description="FantasyPros player id, used for headshots; NULL for weeks "
         "scraped before it was collected"
     )
+    gsis_id: str | None = Field(
+        description="nflverse player id, for /game-logs/players/{gsis_id}; NULL "
+        "for DSTs and players who couldn't be linked"
+    )
+    actual_dk_points: float | None = Field(
+        description="DraftKings points actually scored that week; NULL until "
+        "the game is final, or if the player had no stats"
+    )
 
 
 GetProjectionsResponse = list[ProjectionRecord]

@@ -14,7 +14,8 @@ from app.models.responses.projections import GetProjectionsResponse, ProjectionR
 
 def query_columns() -> list[str]:
     select = re.search(r"SELECT(.*?)FROM", PLAYER_POOL_QUERY.text, re.S).group(1)
-    return [column.strip() for column in select.split(",")]
+    # "pool.year" -> "year"
+    return [column.strip().split(".")[-1] for column in select.split(",")]
 
 
 @pytest.fixture
@@ -36,6 +37,8 @@ def full_pool(pool) -> pd.DataFrame:
     df["injury_type"] = ["Knee"] + [None] * (len(df) - 1)
     # Integer ids come back as float64 once any is NULL.
     df["fp_player_id"] = [17298.0] + [float("nan")] * (len(df) - 1)
+    df["gsis_id"] = ["00-0034857"] + [None] * (len(df) - 1)
+    df["actual_dk_points"] = [31.4] + [float("nan")] * (len(df) - 1)
     df.loc[0, "kickoff"] = pd.Timestamp("2099-09-27T17:00:00", tz="UTC")
     df.loc[1, "avg_fpts"] = float("nan")
     for column in FLOAT_COLUMNS:
@@ -60,6 +63,8 @@ def test_projection_records_validate(full_pool):
     assert current.salary_change == 300
     assert current.fp_player_id == 17298
     assert historical.fp_player_id is None
+    assert (current.gsis_id, current.actual_dk_points) == ("00-0034857", 31.4)
+    assert historical.gsis_id is None and historical.actual_dk_points is None
     assert historical.kickoff is None
     assert historical.home is None
     assert historical.avg_fpts is None
