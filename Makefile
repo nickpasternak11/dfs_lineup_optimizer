@@ -19,7 +19,7 @@ DOCKER_RUN := docker run --rm \
 MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
 .PHONY: down build run run-salary-scraper run-projection-scraper run-game-log-loader \
-	backfill backfill-game-logs psql \
+	backfill backfill-game-logs normalize-names psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
@@ -120,6 +120,12 @@ backfill:
 # Each season is one download, so this takes well under a minute. Safe to re-run.
 backfill-game-logs:
 	$(DOCKER_RUN) dfs-game-log-loader --start-year $(BACKFILL_START_YEAR)
+
+# One-time: rename players stored under other spellings (legacy CSVs, the
+# salary page) to FantasyPros' rankings spelling. Safe to re-run; preview with
+# ARGS=--dry-run. The scrapers keep each new week consistent on their own.
+normalize-names:
+	$(DOCKER_RUN) dfs-db-migrate python -m dfs_db.normalize $(ARGS)
 
 psql:
 	docker compose -f $(COMPOSE_RUN_FILE) exec dfs-postgres \

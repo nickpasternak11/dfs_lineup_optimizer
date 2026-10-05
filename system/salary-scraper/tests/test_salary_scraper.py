@@ -38,6 +38,11 @@ def scraper(monkeypatch):
     monkeypatch.setattr(salary_scraper, "get_salary_data", lambda year: salaries.copy())
     monkeypatch.setattr(salary_scraper, "session_scope", fake_session_scope)
     monkeypatch.setattr(salary_scraper, "replace_weeks", fake_replace_weeks)
+    monkeypatch.setattr(
+        salary_scraper,
+        "reconcile_week_names",
+        lambda session, year, week: saved.setdefault("reconciled", []).append((year, week)) or 0,
+    )
 
     instance = SalaryScraper()
     instance.saved = saved
@@ -86,3 +91,8 @@ def test_empty_salary_table_fails_instead_of_saving(scraper, monkeypatch):
     with pytest.raises(RuntimeError, match="empty"):
         scraper.scrape()
     assert scraper.saved == {}
+
+
+def test_saved_names_are_reconciled_with_the_weeks_rankings(scraper):
+    scraper.scrape(year=2018)
+    assert scraper.saved["reconciled"] == [(2018, 3)]
