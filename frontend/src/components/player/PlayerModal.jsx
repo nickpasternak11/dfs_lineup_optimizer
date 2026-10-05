@@ -69,6 +69,12 @@ function Bio({ bio }) {
     return parts.length ? <p className="player-bio">{parts.join(' · ')}</p> : null;
 }
 
+// Green when the player beat our projection in most weeks, red when they fell
+// short in most, plain on an even split.
+const hitRateClass = ({ beat, projected }) => (
+    beat * 2 > projected ? 'beat' : beat * 2 < projected ? 'missed' : ''
+);
+
 function Tile({ label, children }) {
     return (
         <div className="stat-tile">
@@ -171,11 +177,15 @@ export default function PlayerModal({ player, unavailableReason, optimizer, slat
                                     {summary.games} {summary.games === 1 ? 'game' : 'games'}
                                     {' · '}avg {formatPoints(summary.average)} DK
                                     {' · '}best {formatPoints(summary.best)}
-                                    {summary.vsProjection !== null && (
-                                        <span className={summary.vsProjection >= 0 ? 'beat' : 'missed'}>
-                                            {' · '}{summary.vsProjection >= 0 ? '▲ +' : '▼ '}
-                                            {summary.vsProjection.toFixed(1)} vs our projection
-                                        </span>
+                                    {summary.projected > 0 && (
+                                        <>
+                                            {' · '}
+                                            <span className={hitRateClass(summary)}>
+                                                beat our projection {summary.beat} of {summary.projected}
+                                            </span>
+                                            {' · '}avg {summary.vsProjection >= 0 ? '+' : ''}
+                                            {summary.vsProjection.toFixed(1)}/game
+                                        </>
                                     )}
                                 </p>
                             </div>

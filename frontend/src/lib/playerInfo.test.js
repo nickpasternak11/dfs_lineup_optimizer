@@ -52,5 +52,7 @@ test('season summary compares with projections only where we had them', () => {
         game(2025, 2, { dk_points: 10, proj_fpts: 20 }),
         game(2025, 3, { dk_points: 26 }),
     ]);
-    expect(summary).toEqual({ games: 3, average: 22, best: 30, vsProjection: 0 });
+    expect(summary).toEqual({
+        games: 3, average: 22, best: 30, projected: 2, beat: 1, vsProjection: 0,
+    });
 });

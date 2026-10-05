@@ -111,8 +111,10 @@ test('clicking a pool row opens the player with bio, chart and game log', async 
     expect(rows[1]).toHaveTextContent('W3');
     expect(rows[1]).toHaveTextContent('vs MIA');
     expect(rows[3]).toHaveTextContent('334');
-    // (35.66 - 22.6 + 18.4 - 21.0) / 2: week 3 has no projection, so it doesn't count.
-    expect(within(dialog).getByText(/vs our projection/)).toHaveTextContent('▲ +5.2 vs our projection');
+    // Week 3 has no projection, so only weeks 1 and 2 count:
+    // (35.66 - 22.6 + 18.4 - 21.0) / 2 = +5.2.
+    expect(within(dialog).getByText(/beat our projection/)).toHaveTextContent('beat our projection 1 of 2');
+    expect(within(dialog).getByText(/\/game/)).toHaveTextContent('avg +5.2/game');
 });
 
 test('Escape closes the player and returns focus to the row', async () => {

@@ -54,7 +54,10 @@ export const seasonSummary = (games) => {
         games: games.length,
         average: average(points),
         best: points.length ? Math.max(...points) : null,
-        // Average of actual minus projection, over weeks we projected.
+        // Over the weeks we projected: how many the player beat, and the average
+        // margin. The count keeps one big game from reading as a good season.
+        projected: projected.length,
+        beat: projected.filter(g => g.dk_points > g.proj_fpts).length,
         vsProjection: projected.length
             ? average(projected.map(g => g.dk_points - g.proj_fpts))
             : null,
