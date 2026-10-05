@@ -1,7 +1,7 @@
 import pandas as pd
 from dfs_common.fantasypros import get_current_week
 from dfs_common.season import current_season_year
-from dfs_db import PlayerProjection, replace_weeks, session_scope
+from dfs_db import PlayerProjection, reconcile_week_names, replace_weeks, session_scope
 from dfs_db.upsert import DEFAULT_MIN_RATIO
 from src.configs import log
 from src.utils import get_player_injuries, get_stats, get_weekly_rankings
@@ -71,7 +71,12 @@ class ProjectionScraper:
                 df,
                 min_ratio=0 if allow_shrink else DEFAULT_MIN_RATIO,
             )
+            # Salaries scraped before these rankings may spell a player
+            # differently; bring them to the rankings' spelling.
+            renamed = reconcile_week_names(session, year, week)
         log.info("Upserted %s projection rows for year=%s, week=%s", rows, year, week)
+        if renamed:
+            log.info("Renamed %s salary rows to FantasyPros' rankings spelling", renamed)
 
 
 if __name__ == "__main__":

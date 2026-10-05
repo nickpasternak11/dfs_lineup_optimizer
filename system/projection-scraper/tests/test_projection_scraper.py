@@ -47,6 +47,11 @@ def scraper(monkeypatch):
     monkeypatch.setattr(projection_scraper, "get_player_injuries", fake_injuries)
     monkeypatch.setattr(projection_scraper, "session_scope", fake_session_scope)
     monkeypatch.setattr(projection_scraper, "replace_weeks", fake_replace_weeks)
+    monkeypatch.setattr(
+        projection_scraper,
+        "reconcile_week_names",
+        lambda session, year, week: captured.setdefault("reconciled", []).append((year, week)) or 0,
+    )
 
     instance = ProjectionScraper()
     instance.captured = captured
@@ -100,3 +105,8 @@ def test_defaults_to_the_current_season_and_week(scraper):
 def test_allow_shrink_disables_the_guard(scraper):
     scraper.scrape(year=2018, week=3, allow_shrink=True)
     assert scraper.captured["min_ratio"] == 0
+
+
+def test_the_weeks_salary_names_are_reconciled_after_saving(scraper):
+    scraper.scrape(year=2024, week=5)
+    assert scraper.captured["reconciled"] == [(2024, 5)]
