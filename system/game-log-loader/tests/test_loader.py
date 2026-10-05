@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 
 import pytest
-from dfs_db import DstGameLog, NflGame, PlayerGameLog, PlayerIdMap
+from dfs_db import DstGameLog, NflGame, NflPlayer, PlayerGameLog
 from src import loader
 
 
@@ -63,5 +63,5 @@ def test_a_season_without_player_stats_fails_before_writing(writes, monkeypatch,
 def test_the_id_map_replaces_the_whole_table(writes):
     loader.load_player_ids()
     ((model, rows, where, _),) = writes
-    assert (model, where) == (PlayerIdMap, {})
+    assert (model, where) == (NflPlayer, {})
     assert rows == 4

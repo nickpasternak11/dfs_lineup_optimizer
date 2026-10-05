@@ -1,11 +1,11 @@
-"""nflverse game data: games, player and DST game logs, and an id crosswalk.
+"""nflverse game data: games, player and DST game logs, and player ids and bios.
 
 Written by dfs-game-log-loader. Adds:
 
 - nfl_games: schedule, final scores and closing Vegas lines.
 - player_game_logs / dst_game_logs: weekly stats with DraftKings points.
-- player_id_map: nflverse (GSIS) to FantasyPros ids, which is how game logs
-  reach player_projections.fp_player_id.
+- nfl_players: nflverse (GSIS) to FantasyPros ids, which is how game logs
+  reach player_projections.fp_player_id, plus each player's bio.
 - nfl_team(): one code per franchise, since nflverse and the salary page
   disagree on a few (LA/LAR, JAX/JAC, and OAK in 2018-19 nflverse schedules).
 - player_week_results: every pool player's projection next to what they
@@ -125,21 +125,28 @@ def upgrade() -> None:
 
     op.execute(
         """
-        CREATE TABLE player_id_map (
+        CREATE TABLE nfl_players (
             gsis_id      TEXT        NOT NULL,
             fp_player_id INTEGER     NOT NULL,
             player       TEXT        NOT NULL,
             position     TEXT,
+            birthdate    DATE,
+            height       SMALLINT,
+            weight       SMALLINT,
+            college      TEXT,
+            draft_year   SMALLINT,
+            draft_round  SMALLINT,
+            draft_pick   SMALLINT,
             scraped_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-            CONSTRAINT player_id_map_pkey PRIMARY KEY (gsis_id),
-            CONSTRAINT player_id_map_fp_player_id_key UNIQUE (fp_player_id)
+            CONSTRAINT nfl_players_pkey PRIMARY KEY (gsis_id),
+            CONSTRAINT nfl_players_fp_player_id_key UNIQUE (fp_player_id)
         )
         """
     )
     op.execute(
-        "COMMENT ON TABLE player_id_map IS "
-        "'nflverse (GSIS) to FantasyPros player ids, from the DynastyProcess crosswalk.'"
+        "COMMENT ON TABLE nfl_players IS "
+        "'nflverse (GSIS) and FantasyPros ids with bios, from the DynastyProcess crosswalk.'"
     )
 
     op.execute(
@@ -192,7 +199,7 @@ def upgrade() -> None:
           ON pool.fp_player_id IS NULL
          AND known.player = pool.player
          AND known.position = pool.position
-        LEFT JOIN player_id_map AS ids
+        LEFT JOIN nfl_players AS ids
           ON pool.position <> 'DST'
          AND ids.fp_player_id = COALESCE(pool.fp_player_id, known.fp_player_id)
         LEFT JOIN player_game_logs AS logs
@@ -211,7 +218,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("DROP VIEW IF EXISTS player_week_results")
     op.execute("DROP FUNCTION IF EXISTS nfl_team(TEXT)")
-    op.execute("DROP TABLE IF EXISTS player_id_map")
+    op.execute("DROP TABLE IF EXISTS nfl_players")
     op.execute("DROP TABLE IF EXISTS dst_game_logs")
     op.execute("DROP TABLE IF EXISTS player_game_logs")
     op.execute("DROP TABLE IF EXISTS nfl_games")

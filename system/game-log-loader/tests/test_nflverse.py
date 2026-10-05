@@ -84,11 +84,11 @@ def test_unplayed_games_keep_lines_and_null_scores(nflverse_files):
     assert (game.spread_line, game.total_line, game.home_moneyline) == (11.5, 42.5, -800)
 
 
-def test_player_id_map_collapses_repeats_and_drops_conflicts(nflverse_files):
+def test_nfl_players_collapse_repeats_and_drop_conflicts(nflverse_files):
     crosswalk = nflverse_files["player_ids"]
     # A FantasyPros id the crosswalk pairs with a second, different GSIS id.
     conflict = crosswalk[crosswalk.name == "Josh Allen"].assign(gsis_id="00-9999999")
-    ids = nflverse.player_id_map(pd.concat([crosswalk, conflict])).set_index("gsis_id")
+    ids = nflverse.nfl_players(pd.concat([crosswalk, conflict])).set_index("gsis_id")
 
     # Listed twice (DT and S) with the same pair: kept once.
     assert ids.loc["00-0031636", "fp_player_id"] == 14066
@@ -104,3 +104,9 @@ def test_read_csv_handles_gzip(monkeypatch):
     payload = gzip.compress(b"a,b\n1,2\n")
     monkeypatch.setattr(nflverse, "fetch", lambda url, timeout: SimpleNamespace(content=payload))
     assert nflverse.read_csv("https://example.test/x.csv.gz").to_dict("records") == [{"a": 1, "b": 2}]
+
+
+def test_nfl_players_carry_bios(nflverse_files):
+    allen = nflverse.nfl_players(nflverse_files["player_ids"]).set_index("gsis_id").loc["00-0034857"]
+    assert (allen.player, str(allen.birthdate), allen.height, allen.weight) == ("Josh Allen", "1996-05-21", 77, 237)
+    assert (allen.college, allen.draft_year, allen.draft_round, allen.draft_pick) == ("Wyoming", 2018, 1, 7)

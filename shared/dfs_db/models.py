@@ -7,10 +7,11 @@ player_week_results views are not mapped -- they have no primary key for the
 ORM to track -- and live only in the Alembic revisions that created them.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Index,
     Integer,
@@ -171,16 +172,25 @@ class DstGameLog(Base):
     scraped_at: Mapped[datetime] = _scraped_at()
 
 
-class PlayerIdMap(Base):
-    __tablename__ = "player_id_map"
+class NflPlayer(Base):
+    __tablename__ = "nfl_players"
     __table_args__ = {
-        "comment": "nflverse (GSIS) to FantasyPros player ids, from the DynastyProcess crosswalk."
+        "comment": "nflverse (GSIS) and FantasyPros ids with bios, from the DynastyProcess crosswalk."
     }
 
     gsis_id: Mapped[str] = mapped_column(Text, primary_key=True)
     fp_player_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
     player: Mapped[str] = mapped_column(Text, nullable=False)
     position: Mapped[str | None] = mapped_column(Text)
+    birthdate: Mapped[date | None] = mapped_column(Date)
+    # Inches and pounds.
+    height: Mapped[int | None] = mapped_column(SmallInteger)
+    weight: Mapped[int | None] = mapped_column(SmallInteger)
+    college: Mapped[str | None] = mapped_column(Text)
+    draft_year: Mapped[int | None] = mapped_column(SmallInteger)
+    draft_round: Mapped[int | None] = mapped_column(SmallInteger)
+    # Overall pick number.
+    draft_pick: Mapped[int | None] = mapped_column(SmallInteger)
     scraped_at: Mapped[datetime] = _scraped_at()
 
 

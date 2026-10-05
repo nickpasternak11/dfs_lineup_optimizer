@@ -161,8 +161,8 @@ def nfl_games(games: pd.DataFrame, year: int) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
-def player_id_map(crosswalk: pd.DataFrame) -> pd.DataFrame:
-    """GSIS to FantasyPros ids.
+def nfl_players(crosswalk: pd.DataFrame) -> pd.DataFrame:
+    """GSIS to FantasyPros ids, with each player's bio.
 
     The crosswalk lists some players twice under different positions with the
     same pair of ids; those collapse to one row. An id paired with two
@@ -172,11 +172,22 @@ def player_id_map(crosswalk: pd.DataFrame) -> pd.DataFrame:
     ids = ids[ids.gsis_id.astype(str).str.strip().ne("")]
     ids = ids.drop_duplicates(subset=["gsis_id", "fantasypros_id"])
     ids = ids[~ids.gsis_id.duplicated(keep=False) & ~ids.fantasypros_id.duplicated(keep=False)]
+    def whole(column: str) -> pd.Series:
+        return pd.to_numeric(ids[column], errors="coerce").round().astype("Int64")
+
     return pd.DataFrame(
         {
             "gsis_id": ids.gsis_id.astype(str),
             "fp_player_id": ids.fantasypros_id.astype(int),
             "player": ids.name,
             "position": ids.position,
+            "birthdate": pd.to_datetime(ids.birthdate, errors="coerce").dt.date,
+            "height": whole("height"),
+            "weight": whole("weight"),
+            "college": ids.college,
+            "draft_year": whole("draft_year"),
+            "draft_round": whole("draft_round"),
+            # draft_pick in the crosswalk is the pick within the round.
+            "draft_pick": whole("draft_ovr"),
         }
     ).reset_index(drop=True)

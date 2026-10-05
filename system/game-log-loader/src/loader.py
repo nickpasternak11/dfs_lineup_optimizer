@@ -1,4 +1,4 @@
-from dfs_db import DstGameLog, NflGame, PlayerGameLog, PlayerIdMap, replace_matching, session_scope
+from dfs_db import DstGameLog, NflGame, NflPlayer, PlayerGameLog, replace_matching, session_scope
 from dfs_db.upsert import DEFAULT_MIN_RATIO
 from src import nflverse
 from src.configs import log
@@ -37,10 +37,10 @@ def load_season(year: int, allow_shrink: bool = False) -> None:
 
 
 def load_player_ids(allow_shrink: bool = False) -> None:
-    """Replace the GSIS-to-FantasyPros id map with the current crosswalk."""
-    ids = nflverse.player_id_map(nflverse.download_player_ids())
+    """Replace nfl_players (ids and bios) with the current crosswalk."""
+    ids = nflverse.nfl_players(nflverse.download_player_ids())
     with session_scope() as session:
         count = replace_matching(
-            session, PlayerIdMap, ids, {}, 0 if allow_shrink else DEFAULT_MIN_RATIO
+            session, NflPlayer, ids, {}, 0 if allow_shrink else DEFAULT_MIN_RATIO
         )
-    log.info("Loaded %s player id mappings", count)
+    log.info("Loaded %s players (ids and bios)", count)
