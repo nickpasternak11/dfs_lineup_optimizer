@@ -382,20 +382,21 @@ describe('accuracy page', () => {
         year: 2026,
         week: 6,
         saved_at: '2026-10-11T13:00:00Z',
+        swapped_at: null,
         complete: true,
         lineups: [
-            { source: 'fantasypros', strategy: 'projection', projected: 128.5, actual: 117.0, players: [reviewPlayer('Puka Nacua', 21.4)] },
-            { source: 'model', strategy: 'projection', projected: 131.2, actual: 135.0, players: [reviewPlayer('Jahmyr Gibbs', null)] },
+            { phase: 'initial', source: 'fantasypros', strategy: 'projection', projected: 128.5, actual: 117.0, players: [reviewPlayer('Puka Nacua', 21.4)] },
+            { phase: 'initial', source: 'model', strategy: 'projection', projected: 131.2, actual: 135.0, players: [reviewPlayer('Jahmyr Gibbs', null)] },
         ],
         best: { actual: 180.0, players: [reviewPlayer('Ja\'Marr Chase', 38.0)] },
         season: [
             { week: 5, complete: true, best: 170.0, lineups: [
-                { source: 'fantasypros', strategy: 'projection', projected: 125, actual: 121.0 },
-                { source: 'model', strategy: 'projection', projected: 129, actual: 125.0 },
+                { phase: 'initial', source: 'fantasypros', strategy: 'projection', projected: 125, actual: 121.0 },
+                { phase: 'initial', source: 'model', strategy: 'projection', projected: 129, actual: 125.0 },
             ] },
             { week: 6, complete: true, best: 180.0, lineups: [
-                { source: 'fantasypros', strategy: 'projection', projected: 128.5, actual: 117.0 },
-                { source: 'model', strategy: 'projection', projected: 131.2, actual: 135.0 },
+                { phase: 'initial', source: 'fantasypros', strategy: 'projection', projected: 128.5, actual: 117.0 },
+                { phase: 'initial', source: 'model', strategy: 'projection', projected: 131.2, actual: 135.0 },
             ] },
         ],
     };
@@ -412,18 +413,43 @@ describe('accuracy page', () => {
 
         expect(client.fetchLineupReview).toHaveBeenCalledWith({ year: null, week: null });
         expect(client.fetchAccuracy.mock.calls.length).toBe(accuracyCalls);
-        expect(screen.getByText(/Saved Sun, Oct 11, 9:00 AM ET/)).toBeInTheDocument();
+        expect(screen.getByText(/Saved Sun, Oct 11, 9:00 AM ET, before the week.s first game/)).toBeInTheDocument();
         const model = screen.getByRole('rowheader', { name: 'Our model · Projection' }).closest('tr');
         expect(model).toHaveTextContent('131.2135.075%');
         expect(screen.getByRole('rowheader', { name: 'Best possible, in hindsight' }).closest('tr')).toHaveTextContent('180.0100%');
         // The season table averages each lineup over its weeks.
-        const season = screen.getByRole('table', { name: '2026 season: actual points' });
+        const season = screen.getByRole('table', { name: '2026 season: actual points, as played' });
         expect(within(season).getByRole('rowheader', { name: 'Average' }).closest('tr')).toHaveTextContent('119.0130.0175.0');
 
         await act(async () => {
             fireEvent.change(screen.getByLabelText('Week'), { target: { value: '2026-5' } });
         });
         expect(client.fetchLineupReview).toHaveBeenLastCalledWith({ year: 2026, week: 5 });
+    });
+
+    test('a Sunday late swap shows beside the lineup it swapped', async () => {
+        const swap = (actual, name) => ({
+            phase: 'late_swap', source: 'model', strategy: 'projection', projected: 133.0, actual, players: [reviewPlayer(name, 30.0)],
+        });
+        client.fetchLineupReview.mockResolvedValue({
+            ...REVIEW,
+            swapped_at: '2026-10-11T15:50:00Z',
+            lineups: [...REVIEW.lineups, swap(141.5, 'Kyren Williams')],
+            season: [{ ...REVIEW.season[1], lineups: [...REVIEW.season[1].lineups, { ...swap(141.5, 'x'), players: undefined }] }, REVIEW.season[0]],
+        });
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Lineups' }));
+        });
+
+        expect(screen.getByText(/swapped Sun, Oct 11, 11:50 AM ET/)).toBeInTheDocument();
+        const model = screen.getByRole('rowheader', { name: 'Our model · Projection' }).closest('tr');
+        // Before swaps 135.0, after 141.5 (+6.5), 79% of the best 180.
+        expect(model).toHaveTextContent('131.2135.0141.5 (+6.5)79%');
+        // FantasyPros wasn't swapped: its "after" cell is empty, its share uses the original.
+        expect(screen.getByRole('rowheader', { name: 'FantasyPros · Projection' }).closest('tr')).toHaveTextContent('117.0–65%');
+        expect(screen.getByText(/Our model · Projection, after Sunday swaps: 141.5 actual/)).toBeInTheDocument();
     });
 
     test('the lineups view before any are saved', async () => {

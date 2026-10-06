@@ -6,6 +6,11 @@ They're saved the morning of the week's first game, so they cover the whole
 Thursday-to-Monday slate of a DraftKings classic contest. That's Thursday
 most weeks, but a week can start on a Wednesday (Christmas), a Friday or a
 Saturday.
+
+A classic contest locks each player at their own game's kickoff, so on
+Sunday, after inactives are out, each saved lineup gets a late swap: its
+players whose games have started stay, and the rest are re-optimized on
+fresh projections within the salary they left.
 """
 
 from datetime import datetime
@@ -57,18 +62,60 @@ def pool_projections(year: int, week: int) -> pd.DataFrame:
     return pd.DataFrame(response.json()).set_index("player")
 
 
-def snapshot_rows(lineups: dict, pool: pd.DataFrame, year: int, week: int, now: datetime) -> pd.DataFrame:
+def late_swap_requests(initial: pd.DataFrame, pool: pd.DataFrame, year: int, week: int, now: datetime) -> list[tuple]:
+    """(source, strategy, optimize request) per saved lineup: its players
+    whose games have started are locked in, every other started player is
+    left out, and the optimizer fills the rest."""
+    kickoff = pd.to_datetime(pool["kickoff"], utc=True, errors="coerce")
+    started = set(pool.index[kickoff.notna() & (kickoff <= pd.Timestamp(now))])
+    requests_ = []
+    for (source, strategy), lineup in initial.groupby(["source", "strategy"], sort=False):
+        locked = sorted(set(lineup.player) & started)
+        requests_.append((source, strategy, {
+            "year": year,
+            "week": week,
+            "projection_source": source,
+            "include_started_players": True,
+            "included_players": locked,
+            "excluded_players": sorted(started - set(locked)),
+        }))
+    return requests_
+
+
+def late_swap_lineups(requests_: list[tuple]) -> dict[str, list]:
+    """Each source's swapped lineups, in STRATEGIES order (None where the
+    API couldn't optimize one). The API returns all three strategies per
+    request; only the one being swapped is kept."""
+    lineups = {}
+    for source, strategy, payload in requests_:
+        try:
+            response = post(f"{API_URL}/optimize", payload)
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code in (400, 404):
+                log.warning("No %s %s late swap: %s", source, strategy, e.response.text)
+                continue
+            raise
+        lineups.setdefault(source, [None] * len(STRATEGIES))
+        index = STRATEGIES.index(strategy)
+        lineups[source][index] = response.json()[index]
+    return lineups
+
+
+def snapshot_rows(
+    lineups: dict, pool: pd.DataFrame, year: int, week: int, now: datetime, phase: str = "initial"
+) -> pd.DataFrame:
     rows = []
     for source, source_lineups in lineups.items():
         projections = pool[SOURCE_COLUMNS[source]]
         for strategy, lineup in zip(STRATEGIES, source_lineups):
-            for slot, player in enumerate(lineup):
+            for slot, player in enumerate(lineup or []):
                 rows.append({
                     "year": year,
                     "week": week,
                     "generated_at": now,
                     "source": source,
                     "strategy": strategy,
+                    "phase": phase,
                     "slot": slot,
                     "player": player["player"],
                     "position": player["position"],

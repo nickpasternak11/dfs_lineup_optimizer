@@ -19,6 +19,7 @@ from sqlalchemy import (
     SmallInteger,
     Text,
     func,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -230,6 +231,9 @@ class LineupSnapshot(Base):
     # "projection", "blend_90_10" or "blend_80_20" (projection blended with
     # the recent average).
     strategy: Mapped[str] = mapped_column(Text, primary_key=True)
+    # "initial" (saved before the week's first game) or "late_swap" (Sunday's
+    # re-optimization of the players whose games hadn't started).
+    phase: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'initial'"))
     # The player's place in the lineup as the optimizer returned it, 0-8.
     slot: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     player: Mapped[str] = mapped_column(Text, nullable=False)

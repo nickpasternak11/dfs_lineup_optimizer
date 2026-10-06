@@ -13,26 +13,28 @@ from app.helpers.cache import TTLCache
 
 WEEKS_QUERY = text("SELECT DISTINCT year, week FROM lineup_snapshots ORDER BY year DESC, week DESC")
 
-# The week's latest snapshot, each player with what they scored (NULL if
-# they didn't play, or the game isn't final).
+# The week's latest snapshot of each phase (saved before the first game, and
+# Sunday's late swap), each player with what they scored (NULL if they didn't
+# play, or the game isn't final).
 SNAPSHOT_QUERY = text(
     """
     WITH latest AS (
-        SELECT max(generated_at) AS generated_at
+        SELECT phase, max(generated_at) AS generated_at
         FROM lineup_snapshots
         WHERE year = :year AND week = :week
+        GROUP BY phase
     )
-    SELECT saved.generated_at, saved.source, saved.strategy, saved.slot, saved.player,
+    SELECT saved.generated_at, saved.phase, saved.source, saved.strategy, saved.slot, saved.player,
            saved.position, saved.team, saved.salary, saved.projection,
            results.actual_dk_points AS actual
     FROM lineup_snapshots AS saved
-    JOIN latest USING (generated_at)
+    JOIN latest USING (phase, generated_at)
     LEFT JOIN player_week_results AS results
       ON results.year = saved.year
      AND results.week = saved.week
      AND results.player = saved.player
     WHERE saved.year = :year AND saved.week = :week
-    ORDER BY saved.source, saved.strategy, saved.slot
+    ORDER BY saved.phase, saved.source, saved.strategy, saved.slot
     """
 )
 

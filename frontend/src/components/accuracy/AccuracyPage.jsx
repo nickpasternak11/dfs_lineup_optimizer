@@ -28,7 +28,8 @@ function Intro({ view, report }) {
         return (
             <p>
                 The lineups the optimizer suggested for the whole Thursday-to-Monday slate, saved the morning of
-                each week&apos;s first game, on each projection source: FantasyPros and our model. Each is scored on what its players actually
+                each week&apos;s first game, on each projection source: FantasyPros and our model. On Sunday, after
+                inactives, each gets a late swap: players whose games have started stay, the rest are re-optimized. Each is scored on what its players actually
                 scored, and against the best lineup possible in hindsight from the same players.
             </p>
         );

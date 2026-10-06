@@ -5,7 +5,9 @@
 - `lineups`: save the optimizer's suggested lineups on each projection
   source for this week's games still to come, for the weekly review. The
   orchestrator runs it every morning with --on-first-game-day, so it saves
-  once a week, before the first game.
+  once a week, before the first game, and Sunday at 11:50 AM ET with
+  --late-swap, which keeps each saved lineup's players whose games have
+  started and re-optimizes the rest.
 - `backtest`: train season by season and score against FantasyPros on the
   accuracy page's rows. Reads only.
 - `props`: score player props on the season an Odds API export covers.
@@ -33,6 +35,11 @@ def parse_args() -> argparse.Namespace:
         "--on-first-game-day",
         action="store_true",
         help="lineups: save only on the day of the week's first game, and only once a week",
+    )
+    parser.add_argument(
+        "--late-swap",
+        action="store_true",
+        help="lineups: re-optimize the saved lineups' players whose games haven't started (once a week)",
     )
     parser.add_argument(
         "--props-file",
@@ -83,6 +90,9 @@ def run_lineups(args: argparse.Namespace) -> None:
     if week is None:
         log.info("No %s pool yet; no lineups to save", year)
         return
+    if args.late_swap:
+        save_late_swap(year, week, now, args.dry_run)
+        return
     if args.on_first_game_day:
         first = data.first_kickoff(year, week)
         if not lineups.is_first_game_day(first, now):
@@ -100,6 +110,26 @@ def run_lineups(args: argparse.Namespace) -> None:
         print(rows.to_string(index=False))
         return
     lineups.store(rows)
+
+
+def save_late_swap(year: int, week: int, now: datetime, dry_run: bool) -> None:
+    if not data.has_saved_lineups(year, week, "initial"):
+        log.info("No %s week %s lineups saved before its first game; nothing to swap", year, week)
+        return
+    if data.has_saved_lineups(year, week, "late_swap") and not dry_run:
+        log.info("%s week %s late swap is already saved", year, week)
+        return
+    pool = lineups.pool_projections(year, week)
+    swapped = lineups.late_swap_lineups(
+        lineups.late_swap_requests(data.load_initial_lineups(year, week), pool, year, week, now)
+    )
+    rows = lineups.snapshot_rows(swapped, pool, year, week, now, phase="late_swap")
+    if rows.empty:
+        log.info("No late swap for %s week %s", year, week)
+    elif dry_run:
+        print(rows.to_string(index=False))
+    else:
+        lineups.store(rows)
 
 
 def run_props(args: argparse.Namespace) -> None:

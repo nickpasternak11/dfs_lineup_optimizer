@@ -83,3 +83,38 @@ def test_the_day_is_eastern_not_utc():
     # 8:15 PM ET Thursday is already Friday in UTC.
     kickoff = datetime(2026, 10, 9, 0, 15, tzinfo=timezone.utc)
     assert lineups.is_first_game_day(kickoff, datetime(2026, 10, 8, 13, 0, tzinfo=timezone.utc))
+
+
+def test_a_late_swap_keeps_started_players_and_frees_the_rest():
+    pool = pd.DataFrame({
+        "player": ["Thursday QB", "Thursday WR", "Sunday RB", "Sunday WR", "Other Thursday TE"],
+        "kickoff": ["2025-10-10T00:15:00+0000", "2025-10-10T00:15:00+0000", "2025-10-12T17:00:00+0000",
+                    "2025-10-12T17:00:00+0000", "2025-10-10T00:15:00+0000"],
+    }).set_index("player")
+    initial = pd.DataFrame({
+        "source": "model", "strategy": "projection", "slot": [0, 1, 2],
+        "player": ["Thursday QB", "Sunday RB", "Sunday WR"],
+    })
+    sunday = datetime(2025, 10, 12, 15, 50, tzinfo=timezone.utc)
+
+    ((source, strategy, payload),) = lineups.late_swap_requests(initial, pool, 2025, 6, sunday)
+
+    assert (source, strategy, payload["projection_source"]) == ("model", "projection", "model")
+    assert payload["included_players"] == ["Thursday QB"]
+    # Started players who weren't in the lineup can't be swapped in.
+    assert payload["excluded_players"] == ["Other Thursday TE", "Thursday WR"]
+    assert payload["include_started_players"] is True
+
+
+def test_each_swapped_lineup_keeps_only_its_own_strategy(monkeypatch):
+    def fake_post(url, payload):
+        return Response(200, [lineup("a", 1.0), lineup("b", 2.0), lineup("c", 3.0)])
+
+    monkeypatch.setattr(lineups, "post", fake_post)
+    swapped = lineups.late_swap_lineups([("fantasypros", "blend_90_10", {})])
+    assert swapped["fantasypros"][0] is None and swapped["fantasypros"][2] is None
+    assert swapped["fantasypros"][1][0]["player"] == "b0"
+
+    pool = pd.DataFrame({"player": [f"b{i}" for i in range(9)], "proj_fpts": 9.0, "model_fpts": 9.5}).set_index("player")
+    rows = lineups.snapshot_rows(swapped, pool, 2025, 6, NOW, phase="late_swap")
+    assert len(rows) == 9 and set(rows.phase) == {"late_swap"} and set(rows.strategy) == {"blend_90_10"}

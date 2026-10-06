@@ -22,15 +22,40 @@ export const formatSavedAt = iso => `${new Date(iso).toLocaleString('en-US', {
     minute: '2-digit',
 })} ET`;
 
-// Each saved lineup's average over its finished weeks, for the season
-// table's last row.
-export const seasonAverages = (season) => {
-    const sums = {};
-    season.filter(week => week.complete).forEach(week => week.lineups.forEach((lineup) => {
+// Each lineup with its two saves side by side: `initial` (before the week's
+// first game) and `swap` (Sunday's late swap, when there was one).
+export const pairLineups = (lineups) => {
+    const pairs = new Map();
+    lineups.forEach((lineup) => {
         const key = lineupKey(lineup);
-        sums[key] = sums[key] || { total: 0, weeks: 0 };
-        sums[key].total += lineup.actual;
-        sums[key].weeks += 1;
-    }));
-    return Object.fromEntries(Object.entries(sums).map(([key, { total, weeks }]) => [key, total / weeks]));
+        const pair = pairs.get(key) || { key, source: lineup.source, strategy: lineup.strategy };
+        pair[lineup.phase === 'late_swap' ? 'swap' : 'initial'] = lineup;
+        pairs.set(key, pair);
+    });
+    return [...pairs.values()];
 };
+
+// The lineup as played: after Sunday's swaps when they were made.
+export const finalLineup = pair => pair.swap || pair.initial;
+
+const average = values => (values.length ? values.reduce((a, b) => a + b, 0) / values.length : null);
+
+// Over the season's finished weeks, per lineup: the average points as played,
+// and the average swing from Sunday's swaps (weeks that had one).
+export const seasonSummary = (season) => {
+    const finished = season.filter(week => week.complete);
+    const played = {};
+    const swings = {};
+    finished.forEach(week => pairLineups(week.lineups).forEach((pair) => {
+        (played[pair.key] = played[pair.key] || []).push(finalLineup(pair).actual);
+        if (pair.swap && pair.initial) (swings[pair.key] = swings[pair.key] || []).push(pair.swap.actual - pair.initial.actual);
+    }));
+    const averages = Object.fromEntries(Object.entries(played).map(([key, values]) => [key, average(values)]));
+    const swapGains = Object.fromEntries(Object.entries(swings).map(([key, values]) => [key, average(values)]));
+    return { averages, swapGains };
+};
+
+// "+4.2" / "−1.0"
+export const formatSwing = value => (
+    value === null || value === undefined ? '–' : `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(1)}`
+);

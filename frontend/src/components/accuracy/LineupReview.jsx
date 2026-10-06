@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import useLineupReview from '../../hooks/useLineupReview';
 import { formatPoints, formatSalary } from '../../lib/format';
 import {
-    formatSavedAt, lineupKey, lineupLabel, seasonAverages, shareOfBest,
+    finalLineup, formatSavedAt, formatSwing, lineupKey, lineupLabel, pairLineups, seasonSummary, shareOfBest,
 } from '../../lib/lineupReview';
 
 function Roster({ players, showProjection = true }) {
@@ -38,14 +38,16 @@ function Roster({ players, showProjection = true }) {
     );
 }
 
-function WeekSummary({ review }) {
+function WeekSummary({ review, pairs }) {
     const best = review.best?.actual;
+    const swapped = pairs.some(pair => pair.swap);
     return (
         <section className="card accuracy-card" aria-labelledby="week-summary">
             <h2 id="week-summary">Week {review.week}</h2>
             <p className="accuracy-card-lead">
-                Saved {formatSavedAt(review.saved_at)}, from the games still to come.
-                {!review.complete && ' Some of those games aren\'t final yet, so these are the points so far.'}
+                Saved {formatSavedAt(review.saved_at)}, before the week&apos;s first game
+                {review.swapped_at && `, and swapped ${formatSavedAt(review.swapped_at)}: players whose games had started kept, the rest re-optimized`}.
+                {!review.complete && ' Some games aren\'t final yet, so these are the points so far.'}
             </p>
             <div className="metric-table-wrap">
                 <table className="metric-table">
@@ -53,26 +55,39 @@ function WeekSummary({ review }) {
                         <tr>
                             <th scope="col">Lineup</th>
                             <th scope="col" className="align-right">Projected</th>
-                            <th scope="col" className="align-right">Actual</th>
-                            <th scope="col" className="align-right" title="Actual points as a share of the best lineup in hindsight">
+                            <th scope="col" className="align-right">{swapped ? 'Before swaps' : 'Actual'}</th>
+                            {swapped && <th scope="col" className="align-right">After swaps</th>}
+                            <th scope="col" className="align-right" title="Actual points as played, as a share of the best lineup in hindsight">
                                 Of best
                             </th>
                         </tr>
                     </thead>
                     <tbody>
-                        {review.lineups.map(lineup => (
-                            <tr key={lineupKey(lineup)}>
-                                <th scope="row">{lineupLabel(lineup)}</th>
-                                <td className="align-right num">{formatPoints(lineup.projected)}</td>
-                                <td className="align-right num strong">{formatPoints(lineup.actual)}</td>
-                                <td className="align-right num">{shareOfBest(lineup.actual, best)}</td>
-                            </tr>
-                        ))}
+                        {pairs.map((pair) => {
+                            const played = finalLineup(pair);
+                            return (
+                                <tr key={pair.key}>
+                                    <th scope="row">{lineupLabel(pair)}</th>
+                                    <td className="align-right num">{formatPoints(pair.initial?.projected)}</td>
+                                    <td className={`align-right num ${swapped ? '' : 'strong'}`.trim()}>{formatPoints(pair.initial?.actual)}</td>
+                                    {swapped && (
+                                        <td className="align-right num strong">
+                                            {pair.swap ? formatPoints(pair.swap.actual) : '–'}
+                                            {pair.swap && pair.initial && (
+                                                <span className="swap-swing"> ({formatSwing(pair.swap.actual - pair.initial.actual)})</span>
+                                            )}
+                                        </td>
+                                    )}
+                                    <td className="align-right num">{shareOfBest(played.actual, best)}</td>
+                                </tr>
+                            );
+                        })}
                         {review.best && (
                             <tr className="is-selected">
                                 <th scope="row">Best possible, in hindsight</th>
                                 <td className="align-right num">–</td>
-                                <td className="align-right num strong">{formatPoints(best)}</td>
+                                <td className="align-right num strong">{swapped ? '–' : formatPoints(best)}</td>
+                                {swapped && <td className="align-right num strong">{formatPoints(best)}</td>}
                                 <td className="align-right num">100%</td>
                             </tr>
                         )}
@@ -85,35 +100,35 @@ function WeekSummary({ review }) {
 
 function SeasonTable({ review }) {
     if (review.season.length < 2) return null;
-    const columns = review.season[review.season.length - 1].lineups;
-    const averages = seasonAverages(review.season);
-    const average = values => values.reduce((a, b) => a + b, 0) / values.length;
+    const columns = pairLineups(review.season[review.season.length - 1].lineups);
+    const { averages, swapGains } = seasonSummary(review.season);
     const bests = review.season.filter(week => week.complete && week.best !== null).map(week => week.best);
+    const anySwaps = Object.keys(swapGains).length > 0;
     return (
         <section className="card accuracy-card">
             <div className="metric-table-wrap">
                 <table className="metric-table">
-                    <caption>{review.year} season: actual points</caption>
+                    <caption>{review.year} season: actual points, as played</caption>
                     <thead>
                         <tr>
                             <th scope="col">Week</th>
-                            {columns.map(lineup => (
-                                <th key={lineupKey(lineup)} scope="col" className="align-right source-head">{lineupLabel(lineup)}</th>
+                            {columns.map(pair => (
+                                <th key={pair.key} scope="col" className="align-right source-head">{lineupLabel(pair)}</th>
                             ))}
                             <th scope="col" className="align-right source-head">Best possible</th>
                         </tr>
                     </thead>
                     <tbody>
                         {review.season.map((week) => {
-                            const byKey = Object.fromEntries(week.lineups.map(lineup => [lineupKey(lineup), lineup.actual]));
+                            const played = Object.fromEntries(pairLineups(week.lineups).map(pair => [pair.key, finalLineup(pair).actual]));
                             return (
                                 <tr key={week.week} className={week.week === review.week ? 'is-selected' : undefined}>
                                     <th scope="row">
                                         W{week.week}
                                         {!week.complete && <span className="muted"> (in progress)</span>}
                                     </th>
-                                    {columns.map(lineup => (
-                                        <td key={lineupKey(lineup)} className="align-right num">{formatPoints(byKey[lineupKey(lineup)])}</td>
+                                    {columns.map(pair => (
+                                        <td key={pair.key} className="align-right num">{formatPoints(played[pair.key])}</td>
                                     ))}
                                     <td className="align-right num">{formatPoints(week.best)}</td>
                                 </tr>
@@ -121,11 +136,24 @@ function SeasonTable({ review }) {
                         })}
                         <tr>
                             <th scope="row" title="Finished weeks only">Average</th>
-                            {columns.map(lineup => (
-                                <td key={lineupKey(lineup)} className="align-right num strong">{formatPoints(averages[lineupKey(lineup)])}</td>
+                            {columns.map(pair => (
+                                <td key={pair.key} className="align-right num strong">{formatPoints(averages[pair.key])}</td>
                             ))}
-                            <td className="align-right num strong">{bests.length ? formatPoints(average(bests)) : '–'}</td>
+                            <td className="align-right num strong">
+                                {bests.length ? formatPoints(bests.reduce((a, b) => a + b, 0) / bests.length) : '–'}
+                            </td>
                         </tr>
+                        {anySwaps && (
+                            <tr>
+                                <th scope="row" title="After Sunday's swaps minus before, on average, over finished weeks that had one">
+                                    Swaps added
+                                </th>
+                                {columns.map(pair => (
+                                    <td key={pair.key} className="align-right num">{formatSwing(swapGains[pair.key])}</td>
+                                ))}
+                                <td className="align-right num">–</td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -133,8 +161,9 @@ function SeasonTable({ review }) {
     );
 }
 
-// The lineups the optimizer suggested before each week's games, on each
-// projection source, scored on what their players did.
+// The lineups the optimizer suggested before each week's first game, on each
+// projection source, and Sunday's late swap of them, scored on what their
+// players did.
 export default function LineupReview() {
     const [selected, setSelected] = useState(null);
     const { status, data: review, error } = useLineupReview(selected?.year ?? null, selected?.week ?? null);
@@ -146,11 +175,12 @@ export default function LineupReview() {
             <p className="accuracy-message">
                 No saved lineups yet. They&apos;re saved at 9 AM ET on the day of each week&apos;s first game
                 (usually Thursday), for the whole Thursday-to-Monday slate, on FantasyPros&apos; projections and
-                our model&apos;s.
+                our model&apos;s, and swapped Sunday at 11:50 AM ET.
             </p>
         );
     }
 
+    const pairs = pairLineups(review.lineups);
     return (
         <div className={`accuracy-body ${status === 'loading' ? 'is-stale' : ''}`.trim()}>
             <div className="accuracy-filters">
@@ -173,15 +203,16 @@ export default function LineupReview() {
                 </label>
             </div>
 
-            <WeekSummary review={review} />
+            <WeekSummary review={review} pairs={pairs} />
             <SeasonTable review={review} />
 
             <section className="card accuracy-card">
                 <h2>Rosters</h2>
-                {review.lineups.map(lineup => (
-                    <details key={lineupKey(lineup)} className="chart-data">
+                {pairs.flatMap(pair => [pair.initial, pair.swap].filter(Boolean)).map(lineup => (
+                    <details key={`${lineup.phase}:${lineupKey(lineup)}`} className="chart-data">
                         <summary>
-                            {lineupLabel(lineup)}: {formatPoints(lineup.actual)} actual, {formatPoints(lineup.projected)} projected
+                            {lineupLabel(lineup)}{lineup.phase === 'late_swap' && ', after Sunday swaps'}:{' '}
+                            {formatPoints(lineup.actual)} actual, {formatPoints(lineup.projected)} projected
                         </summary>
                         <Roster players={lineup.players} />
                     </details>

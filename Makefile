@@ -136,8 +136,9 @@ predict-model:
 
 # Save the optimizer's suggested lineups, on FantasyPros' projections and our
 # model's, for this week's games still to come (the orchestrator does it at
-# 9 AM ET on the day of the week's first game). The API must be running.
-# ARGS="--dry-run" prints them.
+# 9 AM ET on the day of the week's first game). ARGS=--late-swap re-optimizes
+# their players whose games haven't started (Sunday's run). The API must be
+# running. ARGS="--dry-run" prints them.
 save-lineups:
 	$(DOCKER_RUN) dfs-projection-model lineups $(ARGS)
 

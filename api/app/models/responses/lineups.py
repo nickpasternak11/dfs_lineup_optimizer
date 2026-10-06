@@ -23,6 +23,7 @@ class ReviewPlayer(_Model):
 
 
 class ReviewLineup(_Model):
+    phase: str = Field(description="initial (saved before the week's first game) or late_swap (Sunday's swap)")
     source: str = Field(description="fantasypros or model")
     strategy: str = Field(description="projection, blend_90_10 or blend_80_20")
     projected: float
@@ -36,6 +37,7 @@ class BestLineup(_Model):
 
 
 class LineupTotals(_Model):
+    phase: str
     source: str
     strategy: str
     projected: float
@@ -53,7 +55,8 @@ class LineupReviewResponse(_Model):
     weeks: list[WeekRef] = Field(description="Weeks with saved lineups, newest first")
     year: int | None
     week: int | None
-    saved_at: datetime | None = Field(description="When the reviewed lineups were saved")
+    saved_at: datetime | None = Field(description="When the lineups were saved, before the week's first game")
+    swapped_at: datetime | None = Field(description="When Sunday's late swap was saved, if it was")
     complete: bool = Field(description="Every game the lineups could use is final")
     lineups: list[ReviewLineup]
     best: BestLineup | None = Field(description="The best lineup in hindsight from the same players")

@@ -251,6 +251,12 @@
     overflow: auto;
 }
 
+.swap-swing {
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    font-weight: 600;
+}
+
 /* Nine players: shown whole. */
 .chart-data .metric-table-wrap.roster-wrap {
     max-height: none;
