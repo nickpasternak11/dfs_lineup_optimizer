@@ -19,7 +19,7 @@ DOCKER_RUN := docker run --rm \
 MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
 .PHONY: down build run run-salary-scraper run-projection-scraper run-game-log-loader \
-	backfill backfill-game-logs predict-model backtest-model backtest-props normalize-names psql \
+	backfill backfill-game-logs predict-model save-lineups backtest-model backtest-props normalize-names psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
@@ -133,6 +133,12 @@ backfill-game-logs:
 # ARGS="--dry-run" prints them instead.
 predict-model:
 	$(DOCKER_RUN) dfs-projection-model predict $(ARGS)
+
+# Save the optimizer's suggested lineups, on FantasyPros' projections and our
+# model's, for this week's games still to come (the orchestrator does it
+# Sunday at 9 AM ET). The API must be running. ARGS="--dry-run" prints them.
+save-lineups:
+	$(DOCKER_RUN) dfs-projection-model lineups $(ARGS)
 
 # The projection model's walk-forward backtest (#44): trains on each season's
 # earlier seasons and scores it against FantasyPros on the accuracy page's

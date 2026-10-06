@@ -5,6 +5,7 @@ import {
 } from '../../lib/accuracy';
 import { formatPoints } from '../../lib/format';
 import CalibrationChart from './CalibrationChart';
+import LineupReview from './LineupReview';
 import MetricTable from './MetricTable';
 import MissByWeekChart from './MissByWeekChart';
 import './AccuracyPage.css';
@@ -19,9 +20,19 @@ const TILE_METRICS = ['mae', 'within', 'rank_corr', 'bias'];
 const VIEWS = [
     { value: 'history', label: 'History' },
     { value: 'live', label: 'Live: our model' },
+    { value: 'lineups', label: 'Lineups' },
 ];
 
 function Intro({ view, report }) {
+    if (view === 'lineups') {
+        return (
+            <p>
+                The lineups the optimizer suggested, saved every Sunday morning before the games, on each
+                projection source: FantasyPros and our model. Each is scored on what its players actually
+                scored, and against the best lineup possible in hindsight from the same players.
+            </p>
+        );
+    }
     if (view === 'live') {
         const versions = report?.model_versions || [];
         return (
@@ -157,12 +168,11 @@ export default function AccuracyPage() {
     const setFilter = (name, value) => setFilters(prev => ({ ...prev, [name]: value }));
     // The views cover different seasons, so a season picked in one may not exist in the other.
     const setView = view => setFilters(prev => ({ ...prev, view, year: null }));
-    const { status, data: report, error } = useAccuracy(filters);
-    const sources = report?.sources || [];
-    const noLiveRecordYet = filters.view === 'live' && report?.view === 'live' && report.seasons.length === 0;
+    const isLineups = filters.view === 'lineups';
+    const { status, data: report, error } = useAccuracy(filters, !isLineups);
 
     return (
-        <main className="accuracy-page" aria-busy={status === 'loading'}>
+        <main className="accuracy-page" aria-busy={!isLineups && status === 'loading'}>
             <header className="accuracy-intro">
                 <div className="accuracy-title">
                     <h1>Projection accuracy</h1>
@@ -182,6 +192,24 @@ export default function AccuracyPage() {
                 <Intro view={filters.view} report={report} />
             </header>
 
+            {isLineups ? <LineupReview /> : (
+                <AccuracyReport
+                    filters={filters}
+                    setFilter={setFilter}
+                    status={status}
+                    report={report}
+                    error={error}
+                />
+            )}
+        </main>
+    );
+}
+
+function AccuracyReport({ filters, setFilter, status, report, error }) {
+    const sources = report?.sources || [];
+    const noLiveRecordYet = filters.view === 'live' && report?.view === 'live' && report.seasons.length === 0;
+    return (
+        <>
             <Filters filters={filters} setFilter={setFilter} seasons={report?.seasons || []} />
 
             {status === 'error' && <p className="accuracy-message">{error}</p>}
@@ -300,6 +328,6 @@ export default function AccuracyPage() {
                     </section>
                 </div>
             )}
-        </main>
+        </>
     );
 }

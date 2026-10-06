@@ -226,8 +226,13 @@
     font-weight: 800;
 }
 
-.metric-table td:not(.is-better) {
+.metric-table td:not(.is-better):not(.strong) {
     color: var(--text-muted);
+}
+
+/* The review's actual points: the number each row is about. */
+.metric-table td.strong {
+    font-weight: 800;
 }
 
 .chart-data summary {
@@ -244,6 +249,11 @@
 .chart-data .metric-table-wrap {
     max-height: 280px;
     overflow: auto;
+}
+
+/* Nine players: shown whole. */
+.chart-data .metric-table-wrap.roster-wrap {
+    max-height: none;
 }
 
 @media (max-width: 1100px) {

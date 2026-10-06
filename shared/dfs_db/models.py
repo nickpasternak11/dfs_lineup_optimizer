@@ -215,6 +215,33 @@ class ModelProjection(Base):
     model_version: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+class LineupSnapshot(Base):
+    __tablename__ = "lineup_snapshots"
+    __table_args__ = {
+        "comment": "The optimizer's suggested lineups, saved before kickoff by "
+        "dfs-projection-model and never updated."
+    }
+
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    # The projection the optimizer ran on: "fantasypros" or "model".
+    source: Mapped[str] = mapped_column(Text, primary_key=True)
+    # "projection", "blend_90_10" or "blend_80_20" (projection blended with
+    # the recent average).
+    strategy: Mapped[str] = mapped_column(Text, primary_key=True)
+    # The player's place in the lineup as the optimizer returned it, 0-8.
+    slot: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    player: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[str] = mapped_column(Text, nullable=False)
+    team: Mapped[str | None] = mapped_column(Text)
+    salary: Mapped[int] = mapped_column(Integer, nullable=False)
+    # The source's own projection, and what the lineup was optimized on (the
+    # same for "projection"; blended with the recent average otherwise).
+    projection: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    optimized_points: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+
+
 WEEKLY_PLAYER_POOL_COLUMNS = [
     "year",
     "week",

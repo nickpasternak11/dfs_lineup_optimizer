@@ -66,6 +66,12 @@ class ScraperOrchestrator:
         schedule.every().day.at("08:30", "America/New_York").do(
             self.run_projection_model
         )
+        # Suggested lineups saved for the weekly review → Sunday 9:00 AM ET,
+        # after that morning's projections, for the games still to come (the
+        # Sunday and Monday slate).
+        schedule.every().sunday.at("09:00", "America/New_York").do(
+            self.run_lineup_snapshot
+        )
         # Missed-run catch-up → Daily at noon ET (and at startup, see run())
         schedule.every().day.at("12:00", "America/New_York").do(self.catch_up)
         # Database backup → Daily, 3:00 AM ET
@@ -107,6 +113,12 @@ class ScraperOrchestrator:
             return
         log.info("Starting scheduled projection model run...")
         self.run_scraper("projection-model", ["predict"])
+
+    def run_lineup_snapshot(self):
+        if self.skip_off_season("lineup snapshot"):
+            return
+        log.info("Saving this week's suggested lineups...")
+        self.run_scraper("projection-model", ["lineups"])
 
     def run_backfill(self):
         if self.skip_off_season("backfill"):

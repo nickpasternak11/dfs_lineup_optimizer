@@ -56,6 +56,7 @@ def full_pool(pool) -> pd.DataFrame:
     df["game_total"] = [49.5] + [float("nan")] * (len(df) - 1)
     df["team_spread"] = [-7.0] + [float("nan")] * (len(df) - 1)
     df["implied_total"] = [28.25] + [float("nan")] * (len(df) - 1)
+    df["model_fpts"] = [24.1] + [float("nan")] * (len(df) - 1)
     df.loc[0, "kickoff"] = pd.Timestamp("2099-09-27T17:00:00", tz="UTC")
     df.loc[1, "avg_fpts"] = float("nan")
     for column in FLOAT_COLUMNS:
@@ -86,6 +87,7 @@ def test_projection_records_validate(full_pool):
     assert historical.opp_fpts_allowed_rank is None
     assert (current.game_total, current.team_spread, current.implied_total) == (49.5, -7.0, 28.25)
     assert historical.implied_total is None
+    assert (current.model_fpts, historical.model_fpts) == (24.1, None)
     assert historical.kickoff is None
     assert historical.home is None
     assert historical.avg_fpts is None

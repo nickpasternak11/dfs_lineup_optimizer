@@ -13,13 +13,14 @@ const keyOf = ({ view, year, position, minProj }) => `${view}|${year ?? 'all'}|$
 // { status: 'loading' | 'ready' | 'error', data, error }. While a new filter
 // loads, the previous report stays on screen (status 'loading', data set) so
 // the page doesn't flash empty.
-export default function useAccuracy(filters) {
+export default function useAccuracy(filters, enabled = true) {
     const key = keyOf(filters);
     const [state, setState] = useState(() => (
         cache.has(key) ? { status: 'ready', data: cache.get(key) } : { status: 'loading', data: null }
     ));
 
     useEffect(() => {
+        if (!enabled) return undefined;
         if (cache.has(key)) {
             setState({ status: 'ready', data: cache.get(key) });
             return undefined;
@@ -42,7 +43,7 @@ export default function useAccuracy(filters) {
             });
         return () => { current = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [key]);
+    }, [key, enabled]);
 
     return state;
 }

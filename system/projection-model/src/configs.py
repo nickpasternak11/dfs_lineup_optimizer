@@ -1,3 +1,5 @@
+import os
+
 from dfs_common.logs import get_logger
 
 log = get_logger("projection-model")
@@ -26,3 +28,6 @@ SCHEDULE_URL = NFLVERSE + "/schedules/games.csv.gz"
 PLAYERS_URL = NFLVERSE + "/players/players.csv.gz"
 # nflverse's snap counts start here (its 2012 file is only a header).
 FIRST_SNAP_SEASON = 2013
+
+# The API, which owns the optimizer; the lineups step asks it for lineups.
+API_URL = os.getenv("API_URL", "http://dfs-api:8080")

@@ -2,6 +2,9 @@
 
 - `predict`: project this week's pool players whose games are still to come
   and store the snapshot in model_projections (the orchestrator's daily job).
+- `lineups`: save the optimizer's suggested lineups on each projection
+  source for this week's games still to come (the orchestrator's Sunday
+  job), for the weekly review.
 - `backtest`: train season by season and score against FantasyPros on the
   accuracy page's rows. Reads only.
 - `props`: score player props on the season an Odds API export covers.
@@ -13,7 +16,7 @@ from datetime import datetime, timezone
 import pandas as pd
 from dfs_common.season import current_season_year
 
-from src import backtest, data, nflverse, predict, props_backtest
+from src import backtest, data, lineups, nflverse, predict, props_backtest
 from src.configs import FIRST_TEST_SEASON, FIRST_TRAIN_SEASON, POSITIONS, log
 from src.features import dst_features, player_features
 from src.model import walk_forward
@@ -21,10 +24,10 @@ from src.model import walk_forward
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="DraftKings projection model")
-    parser.add_argument("command", nargs="?", default="backtest", choices=["predict", "backtest", "props"])
-    parser.add_argument("--year", type=int, help="predict: season (default: current)")
-    parser.add_argument("--week", type=int, help="predict: week (default: the latest in the pool)")
-    parser.add_argument("--dry-run", action="store_true", help="predict: print instead of storing")
+    parser.add_argument("command", nargs="?", default="backtest", choices=["predict", "lineups", "backtest", "props"])
+    parser.add_argument("--year", type=int, help="predict, lineups: season (default: current)")
+    parser.add_argument("--week", type=int, help="predict, lineups: week (default: the latest in the pool)")
+    parser.add_argument("--dry-run", action="store_true", help="predict, lineups: print instead of storing")
     parser.add_argument(
         "--props-file",
         default="/props/player_props_2024_through_w15.csv",
@@ -67,6 +70,24 @@ def run_predict(args: argparse.Namespace) -> None:
     predict.store(projections)
 
 
+def run_lineups(args: argparse.Namespace) -> None:
+    now = datetime.now(timezone.utc)
+    year = args.year or current_season_year()
+    week = args.week or data.latest_pool_week(year)
+    if week is None:
+        log.info("No %s pool yet; no lineups to save", year)
+        return
+    suggested = lineups.suggested_lineups(year, week)
+    rows = lineups.snapshot_rows(suggested, lineups.pool_projections(year, week), year, week, now)
+    if rows.empty:
+        log.info("No lineups for %s week %s", year, week)
+        return
+    if args.dry_run:
+        print(rows.to_string(index=False))
+        return
+    lineups.store(rows)
+
+
 def run_props(args: argparse.Namespace) -> None:
     """Props projections for the file's season against FantasyPros and the
     model (trained on the seasons before it)."""
@@ -91,5 +112,5 @@ def run_backtest(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     args = parse_args()
-    commands = {"predict": run_predict, "backtest": run_backtest, "props": run_props}
+    commands = {"predict": run_predict, "lineups": run_lineups, "backtest": run_backtest, "props": run_props}
     commands[args.command](args)
