@@ -1,8 +1,15 @@
 """Save the optimizer's suggested lineups before the games, for the weekly
 review. The API owns the optimizer, so this asks it for the three lineups on
-each projection source and stores them as a snapshot, never updated."""
+each projection source and stores them as a snapshot, never updated.
+
+They're saved the morning of the week's first game, so they cover the whole
+Thursday-to-Monday slate of a DraftKings classic contest. That's Thursday
+most weeks, but a week can start on a Wednesday (Christmas), a Friday or a
+Saturday.
+"""
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
@@ -15,8 +22,18 @@ SOURCES = ["fantasypros", "model"]
 # The order the API returns them: the projection alone, then blended 90/10
 # and 80/20 with the recent average.
 STRATEGIES = ["projection", "blend_90_10", "blend_80_20"]
+EASTERN = ZoneInfo("America/New_York")
+
 # Each source's own projection in the pool's records.
 SOURCE_COLUMNS = {"fantasypros": "proj_fpts", "model": "model_fpts"}
+
+
+def is_first_game_day(first_kickoff: datetime | None, now: datetime) -> bool:
+    """Whether `now` is the (Eastern) day of the week's first game, still
+    before it kicks off."""
+    if first_kickoff is None or now >= first_kickoff:
+        return False
+    return first_kickoff.astimezone(EASTERN).date() == now.astimezone(EASTERN).date()
 
 
 def suggested_lineups(year: int, week: int) -> dict[str, list[list[dict]]]:

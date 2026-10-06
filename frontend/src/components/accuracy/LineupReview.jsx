@@ -144,8 +144,9 @@ export default function LineupReview() {
     if (!review || review.weeks.length === 0) {
         return (
             <p className="accuracy-message">
-                No saved lineups yet. They&apos;re saved every Sunday at 9 AM ET in season, for the Sunday and
-                Monday games, on FantasyPros&apos; projections and our model&apos;s.
+                No saved lineups yet. They&apos;re saved at 9 AM ET on the day of each week&apos;s first game
+                (usually Thursday), for the whole Thursday-to-Monday slate, on FantasyPros&apos; projections and
+                our model&apos;s.
             </p>
         );
     }

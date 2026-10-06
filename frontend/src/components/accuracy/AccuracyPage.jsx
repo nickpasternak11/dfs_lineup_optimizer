@@ -27,8 +27,8 @@ function Intro({ view, report }) {
     if (view === 'lineups') {
         return (
             <p>
-                The lineups the optimizer suggested, saved every Sunday morning before the games, on each
-                projection source: FantasyPros and our model. Each is scored on what its players actually
+                The lineups the optimizer suggested for the whole Thursday-to-Monday slate, saved the morning of
+                each week&apos;s first game, on each projection source: FantasyPros and our model. Each is scored on what its players actually
                 scored, and against the best lineup possible in hindsight from the same players.
             </p>
         );

@@ -62,3 +62,24 @@ def test_other_api_failures_are_raised(monkeypatch):
     monkeypatch.setattr(lineups, "post", fake_post)
     with pytest.raises(requests.HTTPError):
         lineups.suggested_lineups(2025, 6)
+
+
+ET = lineups.EASTERN
+
+
+def test_lineups_are_saved_the_morning_of_the_weeks_first_game():
+    thursday_night = datetime(2026, 10, 8, 20, 15, tzinfo=ET)
+    assert lineups.is_first_game_day(thursday_night, datetime(2026, 10, 8, 9, 0, tzinfo=ET))
+    # Not the day before, and not once the game has started.
+    assert not lineups.is_first_game_day(thursday_night, datetime(2026, 10, 7, 9, 0, tzinfo=ET))
+    assert not lineups.is_first_game_day(thursday_night, datetime(2026, 10, 8, 20, 30, tzinfo=ET))
+    # A week that starts on Christmas Wednesday.
+    christmas = datetime(2024, 12, 25, 13, 0, tzinfo=ET)
+    assert lineups.is_first_game_day(christmas, datetime(2024, 12, 25, 9, 0, tzinfo=ET))
+    assert not lineups.is_first_game_day(None, datetime(2024, 12, 25, 9, 0, tzinfo=ET))
+
+
+def test_the_day_is_eastern_not_utc():
+    # 8:15 PM ET Thursday is already Friday in UTC.
+    kickoff = datetime(2026, 10, 9, 0, 15, tzinfo=timezone.utc)
+    assert lineups.is_first_game_day(kickoff, datetime(2026, 10, 8, 13, 0, tzinfo=timezone.utc))

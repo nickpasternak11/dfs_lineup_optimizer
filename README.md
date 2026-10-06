@@ -224,7 +224,7 @@ The **Accuracy** page (header link, or http://localhost:3000/#/accuracy) shows h
 - **Views:**
   - **History** compares FantasyPros with the baseline over every week since 2018.
   - **Live: our model** puts our model (#44) first and compares all three, but only on games it projected before kickoff (see [Live projections](#live-projections)). Each player-week is scored on the last snapshot the model stored before that game's kickoff, so the live record has no hindsight. It's the record that decides when the model replaces FantasyPros in the optimizer.
-  - **Lineups** reviews the lineups the optimizer suggested. Each Sunday at 9 AM ET, the three default lineups on FantasyPros' projections and the three on our model's are saved (`lineup_snapshots`). Each is scored on what its players actually scored (a player who didn't play counts zero), and against the best lineup possible in hindsight: the optimizer run on actual points, over the same players whose games were still to come, with the same default settings. A season table shows every saved week; weeks still in progress are marked and left out of the averages. The review opens on the newest finished week.
+  - **Lineups** reviews the lineups the optimizer suggested. At 9 AM ET on the day of each week's first game (usually Thursday), the three default lineups on FantasyPros' projections and the three on our model's are saved (`lineup_snapshots`), so they cover the whole Thursday-to-Monday classic slate. Each is scored on what its players actually scored (a player who didn't play counts zero), and against the best lineup possible in hindsight: the optimizer run on actual points, over the same players whose games were still to come, with the same default settings. A season table shows every saved week; weeks still in progress are marked and left out of the averages. The review opens on the newest finished week.
 - **Filters:** season, position, and which players count: all, or those any source projected for 5+ or 10+ FPTS (any source, so the filter favors none).
 - **Tiles:** average miss, the share within 5 FPTS, ranking (Spearman correlation inside each position-week, the choice the optimizer makes) and bias (actual minus projected), each with the other sources beside it.
 - **Average miss by week**, with a crosshair (arrow keys work too), and **calibration**: what players scored on average for each range of projection, against the line where they'd score exactly as projected. Each chart has a table view.
@@ -285,7 +285,7 @@ make predict-model                   # store a snapshot now
 make predict-model ARGS="--dry-run"  # print instead
 ```
 
-On Sunday at 9 AM ET, after that morning's projections, the orchestrator also saves the week's suggested lineups for the review (`make save-lineups` by hand, with the API running).
+At 9 AM ET on the day of the week's first game, after that morning's projections, the orchestrator also saves the week's suggested lineups for the review, once a week (`make save-lineups` by hand, with the API running).
 
 Snapshots carry `model_version`. Version 1 has no inactive list yet (#46). Live, teammates-out only sees regulars who are no longer in DraftKings' pool, not ones ruled out that week, and a backup may be projected as if they'll start. A player who doesn't play is never scored, so this costs accuracy only for teammates who inherit a missing player's work.
 
@@ -403,7 +403,7 @@ All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker
 | `nfl_players` | Game log loader | nflverse `gsis_id` to FantasyPros `fp_player_id`, plus birth date, height, weight, college and draft |
 | `pool_player_links` (materialized view) | Game log loader (refresh) | Pool players matched to nflverse ids by name, team and week |
 | `model_projections` | Projection model | Our model's projections, one snapshot per daily run, never updated |
-| `lineup_snapshots` | Projection model | The optimizer's suggested lineups on each projection source, saved Sunday mornings, never updated |
+| `lineup_snapshots` | Projection model | The optimizer's suggested lineups on each projection source, saved the morning of each week's first game, never updated |
 | `player_week_results` (view) | — | Each pool player's projection beside their actual DraftKings points |
 
 The two scraped tables are keyed on `(year, week, player)`. Columns that older data predates (`home`, `kickoff`, `salary_change`, `injury_status`, `injury_type`, `fp_player_id`) are nullable.

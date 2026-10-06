@@ -1,10 +1,11 @@
 """The lineups the optimizer suggested, saved before the games.
 
 dfs-projection-model's `lineups` step asks the API for the three suggested
-lineups on each projection source (FantasyPros, our model) every Sunday
-morning and saves them here, one row per player. Rows are never updated, so
-the weekly review scores exactly what was suggested before kickoff against
-what the players scored and the best lineup possible in hindsight.
+lineups on each projection source (FantasyPros, our model) the morning of
+each week's first game and saves them here, one row per player. Rows are
+never updated, so the weekly review scores exactly what was suggested
+before kickoff against what the players scored and the best lineup possible
+in hindsight.
 
 Revision ID: 0006
 Revises: 0005

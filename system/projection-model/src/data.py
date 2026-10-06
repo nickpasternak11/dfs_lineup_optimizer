@@ -44,6 +44,10 @@ POOL_WEEK_QUERY = text(
     """
 )
 
+FIRST_KICKOFF_QUERY = text("SELECT min(kickoff) FROM nfl_games WHERE year = :year AND week = :week")
+
+SAVED_LINEUPS_QUERY = text("SELECT EXISTS (SELECT 1 FROM lineup_snapshots WHERE year = :year AND week = :week)")
+
 LATEST_POOL_WEEK_QUERY = text(
     "SELECT max(week) FROM weekly_player_pool WHERE year = :year AND salary IS NOT NULL"
 )
@@ -81,3 +85,14 @@ def latest_pool_week(year: int) -> int | None:
 def load_pool_week(year: int, week: int) -> pd.DataFrame:
     with get_engine().connect() as connection:
         return pd.read_sql(POOL_WEEK_QUERY, connection, params={"year": year, "week": week})
+
+
+def first_kickoff(year: int, week: int):
+    """The week's first kickoff (timezone-aware), or None."""
+    with get_engine().connect() as connection:
+        return connection.execute(FIRST_KICKOFF_QUERY, {"year": year, "week": week}).scalar()
+
+
+def has_saved_lineups(year: int, week: int) -> bool:
+    with get_engine().connect() as connection:
+        return bool(connection.execute(SAVED_LINEUPS_QUERY, {"year": year, "week": week}).scalar())
