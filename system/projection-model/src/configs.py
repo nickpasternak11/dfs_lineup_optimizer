@@ -14,7 +14,7 @@ POSITIONS = ["QB", "RB", "WR", "TE", "DST"]
 # uses them so far.
 NFLVERSE = "https://github.com/nflverse/nflverse-data/releases/download"
 SNAP_COUNTS_URL = NFLVERSE + "/snap_counts/snap_counts_{year}.csv.gz"
-# The schedule, for its game context (rest, roof, weather).
+# The schedule, for its game context (rest days, roof).
 SCHEDULE_URL = NFLVERSE + "/schedules/games.csv.gz"
 # nflverse's player directory: links snap counts' PFR ids to gsis_ids.
 PLAYERS_URL = NFLVERSE + "/players/players.csv.gz"

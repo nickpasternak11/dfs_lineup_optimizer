@@ -245,25 +245,25 @@ make backtest-model    # reads the database (and nflverse), writes nothing; a co
   - what the opponent allowed to the position over its last six games
   - the game's betting lines: implied totals, spread, over/under and home/away
   - **teammates out:** the target, carry and pass-attempt share of the team's regulars who aren't playing, by team and by position. Inactives are announced 90 minutes before kickoff, ahead of lineup lock. Snap counts (nflverse, from 2013) say exactly who played.
-  - for defenses, the game's rest days, roof and weather
+  - for defenses, days of rest and whether the game is in a fixed dome. Weather isn't used: nflverse's schedule only records it after the game.
 - **Model:** one gradient-boosted model per position, predicting DraftKings points.
 - **Walk-forward backtest:** each season is predicted by models trained only on the seasons before it, then scored on the accuracy page's rows against FantasyPros and the recent-average baseline.
 
-On 8,252 player-weeks from 2018 to 2026 week 4:
+On 8,269 player-weeks from 2018 to 2026 week 4:
 
 | | FantasyPros | Recent avg | Model | Model + FantasyPros |
 |---|---|---|---|---|
-| Average miss (FPTS) | 5.76 | 6.53 | 5.81 | 5.72 |
-| Ranking within position-week | 0.430 | 0.289 | 0.388 | 0.420 |
+| Average miss (FPTS) | 5.76 | 6.53 | 5.82 | 5.72 |
+| Ranking within position-week | 0.430 | 0.290 | 0.389 | 0.420 |
 
-- **By position:** the model ties FantasyPros at DST (4.26) and RB (6.12), beats it at TE (5.08 against 5.14), and trails at QB and WR.
+- **By position:** the model ties FantasyPros at RB (6.13), beats it at TE (5.07 against 5.13), and trails slightly at DST (4.30 against 4.27), QB and WR.
 - **The blend:** the 50/50 blend beating FantasyPros shows the model knows something FantasyPros doesn't. It's a diagnostic, not a product, because the product model can't take FantasyPros as an input.
 
 **Tried and dropped**, each backtested against the model without it:
 - weighting recent seasons more
 - larger or more trees (worse: overfitting)
 - nflverse's air yards, air-yards share, WOPR, EPA and first downs
-- rest and weather for players (they help only defenses)
+- rest days and domes for players (they help only defenses)
 
 History looks close to tapped out. The remaining gap, mostly ranking, is pre-game news (injuries, depth charts, role changes), which is what player props (#50) and injury data (#46) carry.
 

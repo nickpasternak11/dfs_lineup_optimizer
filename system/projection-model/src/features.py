@@ -23,9 +23,11 @@ USAGE = [
 ]
 SHARES = ["target_share", "carry_share", "attempt_share", "snap_share"]
 TEAM_TOTALS = ["targets", "carries", "attempts", "dk_points"]
-# From the schedule (nflverse.schedule). Defenses only: for players it
-# backtested no better than without.
-GAME_CONTEXT = ["rest_days", "dome", "wind", "temp"]
+# From the schedule (nflverse.schedule), for defenses only: for players it
+# backtested no better than without. Only what's known before kickoff: the
+# schedule fills in temperature and wind after a game, and a retractable
+# roof's open or closed on the day.
+GAME_CONTEXT = ["rest_days", "dome"]
 DST_STATS = ["dk_points", "sacks", "interceptions", "fumble_recoveries", "points_allowed"]
 
 LINE_FEATURES = ["implied_total", "opp_implied_total", "spread", "game_total", "home"]
@@ -134,8 +136,8 @@ def vacated_usage(df: pd.DataFrame, snaps: pd.DataFrame | None = None) -> tuple[
 
 
 def game_context(schedule: pd.DataFrame) -> pd.DataFrame:
-    """One row per team per game: days of rest, a dome or closed roof, and
-    the wind and temperature (none indoors)."""
+    """One row per team per game: days of rest, and whether it's in a fixed
+    dome."""
     rest = pd.concat(
         [
             pd.DataFrame({
@@ -147,14 +149,8 @@ def game_context(schedule: pd.DataFrame) -> pd.DataFrame:
         ],
         ignore_index=True,
     )
-    indoors = schedule.roof.isin(["dome", "closed"])
-    weather = pd.DataFrame({
-        "game_id": schedule.game_id,
-        "dome": indoors.astype(float),
-        "wind": schedule.wind.where(~indoors, 0.0),
-        "temp": schedule.temp.where(~indoors),
-    })
-    return rest.merge(weather, on="game_id")
+    dome = pd.DataFrame({"game_id": schedule.game_id, "dome": (schedule.roof == "dome").astype(float)})
+    return rest.merge(dome, on="game_id")
 
 
 def _with_context(out: pd.DataFrame, schedule: pd.DataFrame | None) -> pd.DataFrame:

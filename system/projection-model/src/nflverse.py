@@ -35,6 +35,6 @@ def snap_counts(last_season: int) -> pd.DataFrame:
 
 
 def schedule() -> pd.DataFrame:
-    """Every game's rest days, roof and weather."""
+    """Every game's rest days and roof."""
     games = read_csv(SCHEDULE_URL)
-    return games[["game_id", "home_team", "away_team", "home_rest", "away_rest", "roof", "wind", "temp"]]
+    return games[["game_id", "home_team", "away_team", "home_rest", "away_rest", "roof"]]

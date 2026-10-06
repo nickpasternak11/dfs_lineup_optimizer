@@ -160,15 +160,17 @@ def test_snap_share_history_comes_from_earlier_games(logs):
     assert pd.isna(row(player_features(logs, games_for(logs)), "wr1", 3).snap_share_short)
 
 
-def test_game_context_from_each_teams_side():
+def test_game_context_is_what_is_known_before_kickoff():
     from src.features import game_context
     schedule = pd.DataFrame({
-        "game_id": ["outdoors", "indoors"], "home_team": ["BUF", "DET"], "away_team": ["MIA", "GB"],
-        "home_rest": [7, 10], "away_rest": [4, 7], "roof": ["outdoors", "dome"],
-        "wind": [18.0, None], "temp": [28.0, None],
+        "game_id": ["outdoors", "dome", "retractable"],
+        "home_team": ["BUF", "DET", "DAL"], "away_team": ["MIA", "GB", "TB"],
+        "home_rest": [7, 10, 4], "away_rest": [4, 7, 4],
+        # A retractable roof reads "closed" only once the game's been played.
+        "roof": ["outdoors", "dome", "closed"],
     })
     context = game_context(schedule).set_index("team")
-    assert (context.loc["MIA", "rest_days"], context.loc["MIA", "wind"], context.loc["MIA", "dome"]) == (4, 18.0, 0.0)
-    # Indoors: no wind, no temperature.
-    assert (context.loc["GB", "wind"], context.loc["GB", "dome"]) == (0.0, 1.0)
-    assert pd.isna(context.loc["DET", "temp"])
+    assert (context.loc["MIA", "rest_days"], context.loc["MIA", "dome"]) == (4, 0.0)
+    assert (context.loc["GB", "rest_days"], context.loc["GB", "dome"]) == (7, 1.0)
+    assert context.loc["DAL", "dome"] == 0.0
+    assert set(context.columns) == {"game_id", "rest_days", "dome"}
