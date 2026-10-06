@@ -58,6 +58,14 @@ class ScraperOrchestrator:
         schedule.every().day.at("06:00", "America/New_York").do(
             self.run_game_log_loader
         )
+        # Our model's projections → Daily, 8:30 AM ET, after the game logs
+        # load and before the earliest kickoffs (London, 9:30 AM ET). Each run
+        # stores a snapshot for games still to come, so the last one before a
+        # game's kickoff is the one it's scored on. On Tuesday morning, before
+        # the new week's pool exists, there's nothing left to project.
+        schedule.every().day.at("08:30", "America/New_York").do(
+            self.run_projection_model
+        )
         # Missed-run catch-up → Daily at noon ET (and at startup, see run())
         schedule.every().day.at("12:00", "America/New_York").do(self.catch_up)
         # Database backup → Daily, 3:00 AM ET
@@ -93,6 +101,12 @@ class ScraperOrchestrator:
             return
         log.info("Starting scheduled game log load...")
         self.run_scraper("game-log-loader")
+
+    def run_projection_model(self):
+        if self.skip_off_season("projection model"):
+            return
+        log.info("Starting scheduled projection model run...")
+        self.run_scraper("projection-model", ["predict"])
 
     def run_backfill(self):
         if self.skip_off_season("backfill"):

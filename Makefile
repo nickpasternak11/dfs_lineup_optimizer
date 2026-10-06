@@ -19,7 +19,7 @@ DOCKER_RUN := docker run --rm \
 MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
 .PHONY: down build run run-salary-scraper run-projection-scraper run-game-log-loader \
-	backfill backfill-game-logs backtest-model backtest-props normalize-names psql \
+	backfill backfill-game-logs predict-model backtest-model backtest-props normalize-names psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
@@ -127,6 +127,12 @@ backfill:
 GAME_LOG_START_YEAR ?= 2012
 backfill-game-logs:
 	$(DOCKER_RUN) dfs-game-log-loader --start-year $(GAME_LOG_START_YEAR)
+
+# Our model's projections for this week's games still to come, stored as a
+# snapshot in model_projections (the orchestrator runs it every morning).
+# ARGS="--dry-run" prints them instead.
+predict-model:
+	$(DOCKER_RUN) dfs-projection-model predict $(ARGS)
 
 # The projection model's walk-forward backtest (#44): trains on each season's
 # earlier seasons and scores it against FantasyPros on the accuracy page's

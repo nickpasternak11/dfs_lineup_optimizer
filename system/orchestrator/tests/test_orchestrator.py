@@ -94,6 +94,7 @@ def test_schedule_is_unchanged(instance):
     assert ("run_backfill", "tuesday", "09:30:00") in jobs
     assert ("run_backup", "None", "03:00:00") in jobs
     assert ("run_game_log_loader", "None", "06:00:00") in jobs
+    assert ("run_projection_model", "None", "08:30:00") in jobs
     projection_runs = [job for job in jobs if job[0] == "run_projection_scraper"]
     assert len(projection_runs) == 3 * 11  # hourly 10:00-20:00, Tue-Thu
 
@@ -130,6 +131,7 @@ def test_scrapers_skip_the_off_season(instance, monkeypatch):
     instance.run_projection_scraper()
     instance.run_backfill()
     instance.run_game_log_loader()
+    instance.run_projection_model()
     assert calls == []
 
 
@@ -184,3 +186,10 @@ def test_catch_up_check_failure_alerts(instance, catch_up_env, alerts, monkeypat
     monkeypatch.setattr(orchestrator, "get_current_week", unreachable)
     instance.catch_up()
     assert "Catch-up check failed: Could not find the current week" in alerts[0]
+
+
+def test_projection_model_predicts(instance, monkeypatch):
+    calls = []
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: calls.append((name, args)))
+    instance.run_projection_model()
+    assert calls == [("projection-model", ["predict"])]

@@ -267,6 +267,22 @@ On 8,269 player-weeks from 2018 to 2026 week 4:
 
 History looks close to tapped out. The remaining gap, mostly ranking, is pre-game news (injuries, depth charts, role changes), which is what player props (#50) and injury data (#46) carry.
 
+#### Live projections
+
+Every morning in season at 8:30 AM ET, the orchestrator runs the model's `predict` step:
+
+- **Training:** on every game played so far.
+- **Projections:** each pool player whose game hasn't kicked off is projected, through placeholder rows for the upcoming games. The same feature code builds their history from earlier games and their betting lines from the schedule.
+- **Storage:** the run is stored in `model_projections` as a snapshot. Rows are never updated, so each player-week can be scored on the last projection made before its kickoff: a live record with no hindsight.
+- **Optimizer:** unaffected. It still uses FantasyPros.
+
+```bash
+make predict-model                   # store a snapshot now
+make predict-model ARGS="--dry-run"  # print instead
+```
+
+Snapshots carry `model_version`. Version 1 has no inactive list yet (#46). Live, teammates-out only sees regulars who are no longer in DraftKings' pool, not ones ruled out that week, and a backup may be projected as if they'll start. A player who doesn't play is never scored, so this costs accuracy only for teammates who inherit a missing player's work.
+
 #### Player props
 
 `make backtest-props` turns sportsbook player props into DraftKings projections and scores them on the season an Odds API export covers (`/dfs_data/props/`, 2024 weeks 1–15):
@@ -379,6 +395,7 @@ All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker
 | `dst_game_logs` | Game log loader | Weekly team defense stats, points allowed and DraftKings points |
 | `nfl_players` | Game log loader | nflverse `gsis_id` to FantasyPros `fp_player_id`, plus birth date, height, weight, college and draft |
 | `pool_player_links` (materialized view) | Game log loader (refresh) | Pool players matched to nflverse ids by name, team and week |
+| `model_projections` | Projection model | Our model's projections, one snapshot per daily run, never updated |
 | `player_week_results` (view) | — | Each pool player's projection beside their actual DraftKings points |
 
 The two scraped tables are keyed on `(year, week, player)`. Columns that older data predates (`home`, `kickoff`, `salary_change`, `injury_status`, `injury_type`, `fp_player_id`) are nullable.

@@ -10,6 +10,12 @@ FIRST_TEST_SEASON = 2018
 
 POSITIONS = ["QB", "RB", "WR", "TE", "DST"]
 
+# Stored with each live projection; bump it when the features or model
+# change, so the accuracy page can tell versions apart. Version 1 has no
+# inactive list yet (#46): live, teammates-out only sees regulars who are
+# no longer in the pool, not ones ruled out that week.
+MODEL_VERSION = "1"
+
 # Read straight from nflverse on each run rather than stored: only the model
 # uses them so far.
 NFLVERSE = "https://github.com/nflverse/nflverse-data/releases/download"

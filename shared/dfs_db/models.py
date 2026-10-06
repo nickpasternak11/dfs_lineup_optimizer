@@ -195,6 +195,26 @@ class NflPlayer(Base):
     scraped_at: Mapped[datetime] = _scraped_at()
 
 
+class ModelProjection(Base):
+    __tablename__ = "model_projections"
+    __table_args__ = {
+        "comment": "Snapshots of our model's DraftKings projections, written before "
+        "kickoff by dfs-projection-model and never updated."
+    }
+
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    # weekly_player_pool's spelling, so a snapshot joins the pool directly.
+    player: Mapped[str] = mapped_column(Text, primary_key=True)
+    # When the run that made it started; a run's rows share it.
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    position: Mapped[str] = mapped_column(Text, nullable=False)
+    team: Mapped[str | None] = mapped_column(Text)
+    gsis_id: Mapped[str | None] = mapped_column(Text)
+    proj_dk_points: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    model_version: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 WEEKLY_PLAYER_POOL_COLUMNS = [
     "year",
     "week",

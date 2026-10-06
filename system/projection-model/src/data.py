@@ -24,7 +24,28 @@ DST_LOGS_QUERY = text(
 )
 
 GAMES_QUERY = text(
-    "SELECT game_id, year, week, home_team, away_team, spread_line, total_line FROM nfl_games"
+    "SELECT game_id, year, week, kickoff, home_team, away_team, spread_line, total_line FROM nfl_games"
+)
+
+# This week's pool, in nflverse team codes, with each player's gsis_id where
+# player_week_results links one.
+POOL_WEEK_QUERY = text(
+    """
+    SELECT pool.player, pool.position, pool.team AS pool_team,
+           nfl_team(pool.team) AS team, results.gsis_id
+    FROM weekly_player_pool AS pool
+    LEFT JOIN player_week_results AS results
+      ON results.year = pool.year
+     AND results.week = pool.week
+     AND results.player = pool.player
+    WHERE pool.year = :year
+      AND pool.week = :week
+      AND pool.salary IS NOT NULL
+    """
+)
+
+LATEST_POOL_WEEK_QUERY = text(
+    "SELECT max(week) FROM weekly_player_pool WHERE year = :year AND salary IS NOT NULL"
 )
 
 # NUMERIC comes back as Decimal.
@@ -38,11 +59,25 @@ def _floats(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load() -> dict[str, pd.DataFrame]:
+def load(accuracy_rows: bool = True) -> dict[str, pd.DataFrame]:
+    """The game-log tables, and (for backtests) the accuracy page's rows."""
     with get_engine().connect() as connection:
-        return {
+        tables = {
             "player_logs": _floats(pd.read_sql(PLAYER_LOGS_QUERY, connection)),
             "dst_logs": _floats(pd.read_sql(DST_LOGS_QUERY, connection)),
             "games": _floats(pd.read_sql(GAMES_QUERY, connection)),
-            "pool": read_accuracy_rows(connection),
         }
+        if accuracy_rows:
+            tables["pool"] = read_accuracy_rows(connection)
+    tables["games"]["kickoff"] = pd.to_datetime(tables["games"].kickoff, utc=True)
+    return tables
+
+
+def latest_pool_week(year: int) -> int | None:
+    with get_engine().connect() as connection:
+        return connection.execute(LATEST_POOL_WEEK_QUERY, {"year": year}).scalar()
+
+
+def load_pool_week(year: int, week: int) -> pd.DataFrame:
+    with get_engine().connect() as connection:
+        return pd.read_sql(POOL_WEEK_QUERY, connection, params={"year": year, "week": week})

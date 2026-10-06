@@ -46,3 +46,25 @@ def walk_forward(
             model = model_factory().fit(fit_rows[columns], fit_rows.dk_points)
             predicted.append(rows.assign(model=model.predict(rows[columns])))
     return pd.concat(predicted, ignore_index=True) if predicted else features.iloc[0:0].assign(model=[])
+
+
+def train_and_predict(
+    features: pd.DataFrame,
+    upcoming: pd.DataFrame,
+    positions: list[str],
+    model_factory: Callable[[], HistGradientBoostingRegressor] = make_model,
+) -> pd.DataFrame:
+    """Fit each position's model on every game played so far and predict the
+    `upcoming` rows (games still to come). Returns them with a `model`
+    column."""
+    played = features[features.dk_points.notna()]
+    predicted = []
+    for position in positions:
+        columns = feature_columns(position)
+        fit_rows = played[played.position == position]
+        rows = upcoming[upcoming.position == position]
+        if fit_rows.empty or rows.empty:
+            continue
+        model = model_factory().fit(fit_rows[columns], fit_rows.dk_points)
+        predicted.append(rows.assign(model=model.predict(rows[columns])))
+    return pd.concat(predicted, ignore_index=True) if predicted else upcoming.iloc[0:0].assign(model=[])

@@ -1,12 +1,19 @@
-"""`python main.py backtest`: train the projection model season by season
-and score it against FantasyPros' projection on the accuracy page's rows.
-Reads the database; writes nothing."""
+"""The projection model's commands:
+
+- `predict`: project this week's pool players whose games are still to come
+  and store the snapshot in model_projections (the orchestrator's daily job).
+- `backtest`: train season by season and score against FantasyPros on the
+  accuracy page's rows. Reads only.
+- `props`: score player props on the season an Odds API export covers.
+"""
 
 import argparse
+from datetime import datetime, timezone
 
 import pandas as pd
+from dfs_common.season import current_season_year
 
-from src import backtest, data, nflverse, props_backtest
+from src import backtest, data, nflverse, predict, props_backtest
 from src.configs import FIRST_TEST_SEASON, FIRST_TRAIN_SEASON, POSITIONS, log
 from src.features import dst_features, player_features
 from src.model import walk_forward
@@ -14,7 +21,10 @@ from src.model import walk_forward
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="DraftKings projection model")
-    parser.add_argument("command", nargs="?", default="backtest", choices=["backtest", "props"])
+    parser.add_argument("command", nargs="?", default="backtest", choices=["predict", "backtest", "props"])
+    parser.add_argument("--year", type=int, help="predict: season (default: current)")
+    parser.add_argument("--week", type=int, help="predict: week (default: the latest in the pool)")
+    parser.add_argument("--dry-run", action="store_true", help="predict: print instead of storing")
     parser.add_argument(
         "--props-file",
         default="/props/player_props_2024_through_w15.csv",
@@ -34,6 +44,27 @@ def build_features(tables: dict) -> pd.DataFrame:
         ],
         ignore_index=True,
     )
+
+
+def run_predict(args: argparse.Namespace) -> None:
+    now = datetime.now(timezone.utc)
+    year = args.year or current_season_year()
+    week = args.week or data.latest_pool_week(year)
+    if week is None:
+        log.info("No %s pool yet; nothing to project", year)
+        return
+    pool = data.load_pool_week(year, week)
+    tables = data.load(accuracy_rows=False)
+    snaps = nflverse.snap_counts(int(tables["player_logs"].year.max()))
+    log.info("Projecting %s week %s (%s pool players)..", year, week, len(pool))
+    projections = predict.predict_week(tables, pool, year, week, now, snaps, nflverse.schedule())
+    if projections.empty:
+        log.info("Every %s week %s game has kicked off; nothing to project", year, week)
+        return
+    if args.dry_run:
+        print(projections.sort_values("proj_dk_points", ascending=False).to_string(index=False))
+        return
+    predict.store(projections)
 
 
 def run_props(args: argparse.Namespace) -> None:
@@ -60,7 +91,5 @@ def run_backtest(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     args = parse_args()
-    if args.command == "props":
-        run_props(args)
-    else:
-        run_backtest(args)
+    commands = {"predict": run_predict, "backtest": run_backtest, "props": run_props}
+    commands[args.command](args)
