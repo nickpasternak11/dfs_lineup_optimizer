@@ -21,11 +21,22 @@ USAGE = [
     "dk_points", "targets", "receptions", "carries", "attempts",
     "passing_yards", "rushing_yards", "receiving_yards", "tds",
 ]
-SHARES = ["target_share", "carry_share", "attempt_share"]
+SHARES = ["target_share", "carry_share", "attempt_share", "snap_share"]
 TEAM_TOTALS = ["targets", "carries", "attempts", "dk_points"]
+# From the schedule (nflverse.schedule). Defenses only: for players it
+# backtested no better than without.
+GAME_CONTEXT = ["rest_days", "dome", "wind", "temp"]
 DST_STATS = ["dk_points", "sacks", "interceptions", "fumble_recoveries", "points_allowed"]
 
 LINE_FEATURES = ["implied_total", "opp_implied_total", "spread", "game_total", "home"]
+
+# A player stays on a team's list of recent regulars for this many of its
+# games after their last appearance.
+VACATED_WINDOW = 3
+# The role that makes a player a regular. The logs only list players who
+# recorded a stat, so an active player with no touches looks absent; above
+# these shares, no stats almost always means they didn't play.
+REGULAR_SHARE = {"target_share": 0.08, "carry_share": 0.10, "attempt_share": 0.50}
 
 
 def _order(df: pd.DataFrame) -> pd.Series:
@@ -72,9 +83,91 @@ def team_lines(games: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([home, away], ignore_index=True)
 
 
-def player_features(logs: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
+def vacated_usage(df: pd.DataFrame, snaps: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The usage a team has to replace in each game: the recent shares of its
+    regulars who aren't playing (injured, traded, gone since last season).
+    Who's inactive is announced 90 minutes before kickoff, ahead of DraftKings'
+    lineup lock, so this is pre-game information.
+
+    df: player rows with shares and positions, sorted by player then game.
+    snaps: snap counts, which say exactly who played (from 2013); without
+    them, a player plays when the logs list them.
+    Returns per team-game totals and per team-game-position totals, keyed by
+    year, week, team (and position).
+    """
+    shares = list(REGULAR_SHARE)
+    # Each player's role coming out of each game: the average including it.
+    role = df.groupby("gsis_id", sort=False)[shares].ewm(halflife=SHORT_HALFLIFE).mean()
+    role = role.reset_index(level=0, drop=True).reindex(df.index)
+
+    games = df[["team", "year", "week", "t"]].drop_duplicates().sort_values(["team", "t"])
+    games["g"] = games.groupby("team").cumcount()
+    rows = pd.concat([df[["gsis_id", "team", "position", "t"]], role], axis=1)
+    rows = rows.merge(games[["team", "t", "g"]], on=["team", "t"])
+
+    # Every regular is expected in the team's next few games...
+    expected = pd.concat([rows.assign(g=rows.g + k) for k in range(1, VACATED_WINDOW + 1)])
+    expected = expected.sort_values("t").drop_duplicates(["team", "g", "gsis_id"], keep="last")
+    # ...and counts as vacated in the ones they don't play.
+    keys = games[["team", "g", "year", "week"]]
+    played = df[["year", "week", "gsis_id"]]
+    if snaps is not None:
+        played = pd.concat([played, snaps.loc[snaps.offense_snaps > 0, ["year", "week", "gsis_id"]]])
+    played = played.drop_duplicates().assign(played=True)
+    expected = expected.drop(columns="t").merge(keys, on=["team", "g"])
+    absent = expected.merge(played, on=["year", "week", "gsis_id"], how="left")
+    absent = absent[absent.played.isna()].copy()
+    for share, floor in REGULAR_SHARE.items():
+        absent[share] = absent[share].where(absent[share] >= floor, 0.0)
+
+    team = absent.groupby(["team", "g"])[shares].sum().add_prefix("vacated_").reset_index()
+    team = team.merge(keys, on=["team", "g"]).drop(columns="g")
+    position = (
+        absent.groupby(["team", "g", "position"])[["target_share", "carry_share"]]
+        .sum()
+        .add_prefix("vacated_position_")
+        .reset_index()
+        .merge(keys, on=["team", "g"])
+        .drop(columns="g")
+    )
+    return team, position
+
+
+def game_context(schedule: pd.DataFrame) -> pd.DataFrame:
+    """One row per team per game: days of rest, a dome or closed roof, and
+    the wind and temperature (none indoors)."""
+    rest = pd.concat(
+        [
+            pd.DataFrame({
+                "game_id": schedule.game_id,
+                "team": schedule[f"{side}_team"],
+                "rest_days": schedule[f"{side}_rest"],
+            })
+            for side in ("home", "away")
+        ],
+        ignore_index=True,
+    )
+    indoors = schedule.roof.isin(["dome", "closed"])
+    weather = pd.DataFrame({
+        "game_id": schedule.game_id,
+        "dome": indoors.astype(float),
+        "wind": schedule.wind.where(~indoors, 0.0),
+        "temp": schedule.temp.where(~indoors),
+    })
+    return rest.merge(weather, on="game_id")
+
+
+def _with_context(out: pd.DataFrame, schedule: pd.DataFrame | None) -> pd.DataFrame:
+    if schedule is None:
+        return out.assign(**dict.fromkeys(GAME_CONTEXT, np.nan))
+    return out.merge(game_context(schedule), on=["game_id", "team"], how="left")
+
+
+def player_features(logs: pd.DataFrame, games: pd.DataFrame, snaps: pd.DataFrame | None = None) -> pd.DataFrame:
     """One row per QB/RB/WR/TE regular-season game, with its features and its
-    DraftKings points (the target)."""
+    DraftKings points (the target). `snaps` (nflverse.snap_counts) adds each
+    game's share of the offense's snaps and says exactly who played (from
+    2013); without it those features are missing, which the model handles."""
     df = logs[logs.season_type == "REG"].copy()
     df["position"] = df.position.replace({"FB": "RB"})
     df = df[df.position.isin(SKILL_POSITIONS)]
@@ -87,6 +180,11 @@ def player_features(logs: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
     df["target_share"] = df.targets / df.team_targets.replace(0, np.nan)
     df["carry_share"] = df.carries / df.team_carries.replace(0, np.nan)
     df["attempt_share"] = df.attempts / df.team_attempts.replace(0, np.nan)
+    if snaps is None:
+        df["snap_share"] = np.nan
+    else:
+        snap_share = snaps.drop_duplicates(["year", "week", "gsis_id"])[["year", "week", "gsis_id", "snap_share"]]
+        df = df.merge(snap_share, on=["year", "week", "gsis_id"], how="left")
 
     df = df.sort_values(["gsis_id", "t"]).reset_index(drop=True)
     by_player = df.groupby("gsis_id", sort=False)
@@ -124,10 +222,15 @@ def player_features(logs: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
         how="left",
     )
     out = out.merge(team_lines(games), on=["game_id", "team"], how="left")
+
+    vacated_team, vacated_position = vacated_usage(df, snaps)
+    out = out.merge(vacated_team, on=["year", "week", "team"], how="left")
+    out = out.merge(vacated_position, on=["year", "week", "team", "position"], how="left")
+    out[VACATED_FEATURES] = out[VACATED_FEATURES].fillna(0.0)
     return out
 
 
-def dst_features(dst: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
+def dst_features(dst: pd.DataFrame, games: pd.DataFrame, schedule: pd.DataFrame | None = None) -> pd.DataFrame:
     """One row per team defense per regular-season game."""
     df = dst[dst.season_type == "REG"].copy()
     df["position"] = "DST"
@@ -144,8 +247,13 @@ def dst_features(dst: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
     out = pd.concat([df, history], axis=1)
     out = out.merge(given_up[["year", "week", "opponent", "opp_allowed"]], on=["year", "week", "opponent"], how="left")
     out = out.merge(team_lines(games), on=["game_id", "team"], how="left")
-    return out
+    return _with_context(out, schedule)
 
+
+VACATED_FEATURES = [
+    "vacated_target_share", "vacated_carry_share", "vacated_attempt_share",
+    "vacated_position_target_share", "vacated_position_carry_share",
+]
 
 PLAYER_FEATURES = (
     ["prior_games", "season_games", "weeks_off"]
@@ -153,8 +261,11 @@ PLAYER_FEATURES = (
     + [f"team_{c}_recent" for c in TEAM_TOTALS]
     + ["opp_allowed"]
     + LINE_FEATURES
+    + VACATED_FEATURES
 )
-DST_FEATURES = [f"{c}_{s}" for c in DST_STATS for s in ("short", "long")] + ["opp_allowed"] + LINE_FEATURES
+DST_FEATURES = (
+    [f"{c}_{s}" for c in DST_STATS for s in ("short", "long")] + ["opp_allowed"] + LINE_FEATURES + GAME_CONTEXT
+)
 
 
 def feature_columns(position: str) -> list[str]:

@@ -106,3 +106,69 @@ def test_defenses_get_their_own_history_and_the_offense_they_face():
     assert nyj.opp_allowed == 2.0
     buf = features[(features.team == "BUF") & (features.week == 2)].iloc[0]
     assert buf.dk_points_short == 8.0
+
+
+def team_week(week, players):
+    """players: (gsis_id, position, targets, carries) for one BUF game against MIA."""
+    return [log(week, gsis_id, position, "BUF", "MIA", 5.0, targets=t, carries=c) for gsis_id, position, t, c in players]
+
+
+def test_a_missing_regulars_share_is_vacated_for_their_teammates():
+    regulars = [("wr1", "WR", 6, 0), ("wr2", "WR", 3, 0), ("te1", "TE", 1, 0), ("rb1", "RB", 0, 9), ("rb2", "RB", 0, 1)]
+    rows = team_week(1, regulars) + team_week(2, regulars)
+    # Week 3: the top receiver and the lead back are out.
+    rows += team_week(3, [("wr2", "WR", 6, 0), ("te1", "TE", 3, 0), ("rb2", "RB", 0, 8)])
+    logs = pd.DataFrame(rows)
+    features = player_features(logs, games_for(logs))
+
+    week2 = row(features, "wr2", 2)
+    assert (week2.vacated_target_share, week2.vacated_carry_share) == (0.0, 0.0)
+
+    wr2, te1 = row(features, "wr2", 3), row(features, "te1", 3)
+    assert wr2.vacated_target_share == pytest.approx(0.6)  # wr1's 6 of 10 targets
+    assert wr2.vacated_carry_share == pytest.approx(0.9)  # rb1's 9 of 10 carries
+    # By position: the receiver's vacated targets are a WR's; the tight end's aren't.
+    assert wr2.vacated_position_target_share == pytest.approx(0.6)
+    assert te1.vacated_position_target_share == 0.0
+
+
+def test_bit_players_and_long_gone_players_vacate_nothing():
+    # wr3 drew 10% of targets, then 5%: about 7% weighted to the recent game,
+    # under the 8% that makes a regular. wr4 was a regular, then left.
+    rows = team_week(1, [("wr1", "WR", 6, 0), ("wr3", "WR", 1, 0), ("wr4", "WR", 3, 0)])
+    rows += team_week(2, [("wr1", "WR", 16, 0), ("wr3", "WR", 1, 0), ("wr4", "WR", 3, 0)])
+    rows += [r for w in range(3, 8) for r in team_week(w, [("wr1", "WR", 10, 0)])]
+    logs = pd.DataFrame(rows)
+    features = player_features(logs, games_for(logs))
+    wr4_role = row(features, "wr1", 3).vacated_target_share
+    assert wr4_role > 0.15  # only wr4's share; wr3's isn't counted
+    assert row(features, "wr1", 5).vacated_target_share == pytest.approx(wr4_role)
+    # VACATED_WINDOW (3) team games after wr4's last, wr4 is no longer expected.
+    assert row(features, "wr1", 6).vacated_target_share == 0.0
+
+
+def test_snap_share_history_comes_from_earlier_games(logs):
+    snaps = pd.DataFrame({
+        "year": 2025, "week": [1, 2, 3], "gsis_id": "wr1", "team": "BUF",
+        "offense_snaps": [50, 60, 70], "snap_share": [0.7, 0.8, 0.95],
+    })
+    features = player_features(logs, games_for(logs), snaps)
+    assert pd.isna(row(features, "wr1", 1).snap_share_short)
+    assert row(features, "wr1", 2).snap_share_short == pytest.approx(0.7)
+    assert 0.7 < row(features, "wr1", 3).snap_share_short < 0.8  # week 3's own 0.95 isn't in it
+    # Without snap counts (before 2012) the features are missing, not zero.
+    assert pd.isna(row(player_features(logs, games_for(logs)), "wr1", 3).snap_share_short)
+
+
+def test_game_context_from_each_teams_side():
+    from src.features import game_context
+    schedule = pd.DataFrame({
+        "game_id": ["outdoors", "indoors"], "home_team": ["BUF", "DET"], "away_team": ["MIA", "GB"],
+        "home_rest": [7, 10], "away_rest": [4, 7], "roof": ["outdoors", "dome"],
+        "wind": [18.0, None], "temp": [28.0, None],
+    })
+    context = game_context(schedule).set_index("team")
+    assert (context.loc["MIA", "rest_days"], context.loc["MIA", "wind"], context.loc["MIA", "dome"]) == (4, 18.0, 0.0)
+    # Indoors: no wind, no temperature.
+    assert (context.loc["GB", "wind"], context.loc["GB", "dome"]) == (0.0, 1.0)
+    assert pd.isna(context.loc["DET", "temp"])

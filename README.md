@@ -232,29 +232,40 @@ The metrics live in `dfs_common.accuracy` so model work can score new sources th
 
 ### Projection Model
 
-`dfs-projection-model` is our own DraftKings projection (#44), built only from data we can use commercially: nflverse game logs and betting lines, never FantasyPros' numbers, which serve only as the benchmark to beat. It doesn't feed the optimizer yet; for now it runs as a backtest:
+`dfs-projection-model` is our own DraftKings projection (#44), built only from data we can use commercially: nflverse game logs, snap counts, schedules and betting lines. It never uses FantasyPros' numbers, which serve only as the benchmark to beat. It doesn't feed the optimizer yet; for now it runs as a backtest:
 
 ```bash
-make backtest-model    # reads the database, writes nothing; about a minute
+make backtest-model    # reads the database (and nflverse), writes nothing; a couple of minutes
 ```
 
 - **Training data:** every QB/RB/WR/TE and team defense regular-season game since 2012 (`make backfill-game-logs`), about 81,500 player-weeks.
 - **Features,** all known before kickoff:
-  - recent and longer-run usage and production (targets, carries, pass attempts, yards, TDs, DraftKings points, and shares of the team's targets, carries and attempts), shifted so a game never sees its own result
+  - recent and longer-run usage and production (targets, carries, pass attempts, yards, TDs, DraftKings points, shares of the team's targets, carries, attempts and snaps), shifted so a game never sees its own result
   - the team's recent offense
   - what the opponent allowed to the position over its last six games
   - the game's betting lines: implied totals, spread, over/under and home/away
+  - **teammates out:** the target, carry and pass-attempt share of the team's regulars who aren't playing, by team and by position. Inactives are announced 90 minutes before kickoff, ahead of lineup lock. Snap counts (nflverse, from 2013) say exactly who played.
+  - for defenses, the game's rest days, roof and weather
 - **Model:** one gradient-boosted model per position, predicting DraftKings points.
 - **Walk-forward backtest:** each season is predicted by models trained only on the seasons before it, then scored on the accuracy page's rows against FantasyPros and the recent-average baseline.
 
-First version, on 8,263 player-weeks from 2018 to 2026 week 4:
+On 8,252 player-weeks from 2018 to 2026 week 4:
 
 | | FantasyPros | Recent avg | Model | Model + FantasyPros |
 |---|---|---|---|---|
-| Average miss (FPTS) | 5.76 | 6.52 | 5.84 | 5.73 |
-| Ranking within position-week | 0.431 | 0.292 | 0.381 | 0.420 |
+| Average miss (FPTS) | 5.76 | 6.53 | 5.81 | 5.72 |
+| Ranking within position-week | 0.430 | 0.289 | 0.388 | 0.420 |
 
-The model is close on average miss and beats FantasyPros at TE (5.09 against 5.15). It trails on ranking, which is where knowing injuries and role changes counts (#46, #50). The 50/50 blend beating FantasyPros shows the model knows something FantasyPros doesn't. It's a diagnostic, not a product: the product model can't take FantasyPros as an input.
+- **By position:** the model ties FantasyPros at DST (4.26) and RB (6.12), beats it at TE (5.08 against 5.14), and trails at QB and WR.
+- **The blend:** the 50/50 blend beating FantasyPros shows the model knows something FantasyPros doesn't. It's a diagnostic, not a product, because the product model can't take FantasyPros as an input.
+
+**Tried and dropped**, each backtested against the model without it:
+- weighting recent seasons more
+- larger or more trees (worse: overfitting)
+- nflverse's air yards, air-yards share, WOPR, EPA and first downs
+- rest and weather for players (they help only defenses)
+
+History looks close to tapped out. The remaining gap, mostly ranking, is pre-game news (injuries, depth charts, role changes), which is what player props (#50) and injury data (#46) carry.
 
 ### Generate Lineups in the Web App
 

@@ -6,7 +6,7 @@ import argparse
 
 import pandas as pd
 
-from src import backtest, data
+from src import backtest, data, nflverse
 from src.configs import FIRST_TEST_SEASON, FIRST_TRAIN_SEASON, POSITIONS, log
 from src.features import dst_features, player_features
 from src.model import walk_forward
@@ -23,10 +23,11 @@ def parse_args() -> argparse.Namespace:
 def run_backtest(args: argparse.Namespace) -> None:
     log.info("Loading game logs..")
     tables = data.load()
+    snaps = nflverse.snap_counts(int(tables["player_logs"].year.max()))
     features = pd.concat(
         [
-            player_features(tables["player_logs"], tables["games"]),
-            dst_features(tables["dst_logs"], tables["games"]),
+            player_features(tables["player_logs"], tables["games"], snaps),
+            dst_features(tables["dst_logs"], tables["games"], nflverse.schedule()),
         ],
         ignore_index=True,
     )

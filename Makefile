@@ -122,8 +122,8 @@ backfill:
 
 # Every season of nflverse game logs from GAME_LOG_START_YEAR through this one.
 # Earlier than the scrapers' history: the projection model trains on these
-# seasons, and 2012 is where nflverse's snap counts begin. Each season is one
-# download, so this takes under a minute. Safe to re-run.
+# seasons. Each season is one download, so this takes under a minute. Safe
+# to re-run.
 GAME_LOG_START_YEAR ?= 2012
 backfill-game-logs:
 	$(DOCKER_RUN) dfs-game-log-loader --start-year $(GAME_LOG_START_YEAR)
