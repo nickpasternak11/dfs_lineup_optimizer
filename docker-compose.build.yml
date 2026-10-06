@@ -44,6 +44,15 @@ services:
     networks:
       - app_network
 
+  dfs-game-log-loader:
+    image: dfs-game-log-loader
+    build:
+      context: .
+      dockerfile: system/game-log-loader/Dockerfile
+      target: service
+    networks:
+      - app_network
+
   dfs-migration:
     image: dfs-migration
     build:

@@ -37,6 +37,33 @@ class ProjectionRecord(BaseModel):
         description="FantasyPros player id, used for headshots; NULL for weeks "
         "scraped before it was collected"
     )
+    gsis_id: str | None = Field(
+        description="nflverse player id, for /game-logs/players/{gsis_id}; NULL "
+        "for DSTs and players who couldn't be linked"
+    )
+    actual_dk_points: float | None = Field(
+        description="DraftKings points actually scored that week; NULL until "
+        "the game is final, or if the player had no stats"
+    )
+    opp_fpts_allowed: float | None = Field(
+        description="FPTS the opponent allowed to this position per game over "
+        "the four weeks before the slate (all of last season in week 1); for a "
+        "DST, what the opposing offense gave up to defenses"
+    )
+    opp_fpts_allowed_rank: int | None = Field(
+        description="The opponent's rank by opp_fpts_allowed among the 32 "
+        "teams: 1 allowed the fewest (toughest matchup), 32 the most"
+    )
+    opp_games: int | None = Field(description="Games behind opp_fpts_allowed")
+    game_total: float | None = Field(description="The game's over/under")
+    team_spread: float | None = Field(
+        description="The team's point spread, betting-style: -3.5 when favored "
+        "by 3.5"
+    )
+    implied_total: float | None = Field(
+        description="The team's implied points, (game_total - team_spread) / 2; "
+        "NULL until the game has lines"
+    )
 
 
 GetProjectionsResponse = list[ProjectionRecord]

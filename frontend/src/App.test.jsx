@@ -10,11 +10,11 @@ const player = (name, position, team, salary, proj, extra = {}) => ({
     year: 2026, week: 4, player: name, position, team, opponent: 'OPP', home: true,
     kickoff: '2099-10-04T17:00:00+0000', grade: 'A', rank: 1, avg_fpts: proj, proj_fpts: proj,
     salary, salary_change: 0, value: proj / (salary / 1000), injury_status: null, injury_type: null,
-    fp_player_id: null, ...extra,
+    fp_player_id: null, gsis_id: null, actual_dk_points: null, ...extra,
 });
 
 const POOL = [
-    player('Josh Allen', 'QB', 'BUF', 7700, 22.6),
+    player('Josh Allen', 'QB', 'BUF', 7700, 22.6, { gsis_id: '00-0034857' }),
     player('Bijan Robinson', 'RB', 'ATL', 8700, 21.8),
     player('Jahmyr Gibbs', 'RB', 'DET', 9000, 25.6),
     player('Ja\'Marr Chase', 'WR', 'CIN', 8100, 19.9),
@@ -74,4 +74,154 @@ test('an optimizer error is shown in place of the lineups', async () => {
     client.fetchLineups.mockRejectedValue(new Error('boom'));
     render(<App />);
     expect(await screen.findByText('No lineups')).toBeInTheDocument();
+});
+
+
+const ALLEN_LOG = {
+    player: {
+        gsis_id: '00-0034857', player: 'Josh Allen', position: 'QB', birthdate: '1996-05-21',
+        height: 77, weight: 237, college: 'Wyoming', draft_year: 2018, draft_round: 1, draft_pick: 7,
+    },
+    games: [1, 2, 3].map(week => ({
+        year: 2026, week, season_type: 'REG', team: 'BUF', opponent: ['HOU', 'NYJ', 'MIA'][week - 1],
+        home: week !== 2, team_score: 27, opponent_score: 20, dk_points: [35.66, 18.4, 24.1][week - 1],
+        proj_fpts: [22.6, 21.0, null][week - 1], salary: 7700, completions: 25, attempts: 36,
+        passing_yards: [334, 220, 260][week - 1], passing_tds: 2, interceptions: 0, carries: 6,
+        rushing_yards: 40, rushing_tds: 1, targets: 0, receptions: 0, receiving_yards: 0,
+        receiving_tds: 0, fumbles_lost: 0,
+    })),
+};
+
+const poolRow = name => screen.getAllByText(name)
+    .map(element => element.closest('tr'))
+    .find(row => row && row.closest('.pool-table'));
+
+test('clicking a pool row opens the player with bio, chart and game log', async () => {
+    client.fetchPlayerGameLog.mockResolvedValue(ALLEN_LOG);
+    await renderApp();
+
+    fireEvent.click(poolRow('Josh Allen').querySelector('.matchup-cell'));
+
+    const dialog = await screen.findByRole('dialog', { name: /Josh Allen/ });
+    expect(client.fetchPlayerGameLog).toHaveBeenCalledWith('00-0034857');
+    expect(await within(dialog).findByText(/6'5" · 237 lbs · Wyoming · 2018 · Rd 1, #7 overall/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('img', { name: /FPTS per game, 2026/ })).toBeInTheDocument();
+    // Game log table: newest first, with the opponent and the passing line.
+    const rows = within(dialog).getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('W3');
+    expect(rows[1]).toHaveTextContent('vs MIA');
+    expect(rows[3]).toHaveTextContent('334');
+    // Week 3 has no projection, so only weeks 1 and 2 count:
+    // (35.66 - 22.6 + 18.4 - 21.0) / 2 = +5.2.
+    expect(within(dialog).getByText(/beat our projection/)).toHaveTextContent('beat our projection 1 of 2');
+    expect(within(dialog).getByText(/\/game/)).toHaveTextContent('avg +5.2/game');
+});
+
+test('Escape closes the player and returns focus to the row', async () => {
+    client.fetchPlayerGameLog.mockResolvedValue(ALLEN_LOG);
+    await renderApp();
+    const nameButton = within(poolRow('Josh Allen')).getByRole('button', { name: 'Josh Allen' });
+    nameButton.focus();
+    fireEvent.click(nameButton);
+    await screen.findByRole('dialog');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(nameButton);
+});
+
+test('a player without an nflverse id says so instead of requesting a log', async () => {
+    await renderApp();
+    fireEvent.click(within(poolRow('Bijan Robinson')).getByRole('button', { name: 'Bijan Robinson' }));
+    expect(await screen.findByText(/couldn't be matched to NFL stats/)).toBeInTheDocument();
+    expect(client.fetchPlayerGameLog).not.toHaveBeenCalled();
+});
+
+test('lock buttons in a row act without opening the player', async () => {
+    await renderApp();
+    await act(async () => {
+        fireEvent.click(within(poolRow('Jahmyr Gibbs')).getByRole('button', { name: 'Lock Jahmyr Gibbs' }));
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('the Actual column appears once a week has final scores', async () => {
+    await renderApp();
+    expect(screen.queryByRole('columnheader', { name: /Actual/ })).not.toBeInTheDocument();
+});
+
+test('actual points show beside the projection, marked beat or missed', async () => {
+    client.fetchProjections.mockResolvedValue(POOL.map(p => (
+        p.player === 'Josh Allen' ? { ...p, actual_dk_points: 31.4 }
+            : p.player === 'Jahmyr Gibbs' ? { ...p, actual_dk_points: 12.0 } : p
+    )));
+    await renderApp();
+
+    expect(screen.getByRole('columnheader', { name: /Actual/ })).toBeInTheDocument();
+    expect(within(poolRow('Josh Allen')).getByText('31.4')).toHaveClass('actual-beat');
+    expect(within(poolRow('Jahmyr Gibbs')).getByText('12.0')).toHaveClass('actual-missed');
+});
+
+test('the matchup ranks the opponent against the position, sorts by it, and shows on the card', async () => {
+    client.fetchProjections.mockResolvedValue(POOL.map(p => (
+        p.player === 'Bijan Robinson'
+            ? { ...p, opponent: 'CLE', opp_fpts_allowed: 17.07, opp_fpts_allowed_rank: 7, opp_games: 3 }
+            : p.player === 'Josh Allen'
+                ? { ...p, opponent: 'ARI', opp_fpts_allowed: 21.74, opp_fpts_allowed_rank: 27, opp_games: 4 }
+                : p
+    )));
+    await renderApp();
+
+    const tough = within(poolRow('Bijan Robinson')).getByText('7th');
+    expect(tough).toHaveClass('matchup-tough');
+    expect(tough.closest('.matchup-line'))
+        .toHaveAttribute('title', 'CLE allows 17.1 FPTS a game to RBs, the 7th fewest (3 games)');
+    expect(within(poolRow('Josh Allen')).getByText('27th')).toHaveClass('matchup-soft');
+
+    // Softest matchups first; players without a rank last.
+    fireEvent.click(screen.getByRole('button', { name: /Matchup/ }));
+    const names = [...document.querySelectorAll('.pool-table tbody .player-name-button')].map(b => b.textContent);
+    expect(names.slice(0, 2)).toEqual(['Josh Allen', 'Bijan Robinson']);
+
+    fireEvent.click(poolRow('Bijan Robinson').querySelector('.matchup-cell'));
+    const dialog = await screen.findByRole('dialog', { name: /Bijan Robinson/ });
+    expect(within(dialog).getByText('CLE vs RB')).toBeInTheDocument();
+    expect(within(dialog).getByText('17.1 a game allowed')).toBeInTheDocument();
+});
+
+test('the implied team total shows over the over/under, and on the card', async () => {
+    client.fetchProjections.mockResolvedValue(POOL.map(p => (
+        p.player === 'Josh Allen'
+            ? { ...p, opponent: 'NE', game_total: 49.5, team_spread: -7, implied_total: 28.25 }
+            : p
+    )));
+    await renderApp();
+
+    const total = within(poolRow('Josh Allen')).getByText('28.3').closest('.team-total');
+    expect(total).toHaveTextContent('O/U 49.5');
+    expect(total).toHaveAttribute('title', 'BUF −7 · O/U 49.5 · implied BUF 28.3, NE 21.3');
+    // No lines yet: a dash.
+    expect(within(poolRow('Bijan Robinson')).queryByText(/O\/U/)).not.toBeInTheDocument();
+
+    client.fetchPlayerGameLog.mockResolvedValue(ALLEN_LOG);
+    fireEvent.click(poolRow('Josh Allen').querySelector('.matchup-cell'));
+    const dialog = await screen.findByRole('dialog', { name: /Josh Allen/ });
+    expect(within(dialog).getByText('Total')).toBeInTheDocument();
+    expect(within(dialog).getByText('O/U 49.5 · BUF −7')).toBeInTheDocument();
+});
+
+test('a past week counts every game: players stay available and the optimizer includes them', async () => {
+    const played = POOL.map(p => ({ ...p, week: 3, kickoff: '2026-09-27T17:00:00+0000' }));
+    client.fetchProjections.mockImplementation(async (year, week) => (week === '3' ? played : POOL));
+    await renderApp();
+
+    await act(async () => {
+        fireEvent.change(screen.getByLabelText('Week'), { target: { value: '3' } });
+    });
+
+    expect(poolRow('Bijan Robinson')).toBeTruthy();
+    const lastCall = client.fetchLineups.mock.calls[client.fetchLineups.mock.calls.length - 1][0];
+    expect(lastCall).toMatchObject({ week: '3', includeStarted: true });
+    expect(screen.getByRole('switch', { name: /Include started games/ })).toBeDisabled();
 });

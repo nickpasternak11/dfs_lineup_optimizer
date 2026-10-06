@@ -13,8 +13,19 @@ from app.models.responses.projections import GetProjectionsResponse, ProjectionR
 
 
 def query_columns() -> list[str]:
-    select = re.search(r"SELECT(.*?)FROM", PLAYER_POOL_QUERY.text, re.S).group(1)
-    return [column.strip() for column in select.split(",")]
+    # The main SELECT, not a CTE's: the one listing the most columns.
+    select = max(
+        re.findall(r"SELECT(.*?)\bFROM\b", PLAYER_POOL_QUERY.text, re.S),
+        key=lambda s: s.count(","),
+    )
+    # Drop parenthesized arguments, innermost first, so their commas don't split.
+    while "(" in select:
+        select = re.sub(r"\([^()]*\)", "", select)
+    # "pool.year" -> "year"; "COALESCE(...) AS avg_fpts" -> "avg_fpts"
+    return [
+        (column.rsplit(" AS ", 1)[1] if " AS " in column else column.split(".")[-1]).strip()
+        for column in select.split(",")
+    ]
 
 
 @pytest.fixture
@@ -36,6 +47,15 @@ def full_pool(pool) -> pd.DataFrame:
     df["injury_type"] = ["Knee"] + [None] * (len(df) - 1)
     # Integer ids come back as float64 once any is NULL.
     df["fp_player_id"] = [17298.0] + [float("nan")] * (len(df) - 1)
+    df["gsis_id"] = ["00-0034857"] + [None] * (len(df) - 1)
+    df["actual_dk_points"] = [31.4] + [float("nan")] * (len(df) - 1)
+    # Ranks and game counts are float64 too once a team has no recent games.
+    df["opp_fpts_allowed"] = [27.3] + [float("nan")] * (len(df) - 1)
+    df["opp_fpts_allowed_rank"] = [24.0] + [float("nan")] * (len(df) - 1)
+    df["opp_games"] = [3.0] + [float("nan")] * (len(df) - 1)
+    df["game_total"] = [49.5] + [float("nan")] * (len(df) - 1)
+    df["team_spread"] = [-7.0] + [float("nan")] * (len(df) - 1)
+    df["implied_total"] = [28.25] + [float("nan")] * (len(df) - 1)
     df.loc[0, "kickoff"] = pd.Timestamp("2099-09-27T17:00:00", tz="UTC")
     df.loc[1, "avg_fpts"] = float("nan")
     for column in FLOAT_COLUMNS:
@@ -60,6 +80,12 @@ def test_projection_records_validate(full_pool):
     assert current.salary_change == 300
     assert current.fp_player_id == 17298
     assert historical.fp_player_id is None
+    assert (current.gsis_id, current.actual_dk_points) == ("00-0034857", 31.4)
+    assert historical.gsis_id is None and historical.actual_dk_points is None
+    assert (current.opp_fpts_allowed, current.opp_fpts_allowed_rank, current.opp_games) == (27.3, 24, 3)
+    assert historical.opp_fpts_allowed_rank is None
+    assert (current.game_total, current.team_spread, current.implied_total) == (49.5, -7.0, 28.25)
+    assert historical.implied_total is None
     assert historical.kickoff is None
     assert historical.home is None
     assert historical.avg_fpts is None

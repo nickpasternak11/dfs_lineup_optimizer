@@ -52,6 +52,12 @@ class ScraperOrchestrator:
                 getattr(schedule.every(), day).at(
                     f"{hour:02d}:00", "America/New_York"
                 ).do(self.run_projection_scraper)
+        # nflverse game logs → Daily, 6:00 AM ET. nflverse rebuilds the season
+        # files overnight, and each run replaces the whole season, so a missed
+        # day is simply covered by the next one.
+        schedule.every().day.at("06:00", "America/New_York").do(
+            self.run_game_log_loader
+        )
         # Missed-run catch-up → Daily at noon ET (and at startup, see run())
         schedule.every().day.at("12:00", "America/New_York").do(self.catch_up)
         # Database backup → Daily, 3:00 AM ET
@@ -81,6 +87,12 @@ class ScraperOrchestrator:
             return
         log.info("Starting scheduled projection scraper...")
         self.run_scraper("projection-scraper")
+
+    def run_game_log_loader(self):
+        if self.skip_off_season("game log loader"):
+            return
+        log.info("Starting scheduled game log load...")
+        self.run_scraper("game-log-loader")
 
     def run_backfill(self):
         if self.skip_off_season("backfill"):

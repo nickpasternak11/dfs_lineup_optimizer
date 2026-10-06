@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from dfs_db import PlayerProjection, SnapshotShrankError, replace_weeks
+from dfs_db import PlayerProjection, SnapshotShrankError, replace_matching, replace_weeks
 from dfs_db.upsert import _clean
 from sqlalchemy.sql import Delete, Insert, Select
 
@@ -112,3 +112,48 @@ def test_clean_makes_cells_bindable(value, expected):
     cleaned = _clean(value)
     assert cleaned == expected
     assert not isinstance(cleaned, np.generic)
+
+
+class CountingSession:
+    """Answers every count query with `existing`; records the rest."""
+
+    def __init__(self, existing: int):
+        self.existing = existing
+        self.statements = []
+
+    def execute(self, statement):
+        self.statements.append(statement)
+        return _Scalar(self.existing) if isinstance(statement, Select) else None
+
+    def of_type(self, kind):
+        return [s for s in self.statements if isinstance(s, kind)]
+
+
+def test_replace_matching_deletes_the_scope_then_inserts():
+    session = CountingSession(existing=6)
+    rows = replace_matching(session, PlayerProjection, snapshot(2025, 3, 6), {"year": 2025})
+
+    assert rows == 6
+    (deleted,) = session.of_type(Delete)
+    assert deleted.compile().params == {"year_1": 2025}
+    assert session.of_type(Insert)
+
+
+def test_replace_matching_refuses_to_shrink_before_deleting():
+    session = CountingSession(existing=100)
+    with pytest.raises(SnapshotShrankError, match="year=2025"):
+        replace_matching(session, PlayerProjection, snapshot(2025, 3, 10), {"year": 2025})
+    assert not session.of_type(Delete)
+
+
+def test_replace_matching_refuses_an_empty_download():
+    session = CountingSession(existing=100)
+    with pytest.raises(SnapshotShrankError, match="all rows"):
+        replace_matching(session, PlayerProjection, pd.DataFrame(), {})
+    assert not session.of_type(Delete)
+
+
+def test_replace_matching_min_ratio_zero_allows_shrinking():
+    session = CountingSession(existing=100)
+    replace_matching(session, PlayerProjection, snapshot(2025, 3, 10), {"year": 2025}, min_ratio=0)
+    assert session.of_type(Delete)

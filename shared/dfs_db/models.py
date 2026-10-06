@@ -1,17 +1,19 @@
-"""ORM mappings for player_salaries and player_projections.
+"""ORM mappings for the scraped tables and the nflverse game data.
 
 Base.metadata is what db/migrations/env.py autogenerates Alembic revisions
 against, so a column added here and not migrated (or migrated and not added
-here) will drift, and `make test-db` will fail. The weekly_player_pool view is
-not mapped -- it has no primary key for the ORM to track -- and lives only in
-the Alembic revision that created it.
+here) will drift, and `make test-db` will fail. The weekly_player_pool and
+player_week_results views are not mapped -- they have no primary key for the
+ORM to track -- and live only in the Alembic revisions that created them.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
+    Index,
     Integer,
     Numeric,
     SmallInteger,
@@ -72,6 +74,124 @@ class PlayerProjection(Base):
     )
     # FantasyPros' id for the player; the frontend builds headshot URLs from it.
     fp_player_id: Mapped[int | None] = mapped_column(Integer)
+
+
+def _scraped_at() -> Mapped[datetime]:
+    return mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+# nflverse tables, written by dfs-game-log-loader. Team codes are stored as
+# nflverse publishes them (LA for the Rams, OAK for 2018-19 Raiders games);
+# the SQL function nfl_team() maps them onto the salary scraper's codes.
+
+
+class NflGame(Base):
+    __tablename__ = "nfl_games"
+    __table_args__ = (
+        Index("nfl_games_year_week_idx", "year", "week"),
+        {"comment": "nflverse schedule: kickoff, final score and closing lines."},
+    )
+
+    game_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    year: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    week: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    game_type: Mapped[str] = mapped_column(Text, nullable=False)
+    kickoff: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    away_team: Mapped[str] = mapped_column(Text, nullable=False)
+    home_team: Mapped[str] = mapped_column(Text, nullable=False)
+    away_score: Mapped[int | None] = mapped_column(SmallInteger)
+    home_score: Mapped[int | None] = mapped_column(SmallInteger)
+    # Points the home team is favored by (negative: the away team is).
+    spread_line: Mapped[float | None] = mapped_column(Numeric(4, 1))
+    total_line: Mapped[float | None] = mapped_column(Numeric(4, 1))
+    away_moneyline: Mapped[int | None] = mapped_column(Integer)
+    home_moneyline: Mapped[int | None] = mapped_column(Integer)
+    scraped_at: Mapped[datetime] = _scraped_at()
+
+
+class PlayerGameLog(Base):
+    __tablename__ = "player_game_logs"
+    __table_args__ = {
+        "comment": "nflverse weekly QB/RB/WR/TE stats with DraftKings points."
+    }
+
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    gsis_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    player: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[str] = mapped_column(Text, nullable=False)
+    team: Mapped[str] = mapped_column(Text, nullable=False)
+    opponent: Mapped[str | None] = mapped_column(Text)
+    game_id: Mapped[str | None] = mapped_column(Text)
+    season_type: Mapped[str] = mapped_column(Text, nullable=False)
+    completions: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    passing_yards: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    passing_tds: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    interceptions: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    carries: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    rushing_yards: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    rushing_tds: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    targets: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    receptions: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    receiving_yards: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    receiving_tds: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    fumbles_lost: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    two_point_conversions: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    # Kick/punt return and offensive fumble-recovery touchdowns.
+    other_tds: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    dk_points: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    # nflverse's own full-PPR total, kept for comparison.
+    ppr_points: Mapped[float | None] = mapped_column(Numeric(6, 2))
+    scraped_at: Mapped[datetime] = _scraped_at()
+
+
+class DstGameLog(Base):
+    __tablename__ = "dst_game_logs"
+    __table_args__ = {
+        "comment": "nflverse weekly team defense/special teams stats with DraftKings points."
+    }
+
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    team: Mapped[str] = mapped_column(Text, primary_key=True)
+    opponent: Mapped[str | None] = mapped_column(Text)
+    game_id: Mapped[str | None] = mapped_column(Text)
+    season_type: Mapped[str] = mapped_column(Text, nullable=False)
+    sacks: Mapped[float] = mapped_column(Numeric(4, 1), nullable=False)
+    interceptions: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    fumble_recoveries: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    defensive_tds: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    return_tds: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    safeties: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    blocked_kicks: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    points_allowed: Mapped[int | None] = mapped_column(SmallInteger)
+    dk_points: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    scraped_at: Mapped[datetime] = _scraped_at()
+
+
+class NflPlayer(Base):
+    __tablename__ = "nfl_players"
+    __table_args__ = {
+        "comment": "nflverse (GSIS) and FantasyPros ids with bios, from the DynastyProcess crosswalk."
+    }
+
+    gsis_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    fp_player_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    player: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[str | None] = mapped_column(Text)
+    birthdate: Mapped[date | None] = mapped_column(Date)
+    # Inches and pounds.
+    height: Mapped[int | None] = mapped_column(SmallInteger)
+    weight: Mapped[int | None] = mapped_column(SmallInteger)
+    college: Mapped[str | None] = mapped_column(Text)
+    draft_year: Mapped[int | None] = mapped_column(SmallInteger)
+    draft_round: Mapped[int | None] = mapped_column(SmallInteger)
+    # Overall pick number.
+    draft_pick: Mapped[int | None] = mapped_column(SmallInteger)
+    scraped_at: Mapped[datetime] = _scraped_at()
 
 
 WEEKLY_PLAYER_POOL_COLUMNS = [
