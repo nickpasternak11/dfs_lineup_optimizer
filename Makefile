@@ -19,12 +19,12 @@ DOCKER_RUN := docker run --rm \
 MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
 .PHONY: down build run run-salary-scraper run-projection-scraper run-game-log-loader \
-	backfill backfill-game-logs normalize-names psql \
+	backfill backfill-game-logs backtest-model normalize-names psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
 	test test-api test-salary-scraper test-projection-scraper test-game-log-loader \
-	test-orchestrator test-frontend test-db \
+	test-orchestrator test-projection-model test-frontend test-db \
 	load-test
 
 down:
@@ -55,7 +55,7 @@ run-game-log-loader:
 # the deployed image. No database, network or running stack needed (test-db
 # starts its own throwaway Postgres).
 test: test-api test-salary-scraper test-projection-scraper test-game-log-loader test-orchestrator \
-	test-frontend test-db
+	test-projection-model test-frontend test-db
 
 test-api:
 	docker build -q --target test -f api/Dockerfile -t dfs-api-test . >/dev/null
@@ -72,6 +72,10 @@ test-projection-scraper:
 test-game-log-loader:
 	docker build -q --target test -f system/game-log-loader/Dockerfile -t dfs-game-log-loader-test . >/dev/null
 	docker run --rm dfs-game-log-loader-test
+
+test-projection-model:
+	docker build -q --target test -f system/projection-model/Dockerfile -t dfs-projection-model-test . >/dev/null
+	docker run --rm dfs-projection-model-test
 
 test-orchestrator:
 	docker build -q --target test -f system/orchestrator/Dockerfile -t dfs-orchestration-test . >/dev/null
@@ -123,6 +127,12 @@ backfill:
 GAME_LOG_START_YEAR ?= 2012
 backfill-game-logs:
 	$(DOCKER_RUN) dfs-game-log-loader --start-year $(GAME_LOG_START_YEAR)
+
+# The projection model's walk-forward backtest (#44): trains on each season's
+# earlier seasons and scores it against FantasyPros on the accuracy page's
+# rows. Reads the database, writes nothing; about a minute.
+backtest-model:
+	$(DOCKER_RUN) dfs-projection-model backtest $(ARGS)
 
 # One-time: rename players stored under other spellings (legacy CSVs, the
 # salary page) to FantasyPros' rankings spelling. Safe to re-run; preview with

@@ -44,7 +44,8 @@ dfs_lineup_optimizer/
 │   ├── orchestrator/                 # Scraper scheduling service
 │   ├── salary-scraper/               # DraftKings salary scraper
 │   ├── projection-scraper/           # FantasyPros projection scraper
-│   └── game-log-loader/              # nflverse games and weekly game logs
+│   ├── game-log-loader/              # nflverse games and weekly game logs
+│   └── projection-model/             # Our DraftKings projections and their backtest
 ├── shared/                           # Python packages copied into every service image
 │   ├── dfs_db/                       # DB config, sessions, ORM models, writes
 │   └── dfs_common/                   # Logging, season year, FantasyPros HTTP helpers
@@ -229,6 +230,32 @@ As of 2026 week 4 (7,983 player-weeks since 2018), the projection misses by 5.8 
 
 The metrics live in `dfs_common.accuracy` so model work can score new sources the same way: a new source is a column in `api/app/db/accuracy.py`'s query plus an entry in `SOURCES` (`api/app/helpers/accuracy.py`), and the page picks it up.
 
+### Projection Model
+
+`dfs-projection-model` is our own DraftKings projection (#44), built only from data we can use commercially: nflverse game logs and betting lines, never FantasyPros' numbers, which serve only as the benchmark to beat. It doesn't feed the optimizer yet; for now it runs as a backtest:
+
+```bash
+make backtest-model    # reads the database, writes nothing; about a minute
+```
+
+- **Training data:** every QB/RB/WR/TE and team defense regular-season game since 2012 (`make backfill-game-logs`), about 81,500 player-weeks.
+- **Features,** all known before kickoff:
+  - recent and longer-run usage and production (targets, carries, pass attempts, yards, TDs, DraftKings points, and shares of the team's targets, carries and attempts), shifted so a game never sees its own result
+  - the team's recent offense
+  - what the opponent allowed to the position over its last six games
+  - the game's betting lines: implied totals, spread, over/under and home/away
+- **Model:** one gradient-boosted model per position, predicting DraftKings points.
+- **Walk-forward backtest:** each season is predicted by models trained only on the seasons before it, then scored on the accuracy page's rows against FantasyPros and the recent-average baseline.
+
+First version, on 8,263 player-weeks from 2018 to 2026 week 4:
+
+| | FantasyPros | Recent avg | Model | Model + FantasyPros |
+|---|---|---|---|---|
+| Average miss (FPTS) | 5.76 | 6.52 | 5.84 | 5.73 |
+| Ranking within position-week | 0.431 | 0.292 | 0.381 | 0.420 |
+
+The model is close on average miss and beats FantasyPros at TE (5.09 against 5.15). It trails on ranking, which is where knowing injuries and role changes counts (#46, #50). The 50/50 blend beating FantasyPros shows the model knows something FantasyPros doesn't. It's a diagnostic, not a product: the product model can't take FantasyPros as an input.
+
 ### Generate Lineups in the Web App
 
 Open http://localhost:3000. The app loads the current week and optimizes right away; pick another **Season** and **Week** in the header to load an older slate (**Back to this week** returns). Any change re-runs the optimizer immediately, so there is no Optimize button. On a past week every game has kicked off, so all players count: started games are included and the games filter starts on all games.
@@ -286,6 +313,9 @@ Collects DraftKings salaries, opponents, home/away and kickoff times from the Fa
 
 ### Projection Scraper
 Collects FantasyPros weekly rankings, expert grades, projected points, trailing four-week average points and injury reports for QB, RB, WR, TE and DST, and writes them to `player_projections`.
+
+### Projection Model
+Builds point-in-time features from the game-log tables and trains one model per position on earlier seasons; `make backtest-model` scores it against FantasyPros season by season. See [Projection Model](#projection-model).
 
 ### Game Log Loader
 Downloads nflverse's season files (schedules, weekly player and team stats) and the DynastyProcess player id crosswalk, scores each week with DraftKings rules, and writes `nfl_games`, `player_game_logs`, `dst_game_logs` and `nfl_players`, then refreshes `pool_player_links`.

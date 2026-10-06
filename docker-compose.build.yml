@@ -53,6 +53,15 @@ services:
     networks:
       - app_network
 
+  dfs-projection-model:
+    image: dfs-projection-model
+    build:
+      context: .
+      dockerfile: system/projection-model/Dockerfile
+      target: service
+    networks:
+      - app_network
+
   dfs-migration:
     image: dfs-migration
     build:
