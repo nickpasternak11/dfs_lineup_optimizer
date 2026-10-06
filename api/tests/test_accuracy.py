@@ -40,7 +40,10 @@ def test_the_main_select_returns_what_the_report_reads():
     while "(" in main:
         main = re.sub(r"\([^()]*\)", "", main)
     names = [(c.rsplit(" AS ", 1)[1] if " AS " in c else c.split(".")[-1]).strip() for c in main.split(",")]
-    assert names == ["year", "week", "position", "salary", "proj_fpts", "recent_avg", "actual_dk_points", "linked"]
+    assert names == [
+        "year", "week", "player", "gsis_id", "nfl_team", "position", "salary",
+        "proj_fpts", "recent_avg", "actual_dk_points", "linked",
+    ]
 
 
 def test_sources_are_compared_on_the_same_player_weeks():
