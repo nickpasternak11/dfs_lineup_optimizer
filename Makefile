@@ -116,10 +116,13 @@ backfill:
 	$(DOCKER_RUN) dfs-salary-scraper --start-year $(BACKFILL_START_YEAR)
 	$(DOCKER_RUN) dfs-projection-scraper --start-year $(BACKFILL_START_YEAR)
 
-# Every season of nflverse game logs from BACKFILL_START_YEAR through this one.
-# Each season is one download, so this takes well under a minute. Safe to re-run.
+# Every season of nflverse game logs from GAME_LOG_START_YEAR through this one.
+# Earlier than the scrapers' history: the projection model trains on these
+# seasons, and 2012 is where nflverse's snap counts begin. Each season is one
+# download, so this takes under a minute. Safe to re-run.
+GAME_LOG_START_YEAR ?= 2012
 backfill-game-logs:
-	$(DOCKER_RUN) dfs-game-log-loader --start-year $(BACKFILL_START_YEAR)
+	$(DOCKER_RUN) dfs-game-log-loader --start-year $(GAME_LOG_START_YEAR)
 
 # One-time: rename players stored under other spellings (legacy CSVs, the
 # salary page) to FantasyPros' rankings spelling. Safe to re-run; preview with

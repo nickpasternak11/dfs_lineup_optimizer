@@ -195,7 +195,7 @@ Other scraper options: `--year` and (projections only) `--week` scrape a single 
 `dfs-game-log-loader` loads [nflverse](https://github.com/nflverse/nflverse-data) data: every game's kickoff, final score and closing Vegas lines, and each QB/RB/WR/TE and team defense's weekly stats scored with DraftKings rules. The orchestrator reloads the current season every morning; to load history once:
 
 ```bash
-make backfill-game-logs                      # 2018 (BACKFILL_START_YEAR) through this season, ~30 seconds
+make backfill-game-logs                      # 2012 (GAME_LOG_START_YEAR) through this season, under a minute
 make run-game-log-loader ARGS="--year 2024"  # one season
 ```
 
@@ -408,7 +408,7 @@ make run-projection-scraper
 make backfill                 # this week of every past season (runs Tuesdays anyway)
 make normalize-names          # one-time: rename stored players to FantasyPros' spelling
 make run-game-log-loader      # this season's nflverse game logs (runs daily anyway)
-make backfill-game-logs       # every season's game logs since 2018
+make backfill-game-logs       # every season's game logs since 2012
 
 make test                     # run all test suites (see Testing)
 make load-test                # read-only API load test (see api/loadtest/README.md)
