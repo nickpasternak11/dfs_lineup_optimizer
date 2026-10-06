@@ -41,9 +41,9 @@ export const fetchDstGameLog = async (team) => {
     return response.data;
 };
 
-export const fetchAccuracy = async ({ year, position, minProj }) => {
+export const fetchAccuracy = async ({ view, year, position, minProj }) => {
     const response = await axios.get(`${API_URL}/accuracy`, {
-        params: { year: year ?? undefined, position: position ?? undefined, min_proj: minProj },
+        params: { view, year: year ?? undefined, position: position ?? undefined, min_proj: minProj },
     });
     return response.data;
 };

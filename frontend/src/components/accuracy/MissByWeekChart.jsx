@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import useWidth from '../../hooks/useWidth';
-import { formatCount, formatMetric, weekLabel } from '../../lib/accuracy';
+import { formatCount, formatMetric, sourceColor, weekLabel } from '../../lib/accuracy';
 import { niceScale } from '../../lib/chartScale';
 import '../charts/charts.css';
 
@@ -102,7 +102,7 @@ export default function MissByWeekChart({ weeks, sources, metric = 'mae' }) {
             <figcaption className="chart-legend">
                 {sources.map((source, s) => (
                     <span key={source.key}>
-                        <span className="legend-swatch legend-line" style={{ background: `var(--series-${s + 1})` }} />
+                        <span className="legend-swatch legend-line" style={{ background: sourceColor(source.key, s) }} />
                         {source.label}
                     </span>
                 ))}
@@ -133,7 +133,7 @@ export default function MissByWeekChart({ weeks, sources, metric = 'mae' }) {
                         <line className="chart-crosshair" x1={x(active)} x2={x(active)} y1={MARGIN.top} y2={HEIGHT - MARGIN.bottom} />
                     )}
                     {sources.map((source, s) => (
-                        <g key={source.key} style={{ color: `var(--series-${s + 1})` }}>
+                        <g key={source.key} style={{ color: sourceColor(source.key, s) }}>
                             {runs.map(run => (
                                 <path key={run.year} className="chart-line" d={pathFor(source, run.indexes)} />
                             ))}
@@ -168,7 +168,7 @@ export default function MissByWeekChart({ weeks, sources, metric = 'mae' }) {
                         <strong>{weekLabel(shown)}</strong>
                         {sources.map((source, s) => (
                             <span key={source.key} className="tooltip-row">
-                                <span className="tooltip-key-line" style={{ background: `var(--series-${s + 1})` }} />
+                                <span className="tooltip-key-line" style={{ background: sourceColor(source.key, s) }} />
                                 {source.label} {formatMetric(metric, value(shown, source))}
                             </span>
                         ))}

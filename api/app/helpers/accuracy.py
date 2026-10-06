@@ -6,24 +6,34 @@ import numpy as np
 import pandas as pd
 from dfs_common import accuracy
 
-# What the page compares. A new source (DraftKings-scored projections, #42;
-# our own model, #44) is a column in the rows query plus an entry here.
-SOURCES = [
-    {
-        "key": "projection",
-        "column": "proj_fpts",
-        "label": "Projection",
-        "description": "FantasyPros' full-PPR projection, which the optimizer uses",
-    },
-    {
-        "key": "recent_avg",
-        "column": "recent_avg",
-        "label": "Recent avg",
-        "description": "DraftKings points per game over the four weeks before "
-        "(last season in week 1): the Avg column, as a baseline",
-    },
-]
-SOURCE_KEYS = [source["key"] for source in SOURCES]
+# What the page compares. A new source is a column in the rows query plus an
+# entry here, and in VIEWS.
+FANTASYPROS = {
+    "key": "projection",
+    "column": "proj_fpts",
+    "label": "FantasyPros",
+    "description": "FantasyPros' full-PPR projection, which the optimizer uses",
+}
+RECENT_AVG = {
+    "key": "recent_avg",
+    "column": "recent_avg",
+    "label": "Recent avg",
+    "description": "DraftKings points per game over the four weeks before "
+    "(last season in week 1): the Avg column, as a baseline",
+}
+MODEL = {
+    "key": "model",
+    "column": "model_projection",
+    "label": "Our model",
+    "description": "Our model's projection, the last one it stored before kickoff",
+}
+# history: every past week since 2018, FantasyPros against the baseline.
+# live: only games our model projected before kickoff, with the model first,
+# since it's the one being judged.
+VIEWS = {
+    "history": [FANTASYPROS, RECENT_AVG],
+    "live": [MODEL, FANTASYPROS, RECENT_AVG],
+}
 POSITIONS = ["QB", "RB", "WR", "TE", "DST"]
 SALARY_TIERS = [(None, 4000), (4000, 6000), (6000, 8000), (8000, None)]
 
@@ -53,16 +63,23 @@ def build_report(
     year: int | None = None,
     position: str | None = None,
     min_proj: float = 5.0,
+    view: str = "history",
 ) -> dict:
+    sources = VIEWS[view]
+    keys = [source["key"] for source in sources]
     df = rows.rename(
-        columns={**{s["column"]: s["key"] for s in SOURCES}, "actual_dk_points": "actual"}
+        columns={**{s["column"]: s["key"] for s in sources}, "actual_dk_points": "actual"}
     )
-    complete = df.actual.notna() & df[SOURCE_KEYS].notna().all(axis=1)
+    if view == "live":
+        df = df[df.model.notna()]
+    complete = df.actual.notna() & df[keys].notna().all(axis=1)
+    first = df.loc[complete, ["year", "week"]].sort_values(["year", "week"]).head(1)
+    first_week = None if first.empty else {"year": int(first.year.iloc[0]), "week": int(first.week.iloc[0])}
     seasons = sorted(df.loc[complete, "year"].unique().tolist(), reverse=True)
 
     # A player counts when any source projected them for min_proj or more, so
     # the filter favors no source.
-    relevant = df[df[SOURCE_KEYS].max(axis=1) >= min_proj]
+    relevant = df[df[keys].max(axis=1) >= min_proj]
     if year is not None:
         relevant = relevant[relevant.year == year]
     scoped = relevant if position is None else relevant[relevant.position == position]
@@ -82,11 +99,11 @@ def build_report(
     # all five; everything else follows it.
     all_positions = relevant[complete.loc[relevant.index]]
     evaluated = scoped[evaluated_mask]
-    groups = {key: accuracy.group_rank_correlations(all_positions, key) for key in SOURCE_KEYS}
+    groups = {key: accuracy.group_rank_correlations(all_positions, key) for key in keys}
     scoped_groups = _narrow(groups, **({} if position is None else {"position": position}))
 
     by_position = [
-        {"position": pos, **accuracy.scorecard(subset, SOURCE_KEYS, _narrow(groups, position=pos))}
+        {"position": pos, **accuracy.scorecard(subset, keys, _narrow(groups, position=pos))}
         for pos in POSITIONS
         if not (subset := all_positions[all_positions.position == pos]).empty
     ]
@@ -94,28 +111,31 @@ def build_report(
         {
             "year": int(y),
             "week": int(w),
-            **accuracy.scorecard(subset, SOURCE_KEYS, _narrow(scoped_groups, year=y, week=w)),
+            **accuracy.scorecard(subset, keys, _narrow(scoped_groups, year=y, week=w)),
         }
         for (y, w), subset in evaluated.groupby(["year", "week"])
     ]
     # Ranking is judged within a position-week, which a salary tier cuts
     # across, so tiers get no rank correlation.
     by_salary = [
-        {"low": low, "high": high, **accuracy.scorecard(subset, SOURCE_KEYS)}
+        {"low": low, "high": high, **accuracy.scorecard(subset, keys)}
         for low, high in SALARY_TIERS
         if not (subset := _in_tier(evaluated, low, high)).empty
     ]
 
     return {
+        "view": view,
         "seasons": seasons,
-        "sources": [{k: s[k] for k in ("key", "label", "description")} for s in SOURCES],
+        "first_week": first_week,
+        "model_versions": sorted(evaluated.model_version.dropna().unique().tolist()) if view == "live" else [],
+        "sources": [{k: s[k] for k in ("key", "label", "description")} for s in sources],
         "year": year,
         "position": position,
         "min_proj": min_proj,
         "coverage": coverage,
-        "summary": accuracy.scorecard(evaluated, SOURCE_KEYS, scoped_groups),
+        "summary": accuracy.scorecard(evaluated, keys, scoped_groups),
         "by_position": by_position,
         "by_week": by_week,
         "by_salary": by_salary,
-        "calibration": {key: accuracy.calibration(evaluated, key) for key in SOURCE_KEYS},
+        "calibration": {key: accuracy.calibration(evaluated, key) for key in keys},
     }

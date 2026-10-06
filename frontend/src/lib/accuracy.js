@@ -88,3 +88,13 @@ export const tierLabel = ({ low, high }) => {
 export const weekLabel = ({ year, week }) => `${year} W${week}`;
 
 export const formatCount = value => value.toLocaleString('en-US');
+
+// A source keeps its color in every view and filter: the color follows the
+// source, not its place in the list (the live view lists our model first).
+const SOURCE_COLORS = {
+    projection: 'var(--series-1)',
+    recent_avg: 'var(--series-2)',
+    model: 'var(--series-3)',
+};
+
+export const sourceColor = (key, index) => SOURCE_COLORS[key] || `var(--series-${index + 1})`;

@@ -23,5 +23,9 @@ def get_accuracy(
     min_proj: float = Query(
         5.0, ge=0, le=40, description="Count a player when any source projected this many FPTS"
     ),
+    view: Literal["history", "live"] = Query(
+        "history", description="history: FantasyPros against the baseline since 2018; "
+        "live: our model's pre-kickoff projections against both"
+    ),
 ):
-    return build_report(accuracy.load_rows(), year=year, position=position, min_proj=min_proj)
+    return build_report(accuracy.load_rows(), year=year, position=position, min_proj=min_proj, view=view)

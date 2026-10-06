@@ -12,17 +12,22 @@ from app.models.responses.accuracy import AccuracyResponse
 client = TestClient(application)
 
 
-def rows(*players, year=2025, week=3) -> pd.DataFrame:
-    """read_sql-shaped rows: (position, salary, projection, recent avg, actual, linked)."""
+def rows(*players, year=2025, week=3, model=None) -> pd.DataFrame:
+    """read_sql-shaped rows: (position, salary, projection, recent avg, actual,
+    linked). `model` gives each row our model's live projection (none by
+    default, as before it went live)."""
+    model = model or [None] * len(players)
     return pd.DataFrame(
         [
             {
                 "year": year, "week": week, "position": pos, "salary": salary,
-                "proj_fpts": proj, "recent_avg": recent, "actual_dk_points": actual, "linked": linked,
+                "proj_fpts": proj, "recent_avg": recent, "model_projection": live,
+                "actual_dk_points": actual, "linked": linked,
+                "model_version": None if live is None else "1",
             }
-            for pos, salary, proj, recent, actual, linked in players
+            for (pos, salary, proj, recent, actual, linked), live in zip(players, model)
         ]
-    )
+    ).astype({"model_projection": float})
 
 
 NAN = float("nan")
@@ -42,7 +47,7 @@ def test_the_main_select_returns_what_the_report_reads():
     names = [(c.rsplit(" AS ", 1)[1] if " AS " in c else c.split(".")[-1]).strip() for c in main.split(",")]
     assert names == [
         "year", "week", "player", "gsis_id", "nfl_team", "position", "salary",
-        "proj_fpts", "recent_avg", "actual_dk_points", "linked",
+        "proj_fpts", "recent_avg", "model_projection", "actual_dk_points", "linked", "model_version",
     ]
 
 
@@ -132,3 +137,38 @@ def test_route_returns_the_report(served_rows):
 def test_route_rejects_unknown_positions(served_rows):
     assert client.get("/accuracy", params={"position": "K"}).status_code == 422
     assert client.get("/accuracy", params={"min_proj": -1}).status_code == 422
+
+
+def test_the_live_view_judges_the_model_on_games_it_projected_before_kickoff():
+    history = rows(*RBS, year=2025, week=3)
+    live = rows(*RBS, year=2026, week=5, model=[21.0, 13.0, 11.0, 6.0, 7.0])
+    df = pd.concat([history, live], ignore_index=True)
+
+    report = build_report(df, view="live")
+
+    assert [s["key"] for s in report["sources"]] == ["model", "projection", "recent_avg"]
+    assert report["seasons"] == [2026] and report["first_week"] == {"year": 2026, "week": 5}
+    assert report["model_versions"] == ["1"]
+    assert report["summary"]["player_weeks"] == 5
+    # Actuals 25, 12, 10, 4, 8 against 21, 13, 11, 6, 7.
+    assert report["summary"]["metrics"]["model"]["mae"] == pytest.approx((4 + 1 + 1 + 2 + 1) / 5)
+    AccuracyResponse.model_validate(report)
+
+    # The history view doesn't change: FantasyPros against the baseline, every week.
+    history_report = build_report(df)
+    assert [s["key"] for s in history_report["sources"]] == ["projection", "recent_avg"]
+    assert history_report["summary"]["player_weeks"] == 10
+    assert history_report["first_week"] == {"year": 2025, "week": 3}
+
+
+def test_the_live_view_before_any_live_games_is_empty():
+    report = AccuracyResponse.model_validate(build_report(rows(*RBS), view="live"))
+    assert report.summary.player_weeks == 0
+    assert report.seasons == [] and report.first_week is None
+
+
+def test_route_takes_a_view(monkeypatch):
+    monkeypatch.setattr(accuracy_db, "load_rows", lambda: rows(*RBS, model=[20.0] * 5))
+    body = client.get("/accuracy", params={"view": "live", "min_proj": 0}).json()
+    assert body["view"] == "live" and body["sources"][0]["label"] == "Our model"
+    assert client.get("/accuracy", params={"view": "backtest"}).status_code == 422

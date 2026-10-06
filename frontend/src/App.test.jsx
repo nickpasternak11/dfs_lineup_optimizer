@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import App from './App';
 import * as client from './api/client';
+import { clearAccuracyCache } from './hooks/useAccuracy';
 
 vi.mock('./api/client');
 
@@ -229,9 +230,12 @@ test('a past week counts every game: players stay available and the optimizer in
 const metrics = (mae, within, rankCorr, bias) => ({ mae, bias, rmse: mae * 1.3, within, rank_corr: rankCorr });
 const cell = (n, proj, recent) => ({ player_weeks: n, metrics: { projection: proj, recent_avg: recent } });
 const ACCURACY = {
+    view: 'history',
     seasons: [2025, 2024],
+    first_week: { year: 2024, week: 3 },
+    model_versions: [],
     sources: [
-        { key: 'projection', label: 'Projection', description: 'FantasyPros' },
+        { key: 'projection', label: 'FantasyPros', description: 'FantasyPros' },
         { key: 'recent_avg', label: 'Recent avg', description: 'The Avg column' },
     ],
     year: null,
@@ -258,6 +262,7 @@ const ACCURACY = {
 
 describe('accuracy page', () => {
     beforeEach(() => {
+        clearAccuracyCache();
         client.fetchAccuracy.mockResolvedValue(ACCURACY);
         window.location.hash = '#/accuracy';
     });
@@ -268,7 +273,7 @@ describe('accuracy page', () => {
     test('compares the projection with the baseline', async () => {
         render(<App />);
         expect(await screen.findByRole('heading', { name: 'Projection accuracy' })).toBeInTheDocument();
-        expect(client.fetchAccuracy).toHaveBeenCalledWith({ year: null, position: null, minProj: 5 });
+        expect(client.fetchAccuracy).toHaveBeenCalledWith({ view: 'history', year: null, position: null, minProj: 5 });
         // The lineups page's slate picker isn't shown here.
         expect(screen.queryByLabelText('Week')).not.toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Accuracy' })).toHaveAttribute('aria-current', 'page');
@@ -298,12 +303,12 @@ describe('accuracy page', () => {
         await act(async () => {
             fireEvent.click(screen.getByRole('button', { name: 'RB' }));
         });
-        expect(client.fetchAccuracy).toHaveBeenLastCalledWith({ year: null, position: 'RB', minProj: 5 });
+        expect(client.fetchAccuracy).toHaveBeenLastCalledWith({ view: 'history', year: null, position: 'RB', minProj: 5 });
 
         await act(async () => {
             fireEvent.change(screen.getByLabelText('Season'), { target: { value: '2024' } });
         });
-        expect(client.fetchAccuracy).toHaveBeenLastCalledWith({ year: 2024, position: 'RB', minProj: 5 });
+        expect(client.fetchAccuracy).toHaveBeenLastCalledWith({ view: 'history', year: 2024, position: 'RB', minProj: 5 });
     });
 
     test('the week chart reads out each week from the keyboard', async () => {
@@ -313,7 +318,60 @@ describe('accuracy page', () => {
         fireEvent.focus(chart);
         expect(within(chart).getByRole('status')).toHaveTextContent('2025 W3');
         fireEvent.keyDown(chart, { key: 'ArrowLeft' });
-        expect(within(chart).getByRole('status')).toHaveTextContent('2024 W3Projection 5.5Recent avg 6.450 player-weeks');
+        expect(within(chart).getByRole('status')).toHaveTextContent('2024 W3FantasyPros 5.5Recent avg 6.450 player-weeks');
+    });
+
+    test('the live view leads with our model and resets the season', async () => {
+        const live = {
+            ...ACCURACY,
+            view: 'live',
+            seasons: [2026],
+            first_week: { year: 2026, week: 5 },
+            model_versions: ['1'],
+            coverage: { ...ACCURACY.coverage, evaluated: 80 },
+            sources: [
+                { key: 'model', label: 'Our model', description: 'Ours' },
+                ...ACCURACY.sources,
+            ],
+            summary: {
+                player_weeks: 80,
+                metrics: {
+                    model: metrics(5.6, 0.55, 0.42, 0.1),
+                    projection: metrics(5.9, 0.52, 0.44, 0.5),
+                    recent_avg: metrics(6.7, 0.47, 0.27, -0.1),
+                },
+            },
+        };
+        client.fetchAccuracy.mockImplementation(async ({ view }) => (view === 'live' ? live : ACCURACY));
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        await act(async () => {
+            fireEvent.change(screen.getByLabelText('Season'), { target: { value: '2024' } });
+        });
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Live: our model' }));
+        });
+
+        expect(client.fetchAccuracy).toHaveBeenLastCalledWith({ view: 'live', year: null, position: null, minProj: 5 });
+        const miss = screen.getByText('Average miss', { selector: '.stat-label' }).closest('.accuracy-tile');
+        expect(miss).toHaveTextContent('5.6 FPTS');
+        expect(miss).toHaveTextContent('FantasyPros 5.9 · ▲ 0.3 FPTS better');
+        expect(miss).toHaveTextContent('Recent avg 6.7 · ▲ 1.1 FPTS better');
+        expect(screen.getByText(/80 player-weeks with a final game since 2026 week 5/)).toBeInTheDocument();
+        expect(screen.getByText(/Version 1 doesn.t know who.s inactive yet/)).toBeInTheDocument();
+    });
+
+    test('the live view says when there is no record yet', async () => {
+        const empty = { ...ACCURACY, view: 'live', seasons: [], first_week: null, summary: { player_weeks: 0, metrics: {} } };
+        client.fetchAccuracy.mockImplementation(async ({ view }) => (view === 'live' ? empty : ACCURACY));
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Live: our model' }));
+        });
+        expect(screen.getByText(/No live record yet/)).toBeInTheDocument();
+        expect(screen.queryByText('No finished games match these filters yet.')).not.toBeInTheDocument();
     });
 
     test('the header links switch pages', async () => {

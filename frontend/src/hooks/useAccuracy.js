@@ -5,7 +5,10 @@ import { errorMessage, fetchAccuracy } from '../api/client';
 // for the session and flipping back to one is instant.
 const cache = new Map();
 
-const keyOf = ({ year, position, minProj }) => `${year ?? 'all'}|${position ?? 'all'}|${minProj}`;
+// For tests: each starts with nothing cached.
+export const clearAccuracyCache = () => cache.clear();
+
+const keyOf = ({ view, year, position, minProj }) => `${view}|${year ?? 'all'}|${position ?? 'all'}|${minProj}`;
 
 // { status: 'loading' | 'ready' | 'error', data, error }. While a new filter
 // loads, the previous report stays on screen (status 'loading', data set) so

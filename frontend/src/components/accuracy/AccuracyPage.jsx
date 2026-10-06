@@ -16,6 +16,32 @@ const MIN_PROJECTIONS = [
     { value: 10, label: '10+' },
 ];
 const TILE_METRICS = ['mae', 'within', 'rank_corr', 'bias'];
+const VIEWS = [
+    { value: 'history', label: 'History' },
+    { value: 'live', label: 'Live: our model' },
+];
+
+function Intro({ view, report }) {
+    if (view === 'live') {
+        const versions = report?.model_versions || [];
+        return (
+            <p>
+                Our own model&apos;s projections, each stored before its game kicked off, against FantasyPros
+                and each player&apos;s recent average. These are live predictions with no hindsight: this is
+                the record that decides when the model replaces FantasyPros in the optimizer.
+                {versions.includes('1') && ' Version 1 doesn\'t know who\'s inactive yet, so a backup can be projected as if they\'ll start.'}
+            </p>
+        );
+    }
+    return (
+        <p>
+            How FantasyPros&apos; projections compared with the DraftKings points players actually scored,
+            every week we have, against a simple baseline: each player&apos;s recent average. Each week is
+            judged only on what was known before it. FantasyPros projects full PPR, so DraftKings&apos;
+            yardage bonuses show up as bias.
+        </p>
+    );
+}
 
 function Filters({ filters, setFilter, seasons }) {
     return (
@@ -47,7 +73,7 @@ function Filters({ filters, setFilter, seasons }) {
                 </div>
             </div>
             <div className="accuracy-filter">
-                <span id="accuracy-min" title="A player counts when either source projected them for this many FPTS">
+                <span id="accuracy-min" title="A player counts when any source projected them for this many FPTS">
                     Projected
                 </span>
                 <div className="segmented" role="group" aria-labelledby="accuracy-min">
@@ -87,7 +113,7 @@ function SummaryTile({ metric, summary, sources }) {
                     <span key={other.key} className="accuracy-tile-note">
                         {other.label} {formatMetric(metric, otherValue)}
                         {difference && (
-                            <span className={difference.endsWith('better') ? 'is-good' : 'is-bad'}>
+                            <span className={`accuracy-difference ${difference.endsWith('better') ? 'is-good' : 'is-bad'}`}>
                                 {' · '}{difference.endsWith('better') ? '▲' : '▼'} {difference}
                             </span>
                         )}
@@ -99,9 +125,10 @@ function SummaryTile({ metric, summary, sources }) {
 }
 
 function CoverageNote({ report }) {
-    const { coverage, year, position, min_proj: minProj } = report;
-    const since = year ? `in ${year}` : `since ${Math.min(...report.seasons)}`;
-    const who = minProj > 0 ? `players either source projected for ${minProj}+ FPTS` : 'every player in the pool';
+    const { coverage, year, position, min_proj: minProj, view, first_week: first } = report;
+    let since = year ? `in ${year}` : `since ${Math.min(...report.seasons)}`;
+    if (view === 'live' && !year && first) since = `since ${first.year} week ${first.week}`;
+    const who = minProj > 0 ? `players any source projected for ${minProj}+ FPTS` : 'every player in the pool';
     const left = [
         coverage.no_stats && `${formatCount(coverage.no_stats)} inactive`,
         coverage.unlinked && `${formatCount(coverage.unlinked)} not matched to NFL stats`,
@@ -126,21 +153,33 @@ function ChartData({ summary, children }) {
 }
 
 export default function AccuracyPage() {
-    const [filters, setFilters] = useState({ year: null, position: null, minProj: 5 });
+    const [filters, setFilters] = useState({ view: 'history', year: null, position: null, minProj: 5 });
     const setFilter = (name, value) => setFilters(prev => ({ ...prev, [name]: value }));
+    // The views cover different seasons, so a season picked in one may not exist in the other.
+    const setView = view => setFilters(prev => ({ ...prev, view, year: null }));
     const { status, data: report, error } = useAccuracy(filters);
     const sources = report?.sources || [];
+    const noLiveRecordYet = filters.view === 'live' && report?.view === 'live' && report.seasons.length === 0;
 
     return (
         <main className="accuracy-page" aria-busy={status === 'loading'}>
             <header className="accuracy-intro">
-                <h1>Projection accuracy</h1>
-                <p>
-                    How the projections compared with the DraftKings points players actually scored, every
-                    week we have, against a simple baseline: each player&apos;s recent average. Each week is
-                    judged only on what was known before it. The projection is FantasyPros&apos; full-PPR
-                    number, so DraftKings&apos; yardage bonuses show up as bias.
-                </p>
+                <div className="accuracy-title">
+                    <h1>Projection accuracy</h1>
+                    <div className="segmented" role="group" aria-label="Compare">
+                        {VIEWS.map(option => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                aria-pressed={filters.view === option.value}
+                                onClick={() => setView(option.value)}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <Intro view={filters.view} report={report} />
             </header>
 
             <Filters filters={filters} setFilter={setFilter} seasons={report?.seasons || []} />
@@ -148,7 +187,13 @@ export default function AccuracyPage() {
             {status === 'error' && <p className="accuracy-message">{error}</p>}
             {!report && status === 'loading' && <div className="skeleton accuracy-skeleton" />}
 
-            {report && report.summary.player_weeks === 0 && (
+            {noLiveRecordYet && (
+                <p className="accuracy-message">
+                    No live record yet. The model stores its projections every morning in season, and
+                    they&apos;re scored here once those games are final.
+                </p>
+            )}
+            {report && !noLiveRecordYet && report.summary.player_weeks === 0 && (
                 <p className="accuracy-message">No finished games match these filters yet.</p>
             )}
 
@@ -227,8 +272,8 @@ export default function AccuracyPage() {
                             </ChartData>
                             {report.min_proj > 0 && (
                                 <p className="accuracy-footnote">
-                                    A player counts when either source projected them for {report.min_proj}+, so the
-                                    lowest range holds players only the other source rated highly.
+                                    A player counts when any source projected them for {report.min_proj}+, so the
+                                    lowest range holds players only another source rated highly.
                                 </p>
                             )}
                         </section>

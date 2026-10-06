@@ -221,14 +221,15 @@ Player scoring was checked against nflverse's own PPR totals across 2025: the tw
 
 The **Accuracy** page (header link, or http://localhost:3000/#/accuracy) shows how the projections compared with actual DraftKings points over every past week in the database, against a simple baseline: each player's recent average (the Avg column, rebuilt for each week from the games before it, so no week sees its own result).
 
-- **Filters:** season, position, and which players count: all, or those either source projected for 5+ or 10+ FPTS (either source, so the filter favors neither).
-- **Tiles:** average miss, the share within 5 FPTS, ranking (Spearman correlation inside each position-week, the choice the optimizer makes) and bias (actual minus projected), each with the baseline beside it.
+- **Views:** **History** compares FantasyPros with the baseline over every week since 2018. **Live: our model** puts our model (#44) first and compares all three, but only on games it projected before kickoff (see [Live projections](#live-projections)). Each player-week is scored on the last snapshot the model stored before that game's kickoff, so the live record has no hindsight. It's the record that decides when the model replaces FantasyPros in the optimizer.
+- **Filters:** season, position, and which players count: all, or those any source projected for 5+ or 10+ FPTS (any source, so the filter favors none).
+- **Tiles:** average miss, the share within 5 FPTS, ranking (Spearman correlation inside each position-week, the choice the optimizer makes) and bias (actual minus projected), each with the other sources beside it.
 - **Average miss by week**, with a crosshair (arrow keys work too), and **calibration**: what players scored on average for each range of projection, against the line where they'd score exactly as projected. Each chart has a table view.
 - **By position** and **by salary** tables; the better value of each pair is bold.
 
 As of 2026 week 4 (7,983 player-weeks since 2018), the projection misses by 5.8 FPTS on average against the baseline's 6.6, ranks players better at every position (0.41 against 0.26), and runs 0.4 FPTS low, 1.3 for QBs: DraftKings' yardage bonuses and lighter turnover penalty, which a full-PPR projection leaves out (#42). Rows whose game isn't final are left out; inactive players, unmatched players and players with no recent games are counted beneath the tiles but not compared.
 
-The metrics live in `dfs_common.accuracy` so model work can score new sources the same way: a new source is a column in `api/app/db/accuracy.py`'s query plus an entry in `SOURCES` (`api/app/helpers/accuracy.py`), and the page picks it up.
+The metrics live in `dfs_common.accuracy` so model work can score new sources the same way: a new source is a column in `dfs_db.accuracy_rows`' query plus an entry in `VIEWS` (`api/app/helpers/accuracy.py`), and the page picks it up. Each source keeps its chart color in every view: FantasyPros blue, the recent average orange, our model aqua.
 
 ### Projection Model
 
@@ -339,7 +340,7 @@ The API endpoints used by the frontend are:
 - `POST /optimize`
 - `GET /game-logs/players/{gsis_id}`: a player's bio and every game since 2018
 - `GET /game-logs/dst/{team}`: a defense's every game since 2018 (either `LAR` or `LA` works)
-- `GET /accuracy?year=&position=&min_proj=5`: the accuracy page's report, every source's metrics overall, by position, week and salary, plus calibration
+- `GET /accuracy?view=history|live&year=&position=&min_proj=5`: the accuracy page's report, every source's metrics overall, by position, week and salary, plus calibration
 
 `POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Each record also carries `gsis_id` (for the game log endpoint), `actual_dk_points` (`null` until the game is final), the matchup (`opp_fpts_allowed`, `opp_fpts_allowed_rank` with 1 = fewest allowed, and `opp_games`), and the betting lines: `game_total`, `team_spread` (favorites negative) and `implied_total`, `null` until the game has lines. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, injuries, `fp_player_id`) are `null` there, and `avg_fpts` is `null` for a player with no games in its window (a rookie in week 1); `kickoff` is a string like `2026-10-04T20:05:00+0000`.
 

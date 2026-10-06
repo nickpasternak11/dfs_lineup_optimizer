@@ -58,8 +58,16 @@ class Coverage(_Model):
     evaluated: int = Field(description="Compared: every source and the actual present")
 
 
+class WeekRef(_Model):
+    year: int
+    week: int
+
+
 class AccuracyResponse(_Model):
+    view: str = Field(description="history (FantasyPros against the baseline) or live (our model's pre-kickoff projections)")
     seasons: list[int]
+    first_week: WeekRef | None = Field(description="The first week with a compared player-week")
+    model_versions: list[str] = Field(description="live: the model versions behind the compared projections")
     sources: list[SourceInfo]
     year: int | None
     position: str | None

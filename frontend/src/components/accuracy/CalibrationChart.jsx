@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import useWidth from '../../hooks/useWidth';
-import { formatCount, rangeLabel } from '../../lib/accuracy';
+import { formatCount, rangeLabel, sourceColor } from '../../lib/accuracy';
 import { niceScale } from '../../lib/chartScale';
 import { formatPoints } from '../../lib/format';
 import '../charts/charts.css';
@@ -16,7 +16,7 @@ export default function CalibrationChart({ calibration, sources }) {
     const [active, setActive] = useState(null);
 
     const series = sources
-        .map((source, s) => ({ ...source, color: `var(--series-${s + 1})`, bins: calibration[source.key] || [] }))
+        .map((source, s) => ({ ...source, color: sourceColor(source.key, s), bins: calibration[source.key] || [] }))
         .filter(source => source.bins.length);
     if (!series.length) return null;
 

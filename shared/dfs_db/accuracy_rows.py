@@ -6,7 +6,9 @@ import pandas as pd
 from sqlalchemy import Connection, text
 
 # The baseline is the Avg column's DraftKings average, rebuilt for every past
-# week from the games before it, so no week sees its own result. Rows whose
+# week from the games before it, so no week sees its own result. Our model's
+# projection is the last snapshot it stored before the game's kickoff (none
+# before it went live). Rows whose
 # game isn't final yet are left out; a NULL actual on the rest means the
 # player had no stats (linked) or couldn't be matched (not linked).
 ACCURACY_ROWS_QUERY = text(
@@ -40,14 +42,16 @@ ACCURACY_ROWS_QUERY = text(
         GROUP BY year, week, player
     ),
     final_games AS (
-        SELECT year, week, home_team AS team FROM nfl_games WHERE home_score IS NOT NULL
+        SELECT year, week, kickoff, home_team AS team FROM nfl_games WHERE home_score IS NOT NULL
         UNION ALL
-        SELECT year, week, away_team FROM nfl_games WHERE away_score IS NOT NULL
+        SELECT year, week, kickoff, away_team FROM nfl_games WHERE away_score IS NOT NULL
     )
     SELECT results.year, results.week, results.player, results.gsis_id,
            nfl_team(results.team) AS nfl_team, results.position, results.salary,
-           results.proj_fpts, recent.recent_avg, results.actual_dk_points,
-           (results.gsis_id IS NOT NULL OR results.position = 'DST') AS linked
+           results.proj_fpts, recent.recent_avg, live.proj_dk_points AS model_projection,
+           results.actual_dk_points,
+           (results.gsis_id IS NOT NULL OR results.position = 'DST') AS linked,
+           live.model_version
     FROM results
     JOIN final_games AS final
       ON final.year = results.year
@@ -57,10 +61,20 @@ ACCURACY_ROWS_QUERY = text(
       ON recent.year = results.year
      AND recent.week = results.week
      AND recent.player = results.player
+    LEFT JOIN LATERAL (
+        SELECT snapshot.proj_dk_points, snapshot.model_version
+        FROM model_projections AS snapshot
+        WHERE snapshot.year = results.year
+          AND snapshot.week = results.week
+          AND snapshot.player = results.player
+          AND snapshot.generated_at < final.kickoff
+        ORDER BY snapshot.generated_at DESC
+        LIMIT 1
+    ) AS live ON true
     """
 )
 
-FLOAT_COLUMNS = ["proj_fpts", "recent_avg", "actual_dk_points"]
+FLOAT_COLUMNS = ["proj_fpts", "recent_avg", "model_projection", "actual_dk_points"]
 
 
 def read_accuracy_rows(connection: Connection) -> pd.DataFrame:
