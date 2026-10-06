@@ -19,7 +19,7 @@ DOCKER_RUN := docker run --rm \
 MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
 .PHONY: down build run run-salary-scraper run-projection-scraper run-game-log-loader \
-	backfill backfill-game-logs backtest-model normalize-names psql \
+	backfill backfill-game-logs backtest-model backtest-props normalize-names psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
@@ -133,6 +133,13 @@ backfill-game-logs:
 # rows. Reads the database, writes nothing; about a minute.
 backtest-model:
 	$(DOCKER_RUN) dfs-projection-model backtest $(ARGS)
+
+# Projections from sportsbook player props (#50) against FantasyPros and the
+# model, on the season an Odds API export covers. Fits on the first half of
+# its weeks, scores the second.
+PROPS_DIR ?= /dfs_data/props
+backtest-props:
+	$(DOCKER_RUN) -v $(PROPS_DIR):/props:ro dfs-projection-model props $(ARGS)
 
 # One-time: rename players stored under other spellings (legacy CSVs, the
 # salary page) to FantasyPros' rankings spelling. Safe to re-run; preview with

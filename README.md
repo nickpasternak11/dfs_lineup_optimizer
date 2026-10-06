@@ -267,6 +267,29 @@ On 8,252 player-weeks from 2018 to 2026 week 4:
 
 History looks close to tapped out. The remaining gap, mostly ranking, is pre-game news (injuries, depth charts, role changes), which is what player props (#50) and injury data (#46) carry.
 
+#### Player props
+
+`make backtest-props` turns sportsbook player props into DraftKings projections and scores them on the season an Odds API export covers (`/dfs_data/props/`, 2024 weeks 1–15):
+
+- **Over/under markets** (passing, rushing and receiving yards, receptions, passing TDs, interceptions) have the bookmaker's margin removed book by book. The line and the fair chance of the over then give the stat's mean. Counts use a Poisson distribution; yards use a gamma, whose spread comes from earlier seasons and which also gives the chance of the 100- and 300-yard bonuses.
+- **Anytime-TD prices** are one-sided, so their margin is fitted.
+- **Missing markets** fall back to the player's recent averages. A projection needs the position's main market: passing yards for QBs, rushing yards for RBs, receiving yards for WRs and TEs.
+- **Fitting:** the TD margin and the model + props blend weight are fitted on the first half of the weeks and scored on the second.
+
+On 2024 weeks 9–15 (807 player-weeks with all four):
+
+| | FantasyPros | Model | Props | Model + props (45/55) |
+|---|---|---|---|---|
+| Average miss (FPTS) | 6.27 | 6.33 | 6.34 | 6.28 |
+| Ranking within position-week | 0.397 | 0.368 | 0.404 | 0.410 |
+| Bias | +0.60 | +0.69 | −0.55 | +0.01 |
+
+- **Props rank players better than FantasyPros** (WRs 0.381 against 0.350, RBs 0.593 against 0.574), which is the model's weak spot.
+- **Model + props** ties FantasyPros on average miss and beats it on ranking, without any FantasyPros data.
+
+It's one season and half of it held out, so differences of a few hundredths are within noise. The export also doesn't say when the lines were taken: closing lines are sharper than early-week ones.
+
+
 ### Generate Lineups in the Web App
 
 Open http://localhost:3000. The app loads the current week and optimizes right away; pick another **Season** and **Week** in the header to load an older slate (**Back to this week** returns). Any change re-runs the optimizer immediately, so there is no Optimize button. On a past week every game has kicked off, so all players count: started games are included and the games filter starts on all games.
