@@ -13,14 +13,14 @@ from app.models.responses.projections import GetProjectionsResponse, ProjectionR
 
 
 def query_columns() -> list[str]:
-    # The main SELECT, not the CTE's: the one listing more than four columns.
-    select = next(
-        s for s in re.findall(r"SELECT(.*?)\bFROM\b", PLAYER_POOL_QUERY.text, re.S)
-        if s.count(",") > 4
+    # The main SELECT, not a CTE's: the one listing the most columns.
+    select = max(
+        re.findall(r"SELECT(.*?)\bFROM\b", PLAYER_POOL_QUERY.text, re.S),
+        key=lambda s: s.count(","),
     )
     # "pool.year" -> "year"; "COALESCE(...) AS avg_fpts" -> "avg_fpts"
     return [
-        column.rsplit(" AS ", 1)[1] if " AS " in column else column.strip().split(".")[-1]
+        (column.rsplit(" AS ", 1)[1] if " AS " in column else column.split(".")[-1]).strip()
         for column in re.sub(r"\([^)]*\)", "()", select).split(",")
     ]
 
@@ -46,6 +46,10 @@ def full_pool(pool) -> pd.DataFrame:
     df["fp_player_id"] = [17298.0] + [float("nan")] * (len(df) - 1)
     df["gsis_id"] = ["00-0034857"] + [None] * (len(df) - 1)
     df["actual_dk_points"] = [31.4] + [float("nan")] * (len(df) - 1)
+    # Ranks and game counts are float64 too once a team has no recent games.
+    df["opp_fpts_allowed"] = [27.3] + [float("nan")] * (len(df) - 1)
+    df["opp_fpts_allowed_rank"] = [24.0] + [float("nan")] * (len(df) - 1)
+    df["opp_games"] = [3.0] + [float("nan")] * (len(df) - 1)
     df.loc[0, "kickoff"] = pd.Timestamp("2099-09-27T17:00:00", tz="UTC")
     df.loc[1, "avg_fpts"] = float("nan")
     for column in FLOAT_COLUMNS:
@@ -72,6 +76,8 @@ def test_projection_records_validate(full_pool):
     assert historical.fp_player_id is None
     assert (current.gsis_id, current.actual_dk_points) == ("00-0034857", 31.4)
     assert historical.gsis_id is None and historical.actual_dk_points is None
+    assert (current.opp_fpts_allowed, current.opp_fpts_allowed_rank, current.opp_games) == (27.3, 24, 3)
+    assert historical.opp_fpts_allowed_rank is None
     assert historical.kickoff is None
     assert historical.home is None
     assert historical.avg_fpts is None

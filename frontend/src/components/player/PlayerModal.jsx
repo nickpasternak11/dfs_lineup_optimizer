@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import useGameLog from '../../hooks/useGameLog';
 import { formatMatchup, formatPoints, formatSalary, formatValue } from '../../lib/format';
 import { formatKickoff } from '../../lib/kickoff';
+import { matchupSummary, matchupTier, ordinal } from '../../lib/matchup';
 import {
     ageOn, defaultSeason, formatDraft, formatHeight, seasonSummary, seasonsOf,
 } from '../../lib/playerInfo';
@@ -75,12 +76,28 @@ const hitRateClass = ({ beat, projected }) => (
     beat * 2 > projected ? 'beat' : beat * 2 < projected ? 'missed' : ''
 );
 
-function Tile({ label, children }) {
+function Tile({ label, note, title, children }) {
     return (
-        <div className="stat-tile">
+        <div className="stat-tile" title={title}>
             <span className="stat-label">{label}</span>
             <span className="stat-value">{children}</span>
+            {note && <span className="stat-note">{note}</span>}
         </div>
+    );
+}
+
+// The opponent's rank against this position, e.g. "7th" over "17.1 a game to RBs".
+function MatchupTile({ player }) {
+    const rank = player.opp_fpts_allowed_rank;
+    if (rank === null || rank === undefined) return null;
+    return (
+        <Tile
+            label={`${player.opponent} vs ${player.position}`}
+            note={`${formatPoints(player.opp_fpts_allowed)} a game allowed`}
+            title={matchupSummary(player)}
+        >
+            <span className={matchupTier(rank)}>{ordinal(rank)}</span>
+        </Tile>
     );
 }
 
@@ -140,6 +157,7 @@ export default function PlayerModal({ player, unavailableReason, optimizer, slat
                     )}
                     <Tile label="Value">{formatValue(player.value)}</Tile>
                     <Tile label="Recent avg">{formatPoints(player.avg_fpts)}</Tile>
+                    <MatchupTile player={player} />
                     {player.grade && <Tile label="Grade"><GradeBadge grade={player.grade} /></Tile>}
                 </div>
 

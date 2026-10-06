@@ -2,6 +2,7 @@ import React from 'react';
 import { VALUE_PLAY_THRESHOLD } from '../../lib/constants';
 import { formatMatchup, formatPoints, formatSalary, formatValue } from '../../lib/format';
 import { formatKickoff } from '../../lib/kickoff';
+import { matchupSummary, matchupTier, ordinal } from '../../lib/matchup';
 import { ExposurePips, GradeBadge, InjuryBadge, PositionBadge, SalaryChange } from '../common/Badges';
 import Icon from '../common/Icon';
 import PlayerActions from '../common/PlayerActions';
@@ -10,7 +11,12 @@ import TeamLogo from '../common/TeamLogo';
 
 const COLUMNS = [
     { key: 'player', label: 'Player' },
-    { key: 'opponent', label: 'Matchup' },
+    {
+        key: 'opp_fpts_allowed_rank',
+        label: 'Matchup',
+        title: 'Opponent rank by FPTS allowed to the position per game over the last four weeks: 1st allowed the fewest. Red: 1st–10th, green: 23rd–32nd',
+        sortable: true,
+    },
     { key: 'grade', label: 'Grade', align: 'center' },
     { key: 'avg_fpts', label: 'Avg', title: 'FPTS per game over the last four weeks (last season in week 1)', sortable: true, align: 'right' },
     { key: 'proj_fpts', label: 'Proj', title: 'Projected fantasy points', sortable: true, align: 'right' },
@@ -23,14 +29,6 @@ const COLUMNS = [
 ];
 
 const REASON_LABELS = { started: 'Started', excluded: 'Excluded', both: 'Started · Excluded' };
-
-// Top-10 defenses make a tough matchup, bottom-10 a soft one.
-const matchupTier = (rank) => {
-    if (!Number.isFinite(Number(rank)) || rank === null) return '';
-    if (rank <= 10) return 'matchup-tough';
-    if (rank >= 23) return 'matchup-soft';
-    return '';
-};
 
 function SortHeader({ column, sort, onSort }) {
     const active = sort.column === column.key;
@@ -79,7 +77,7 @@ function ActualPoints({ player }) {
 }
 
 export default function PoolTable({ rows, playerPool, optimizer, lineupCount, loading, emptyMessage, onOpenPlayer }) {
-    const { sort, toggleSort, exposure, defenseRank, unavailableReason } = playerPool;
+    const { sort, toggleSort, exposure, unavailableReason } = playerPool;
     const { locked, pool } = optimizer;
     // Judged on the whole pool, so filtering never adds or removes the column.
     const hasActuals = pool.some(p => p.actual_dk_points !== null && p.actual_dk_points !== undefined);
@@ -115,6 +113,8 @@ export default function PoolTable({ rows, playerPool, optimizer, lineupCount, lo
                     {!loading && rows.map((player) => {
                         const reason = unavailableReason(player);
                         const isLocked = locked.includes(player.player);
+                        const matchupRank = player.opp_fpts_allowed_rank;
+                        const tier = matchupTier(matchupRank);
                         return (
                             <tr
                                 key={player.player}
@@ -150,11 +150,11 @@ export default function PoolTable({ rows, playerPool, optimizer, lineupCount, lo
                                     <span className="matchup-cell">
                                         <TeamLogo team={player.opponent} size={18} />
                                         <span>
-                                            <span
-                                                className={`matchup ${matchupTier(defenseRank[player.opponent])}`}
-                                                title={defenseRank[player.opponent] ? `${player.opponent} defense ranks #${defenseRank[player.opponent]} this week` : undefined}
-                                            >
-                                                {formatMatchup(player)}
+                                            <span className="matchup-line" title={matchupSummary(player) || undefined}>
+                                                <span className={`matchup ${tier}`}>{formatMatchup(player)}</span>
+                                                {matchupRank !== null && matchupRank !== undefined && (
+                                                    <span className={`matchup-rank ${tier}`}>{ordinal(matchupRank)}</span>
+                                                )}
                                             </span>
                                             <span className="kickoff">{formatKickoff(player.kickoff)}</span>
                                         </span>

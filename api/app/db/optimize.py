@@ -9,8 +9,8 @@ from app.configs.configs import API_CACHE_TTL_SECONDS, log
 from app.helpers.cache import TTLCache
 from app.helpers.optimize import dataframe_to_records, get_latest_week
 
-# The weeks FantasyPros' recent average covers: the four before the slate,
-# or all of last regular season in week 1.
+# The weeks FantasyPros' recent average covers, and the matchup ranks use:
+# the four before the slate, or all of last regular season in week 1.
 _RECENT_WEEKS = """
     season_type = 'REG'
     AND CASE WHEN :week = 1 THEN year = :year - 1
@@ -24,9 +24,42 @@ _RECENT_WEEKS = """
 # own average is full PPR, which has no yardage bonuses and takes 2 for a
 # turnover, so it ran ~0.4 points a game below DraftKings (1.2 for QBs).
 # Players we can't link to nflverse keep FantasyPros' number.
+#
+# The matchup columns rank the opponent by the FPTS it allowed to the
+# player's position per game over the same weeks: 1 allowed the fewest (the
+# toughest matchup), 32 the most. A defense's matchup is the offense it
+# faces, ranked by what it gave up to the DSTs it played.
 PLAYER_POOL_QUERY = text(
     f"""
-    WITH recent AS (
+    WITH defense_games AS (
+        SELECT year, week, nfl_team(team) AS defense, nfl_team(opponent) AS offense, dk_points
+        FROM dst_game_logs
+        WHERE {_RECENT_WEEKS}
+    ),
+    allowed AS (
+        -- One row per defense, position and game; a game where nobody at a
+        -- position scored still counts, as zero.
+        SELECT games.defense AS team, positions.position,
+               COALESCE(sum(logs.dk_points), 0) AS points
+        FROM defense_games AS games
+        CROSS JOIN (VALUES ('QB'), ('RB'), ('WR'), ('TE')) AS positions (position)
+        LEFT JOIN player_game_logs AS logs
+          ON logs.year = games.year
+         AND logs.week = games.week
+         AND nfl_team(logs.opponent) = games.defense
+         AND CASE logs.position WHEN 'FB' THEN 'RB' ELSE logs.position END = positions.position
+        GROUP BY games.defense, positions.position, games.year, games.week
+        UNION ALL
+        SELECT offense, 'DST', dk_points
+        FROM defense_games
+    ),
+    matchups AS (
+        SELECT team, position, round(avg(points), 2) AS fpts_allowed, count(*) AS games,
+               rank() OVER (PARTITION BY position ORDER BY avg(points)) AS fpts_allowed_rank
+        FROM allowed
+        GROUP BY team, position
+    ),
+    recent AS (
         SELECT gsis_id, NULL AS team, round(avg(dk_points), 2) AS dk_avg
         FROM player_game_logs
         WHERE {_RECENT_WEEKS}
@@ -42,7 +75,10 @@ PLAYER_POOL_QUERY = text(
            COALESCE(recent.dk_avg, pool.avg_fpts) AS avg_fpts,
            pool.proj_fpts, pool.salary, pool.salary_change,
            pool.value, pool.injury_status, pool.injury_type, pool.fp_player_id,
-           results.gsis_id, results.actual_dk_points
+           results.gsis_id, results.actual_dk_points,
+           matchups.fpts_allowed AS opp_fpts_allowed,
+           matchups.fpts_allowed_rank AS opp_fpts_allowed_rank,
+           matchups.games AS opp_games
     FROM weekly_player_pool AS pool
     LEFT JOIN player_week_results AS results
       ON results.year = pool.year
@@ -51,6 +87,9 @@ PLAYER_POOL_QUERY = text(
     LEFT JOIN recent
       ON CASE WHEN pool.position = 'DST' THEN recent.team = nfl_team(pool.team)
               ELSE recent.gsis_id = results.gsis_id END
+    LEFT JOIN matchups
+      ON matchups.team = nfl_team(pool.opponent)
+     AND matchups.position = pool.position
     WHERE pool.year = :year
       AND pool.week = :week
       AND pool.salary IS NOT NULL
@@ -60,7 +99,7 @@ PLAYER_POOL_QUERY = text(
 )
 
 # NUMERIC comes back as Decimal, which pulp can't handle.
-FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value", "actual_dk_points"]
+FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value", "actual_dk_points", "opp_fpts_allowed"]
 
 # Player pools keyed by (year, week), shared by every request in this worker.
 # Each caller gets its own copy, so filtering or reweighting one request's

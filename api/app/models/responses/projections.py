@@ -45,6 +45,16 @@ class ProjectionRecord(BaseModel):
         description="DraftKings points actually scored that week; NULL until "
         "the game is final, or if the player had no stats"
     )
+    opp_fpts_allowed: float | None = Field(
+        description="FPTS the opponent allowed to this position per game over "
+        "the four weeks before the slate (all of last season in week 1); for a "
+        "DST, what the opposing offense gave up to defenses"
+    )
+    opp_fpts_allowed_rank: int | None = Field(
+        description="The opponent's rank by opp_fpts_allowed among the 32 "
+        "teams: 1 allowed the fewest (toughest matchup), 32 the most"
+    )
+    opp_games: int | None = Field(description="Games behind opp_fpts_allowed")
 
 
 GetProjectionsResponse = list[ProjectionRecord]

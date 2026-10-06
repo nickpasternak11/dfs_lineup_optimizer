@@ -97,6 +97,12 @@
     font-weight: 800;
 }
 
+.stat-note {
+    color: var(--text-faint);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
 .player-modal-log {
     display: flex;
     flex-direction: column;

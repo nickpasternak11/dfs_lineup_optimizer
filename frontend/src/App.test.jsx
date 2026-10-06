@@ -163,6 +163,33 @@ test('actual points show beside the projection, marked beat or missed', async ()
     expect(within(poolRow('Jahmyr Gibbs')).getByText('12.0')).toHaveClass('actual-missed');
 });
 
+test('the matchup ranks the opponent against the position, sorts by it, and shows on the card', async () => {
+    client.fetchProjections.mockResolvedValue(POOL.map(p => (
+        p.player === 'Bijan Robinson'
+            ? { ...p, opponent: 'CLE', opp_fpts_allowed: 17.07, opp_fpts_allowed_rank: 7, opp_games: 3 }
+            : p.player === 'Josh Allen'
+                ? { ...p, opponent: 'ARI', opp_fpts_allowed: 21.74, opp_fpts_allowed_rank: 27, opp_games: 4 }
+                : p
+    )));
+    await renderApp();
+
+    const tough = within(poolRow('Bijan Robinson')).getByText('7th');
+    expect(tough).toHaveClass('matchup-tough');
+    expect(tough.closest('.matchup-line'))
+        .toHaveAttribute('title', 'CLE allows 17.1 FPTS a game to RBs, the 7th fewest (3 games)');
+    expect(within(poolRow('Josh Allen')).getByText('27th')).toHaveClass('matchup-soft');
+
+    // Softest matchups first; players without a rank last.
+    fireEvent.click(screen.getByRole('button', { name: /Matchup/ }));
+    const names = [...document.querySelectorAll('.pool-table tbody .player-name-button')].map(b => b.textContent);
+    expect(names.slice(0, 2)).toEqual(['Josh Allen', 'Bijan Robinson']);
+
+    fireEvent.click(poolRow('Bijan Robinson').querySelector('.matchup-cell'));
+    const dialog = await screen.findByRole('dialog', { name: /Bijan Robinson/ });
+    expect(within(dialog).getByText('CLE vs RB')).toBeInTheDocument();
+    expect(within(dialog).getByText('17.1 a game allowed')).toBeInTheDocument();
+});
+
 test('a past week counts every game: players stay available and the optimizer includes them', async () => {
     const played = POOL.map(p => ({ ...p, week: 3, kickoff: '2026-09-27T17:00:00+0000' }));
     client.fetchProjections.mockImplementation(async (year, week) => (week === '3' ? played : POOL));

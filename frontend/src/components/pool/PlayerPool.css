@@ -284,8 +284,26 @@ th.align-right .sort-button { flex-direction: row; }
     font-weight: 700;
 }
 
-.matchup-tough { color: var(--bad); }
-.matchup-soft { color: var(--good); }
+.matchup-line {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
+}
+
+/* The opponent's rank against this position; its text keeps the tier from
+   resting on color alone. */
+.matchup-rank {
+    background: var(--surface-sunken);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: 0.66rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    padding: 1px 6px;
+}
+
+.matchup-rank.matchup-tough { background: var(--bad-soft); color: var(--bad); }
+.matchup-rank.matchup-soft { background: var(--good-soft); color: var(--good); }
 
 .kickoff {
     color: var(--text-faint);

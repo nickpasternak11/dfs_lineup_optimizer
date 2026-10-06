@@ -162,6 +162,10 @@ button {
 }
 
 /* Shared building blocks */
+/* Matchup strength (lib/matchup.js), in the pool table and the player card. */
+.matchup-tough { color: var(--bad); }
+.matchup-soft { color: var(--good); }
+
 .card {
     background: var(--surface);
     border: 1px solid var(--border);
