@@ -17,6 +17,7 @@ This project combines automated data collection with lineup optimization to gene
 - **Historical Backfill**: Scrapers can collect past seasons' data for the current week
 - **Lineup Optimization**: Generates multiple lineups using salary, position, projection, and player constraints
 - **Web Interface**: Player pool with headshots, team logos and filters; lock/exclude actions that re-optimize instantly; three lineup strategies side by side; light and dark themes
+- **Projection Accuracy**: Every past week's projections scored against actual DraftKings points and a recent-average baseline, by position, week and salary
 - **Containerized**: Docker Compose build and runtime configurations for the application and data services
 
 ## Architecture
@@ -208,11 +209,25 @@ FROM player_week_results WHERE year = 2026 AND week = 3 ORDER BY salary DESC;
 ```
 
 How pool players are linked to their game logs:
-- **QB/RB/WR/TE:** through `fp_player_id` and the DynastyProcess crosswalk to nflverse's player ids (`nfl_players`). For weeks with ids, about 95% of pool players and nearly all priced $5,000+ link. Weeks scraped before `fp_player_id` existed borrow it from the same player's other weeks, matching on exact name, so older seasons link less until the weekly backfill re-scrapes them.
+- **QB/RB/WR/TE:** the best of three links. First, a game log that week with the same name and team (`name_key`: letters only, ignoring case, punctuation and Jr./Sr./II–V). Then the row's own `fp_player_id`, through the DynastyProcess crosswalk to nflverse's ids (`nfl_players`). Last, an id borrowed from the same name's other weeks: a FantasyPros id, or a week match carried to weeks the player sat out, when that name only ever matched one player. The name, team and week match agrees with the FantasyPros id on 8,012 of 8,013 player-weeks where both exist (the one exception was a wrong id), and it links the pre-2024 weeks that have no FantasyPros ids: 97–99% of players projected for 5+ FPTS link in every season.
+- The matches live in the `pool_player_links` materialized view, which the game log loader refreshes after every run (`make normalize-names` does too, since the links are keyed by name).
 - **DST:** by team. Points allowed use the opponent's final score; DraftKings excludes points the defense didn't give up (a pick-six thrown by its own offense), which team-level data can't separate.
 - `actual_dk_points` is `NULL` when a linked player had no stats that week (inactive, or not played yet). When `gsis_id` is also `NULL`, the player couldn't be linked.
 
 Player scoring was checked against nflverse's own PPR totals across 2025: the two differ by exactly DraftKings' rules (yardage bonuses, −1 for interceptions and lost fumbles, offensive fumble-recovery TDs) on every player-week.
+
+### Projection Accuracy
+
+The **Accuracy** page (header link, or http://localhost:3000/#/accuracy) shows how the projections compared with actual DraftKings points over every past week in the database, against a simple baseline: each player's recent average (the Avg column, rebuilt for each week from the games before it, so no week sees its own result).
+
+- **Filters:** season, position, and which players count: all, or those either source projected for 5+ or 10+ FPTS (either source, so the filter favors neither).
+- **Tiles:** average miss, the share within 5 FPTS, ranking (Spearman correlation inside each position-week, the choice the optimizer makes) and bias (actual minus projected), each with the baseline beside it.
+- **Average miss by week**, with a crosshair (arrow keys work too), and **calibration**: what players scored on average for each range of projection, against the line where they'd score exactly as projected. Each chart has a table view.
+- **By position** and **by salary** tables; the better value of each pair is bold.
+
+As of 2026 week 4 (7,983 player-weeks since 2018), the projection misses by 5.8 FPTS on average against the baseline's 6.6, ranks players better at every position (0.41 against 0.26), and runs 0.4 FPTS low, 1.3 for QBs: DraftKings' yardage bonuses and lighter turnover penalty, which a full-PPR projection leaves out (#42). Rows whose game isn't final are left out; inactive players, unmatched players and players with no recent games are counted beneath the tiles but not compared.
+
+The metrics live in `dfs_common.accuracy` so model work can score new sources the same way: a new source is a column in `api/app/db/accuracy.py`'s query plus an entry in `SOURCES` (`api/app/helpers/accuracy.py`), and the page picks it up.
 
 ### Generate Lineups in the Web App
 
@@ -247,6 +262,7 @@ The API endpoints used by the frontend are:
 - `POST /optimize`
 - `GET /game-logs/players/{gsis_id}`: a player's bio and every game since 2018
 - `GET /game-logs/dst/{team}`: a defense's every game since 2018 (either `LAR` or `LA` works)
+- `GET /accuracy?year=&position=&min_proj=5`: the accuracy page's report, every source's metrics overall, by position, week and salary, plus calibration
 
 `POST /projections` returns a list of `ProjectionRecord`s, one per player in the week's pool; `POST /optimize` returns three lineups, each a list of nine `LineupPlayer`s with the same fields. Both models live in `api/app/models/responses/` and are published in the OpenAPI schema at http://localhost:8080/openapi.json. Each record also carries `gsis_id` (for the game log endpoint), `actual_dk_points` (`null` until the game is final), the matchup (`opp_fpts_allowed`, `opp_fpts_allowed_rank` with 1 = fewest allowed, and `opp_games`), and the betting lines: `game_total`, `team_spread` (favorites negative) and `implied_total`, `null` until the game has lines. Fields the older weeks lack (`kickoff`, `home`, `salary_change`, injuries, `fp_player_id`) are `null` there, and `avg_fpts` is `null` for a player with no games in its window (a rookie in week 1); `kickoff` is a string like `2026-10-04T20:05:00+0000`.
 
@@ -272,7 +288,7 @@ Collects DraftKings salaries, opponents, home/away and kickoff times from the Fa
 Collects FantasyPros weekly rankings, expert grades, projected points, trailing four-week average points and injury reports for QB, RB, WR, TE and DST, and writes them to `player_projections`.
 
 ### Game Log Loader
-Downloads nflverse's season files (schedules, weekly player and team stats) and the DynastyProcess player id crosswalk, scores each week with DraftKings rules, and writes `nfl_games`, `player_game_logs`, `dst_game_logs` and `nfl_players`.
+Downloads nflverse's season files (schedules, weekly player and team stats) and the DynastyProcess player id crosswalk, scores each week with DraftKings rules, and writes `nfl_games`, `player_game_logs`, `dst_game_logs` and `nfl_players`, then refreshes `pool_player_links`.
 
 ### API and Lineup Optimizer
 The FastAPI service reads each week's player pool from PostgreSQL and exposes the projection and optimization endpoints. Its optimization engine constructs valid lineups within DraftKings constraints.
@@ -298,6 +314,7 @@ All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker
 | `player_game_logs` | Game log loader | Weekly QB/RB/WR/TE stats and DraftKings points, keyed on nflverse's `gsis_id` |
 | `dst_game_logs` | Game log loader | Weekly team defense stats, points allowed and DraftKings points |
 | `nfl_players` | Game log loader | nflverse `gsis_id` to FantasyPros `fp_player_id`, plus birth date, height, weight, college and draft |
+| `pool_player_links` (materialized view) | Game log loader (refresh) | Pool players matched to nflverse ids by name, team and week |
 | `player_week_results` (view) | — | Each pool player's projection beside their actual DraftKings points |
 
 The two scraped tables are keyed on `(year, week, player)`. Columns that older data predates (`home`, `kickoff`, `salary_change`, `injury_status`, `injury_type`, `fp_player_id`) are nullable.

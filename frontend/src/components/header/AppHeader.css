@@ -16,7 +16,37 @@
     align-items: center;
     display: flex;
     gap: 12px;
+}
+
+/* Everything after the page links sits at the right. */
+.app-nav {
+    display: flex;
+    gap: 4px;
     margin-right: auto;
+}
+
+.app-nav a {
+    border-radius: 8px;
+    color: var(--on-brand-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 7px 12px;
+    text-decoration: none;
+}
+
+.app-nav a:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--on-brand);
+}
+
+.app-nav a[aria-current='page'] {
+    background: rgba(255, 255, 255, 0.14);
+    color: var(--on-brand);
+}
+
+.app-nav a:focus-visible {
+    box-shadow: 0 0 0 3px var(--focus);
+    outline: none;
 }
 
 .brand img {

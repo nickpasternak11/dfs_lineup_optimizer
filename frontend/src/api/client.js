@@ -41,6 +41,13 @@ export const fetchDstGameLog = async (team) => {
     return response.data;
 };
 
+export const fetchAccuracy = async ({ year, position, minProj }) => {
+    const response = await axios.get(`${API_URL}/accuracy`, {
+        params: { year: year ?? undefined, position: position ?? undefined, min_proj: minProj },
+    });
+    return response.data;
+};
+
 // FastAPI puts a string in `detail` for HTTPExceptions and a list for
 // validation errors.
 export const errorMessage = (error, fallback) => {

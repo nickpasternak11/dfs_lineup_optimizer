@@ -225,3 +225,104 @@ test('a past week counts every game: players stay available and the optimizer in
     expect(lastCall).toMatchObject({ week: '3', includeStarted: true });
     expect(screen.getByRole('switch', { name: /Include started games/ })).toBeDisabled();
 });
+
+const metrics = (mae, within, rankCorr, bias) => ({ mae, bias, rmse: mae * 1.3, within, rank_corr: rankCorr });
+const cell = (n, proj, recent) => ({ player_weeks: n, metrics: { projection: proj, recent_avg: recent } });
+const ACCURACY = {
+    seasons: [2025, 2024],
+    sources: [
+        { key: 'projection', label: 'Projection', description: 'FantasyPros' },
+        { key: 'recent_avg', label: 'Recent avg', description: 'The Avg column' },
+    ],
+    year: null,
+    position: null,
+    min_proj: 5,
+    coverage: { considered: 120, scored: 110, no_stats: 8, unlinked: 2, no_baseline: 10, evaluated: 100 },
+    summary: cell(100, metrics(5.84, 0.534, 0.413, 0.434), metrics(6.64, 0.482, 0.265, -0.167)),
+    by_position: [
+        { position: 'QB', ...cell(40, metrics(6.5, 0.47, 0.31, 1.3), metrics(7.4, 0.42, 0.19, 0.1)) },
+        { position: 'RB', ...cell(60, metrics(6.2, 0.52, 0.53, 0.8), metrics(6.8, 0.49, 0.41, -0.2)) },
+    ],
+    by_week: [
+        { year: 2024, week: 3, ...cell(50, metrics(5.5, 0.55, 0.4, 0.3), metrics(6.4, 0.5, 0.3, 0)) },
+        { year: 2025, week: 3, ...cell(50, metrics(6.1, 0.52, 0.42, 0.5), metrics(6.9, 0.46, 0.23, -0.3)) },
+    ],
+    by_salary: [
+        { low: 4000, high: 6000, ...cell(100, metrics(5.8, 0.53, null, 0.4), metrics(6.6, 0.48, null, -0.2)) },
+    ],
+    calibration: {
+        projection: [{ low: 10, high: 15, player_weeks: 60, predicted: 12.4, actual: 12.5 }],
+        recent_avg: [{ low: 10, high: 15, player_weeks: 55, predicted: 12.1, actual: 11.2 }],
+    },
+};
+
+describe('accuracy page', () => {
+    beforeEach(() => {
+        client.fetchAccuracy.mockResolvedValue(ACCURACY);
+        window.location.hash = '#/accuracy';
+    });
+    afterEach(() => {
+        window.location.hash = '';
+    });
+
+    test('compares the projection with the baseline', async () => {
+        render(<App />);
+        expect(await screen.findByRole('heading', { name: 'Projection accuracy' })).toBeInTheDocument();
+        expect(client.fetchAccuracy).toHaveBeenCalledWith({ year: null, position: null, minProj: 5 });
+        // The lineups page's slate picker isn't shown here.
+        expect(screen.queryByLabelText('Week')).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Accuracy' })).toHaveAttribute('aria-current', 'page');
+
+        const miss = screen.getByText('Average miss', { selector: '.stat-label' }).closest('.accuracy-tile');
+        expect(miss).toHaveTextContent('5.8 FPTS');
+        expect(miss).toHaveTextContent('Recent avg 6.6 · ▲ 0.8 FPTS better');
+        expect(screen.getByText('Players beat it by 0.4 FPTS on average')).toBeInTheDocument();
+        expect(screen.getByText(/100 player-weeks with a final game since 2024/)).toHaveTextContent(
+            'Not compared: 8 inactive, 2 not matched to NFL stats, 10 with no recent games to average.',
+        );
+
+        // By position: the better value of each pair is bold.
+        const qb = screen.getByRole('rowheader', { name: 'QB' }).closest('tr');
+        expect(within(qb).getByText('6.5')).toHaveClass('is-better');
+        expect(within(qb).getByText('7.4')).not.toHaveClass('is-better');
+        // Salary tiers have no ranking column.
+        const salary = screen.getByRole('table', { name: 'By salary' });
+        expect(within(salary).queryByText('Ranking')).not.toBeInTheDocument();
+        expect(within(salary).getByRole('rowheader', { name: '$4,000–$5,900' })).toBeInTheDocument();
+    });
+
+    test('filters reload the report', async () => {
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'RB' }));
+        });
+        expect(client.fetchAccuracy).toHaveBeenLastCalledWith({ year: null, position: 'RB', minProj: 5 });
+
+        await act(async () => {
+            fireEvent.change(screen.getByLabelText('Season'), { target: { value: '2024' } });
+        });
+        expect(client.fetchAccuracy).toHaveBeenLastCalledWith({ year: 2024, position: 'RB', minProj: 5 });
+    });
+
+    test('the week chart reads out each week from the keyboard', async () => {
+        render(<App />);
+        const chart = await screen.findByRole('group', { name: /Average miss by week, 2024 W3 to 2025 W3/ });
+
+        fireEvent.focus(chart);
+        expect(within(chart).getByRole('status')).toHaveTextContent('2025 W3');
+        fireEvent.keyDown(chart, { key: 'ArrowLeft' });
+        expect(within(chart).getByRole('status')).toHaveTextContent('2024 W3Projection 5.5Recent avg 6.450 player-weeks');
+    });
+
+    test('the header links switch pages', async () => {
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        await act(async () => {
+            window.location.hash = '#/';
+            window.dispatchEvent(new HashChangeEvent('hashchange'));
+        });
+        expect(await screen.findByText('Suggested lineups')).toBeInTheDocument();
+    });
+});
