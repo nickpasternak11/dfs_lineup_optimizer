@@ -65,3 +65,19 @@ def test_the_id_map_replaces_the_whole_table(writes):
     ((model, rows, where, _),) = writes
     assert (model, where) == (NflPlayer, {})
     assert rows == 4
+
+
+def test_refreshing_links_rebuilds_the_view(monkeypatch):
+    executed = []
+
+    class Session:
+        def execute(self, statement):
+            executed.append(str(statement))
+
+    @contextmanager
+    def fake_session_scope():
+        yield Session()
+
+    monkeypatch.setattr(loader, "session_scope", fake_session_scope)
+    loader.refresh_links()
+    assert executed == ["REFRESH MATERIALIZED VIEW CONCURRENTLY pool_player_links"]

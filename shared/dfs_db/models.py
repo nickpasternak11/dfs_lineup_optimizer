@@ -113,9 +113,10 @@ class NflGame(Base):
 
 class PlayerGameLog(Base):
     __tablename__ = "player_game_logs"
-    __table_args__ = {
-        "comment": "nflverse weekly QB/RB/WR/TE stats with DraftKings points."
-    }
+    __table_args__ = (
+        Index("player_game_logs_gsis_id_idx", "gsis_id"),
+        {"comment": "nflverse weekly QB/RB/WR/TE stats with DraftKings points."},
+    )
 
     year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
