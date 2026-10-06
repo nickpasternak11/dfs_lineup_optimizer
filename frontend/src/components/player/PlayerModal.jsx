@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import useGameLog from '../../hooks/useGameLog';
 import { formatMatchup, formatPoints, formatSalary, formatValue } from '../../lib/format';
 import { formatKickoff } from '../../lib/kickoff';
+import { formatSpread, linesSummary } from '../../lib/lines';
 import { matchupSummary, matchupTier, ordinal } from '../../lib/matchup';
 import {
     ageOn, defaultSeason, formatDraft, formatHeight, seasonSummary, seasonsOf,
@@ -57,6 +58,21 @@ const useDialog = (onClose) => {
     }, []);
     return dialogRef;
 };
+
+// The team's implied points, with the over/under and spread beneath.
+function TeamTotalTile({ player }) {
+    const implied = player.implied_total;
+    if (implied === null || implied === undefined) return null;
+    return (
+        <Tile
+            label="Total"
+            note={`O/U ${player.game_total} · ${player.team} ${formatSpread(player.team_spread)}`}
+            title={linesSummary(player)}
+        >
+            {formatPoints(implied)}
+        </Tile>
+    );
+}
 
 function Bio({ bio }) {
     if (!bio) return null;
@@ -158,6 +174,7 @@ export default function PlayerModal({ player, unavailableReason, optimizer, slat
                     <Tile label="Value">{formatValue(player.value)}</Tile>
                     <Tile label="Recent avg">{formatPoints(player.avg_fpts)}</Tile>
                     <MatchupTile player={player} />
+                    <TeamTotalTile player={player} />
                     {player.grade && <Tile label="Grade"><GradeBadge grade={player.grade} /></Tile>}
                 </div>
 

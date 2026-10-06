@@ -2,6 +2,7 @@ import React from 'react';
 import { VALUE_PLAY_THRESHOLD } from '../../lib/constants';
 import { formatMatchup, formatPoints, formatSalary, formatValue } from '../../lib/format';
 import { formatKickoff } from '../../lib/kickoff';
+import { linesSummary } from '../../lib/lines';
 import { matchupSummary, matchupTier, ordinal } from '../../lib/matchup';
 import { ExposurePips, GradeBadge, InjuryBadge, PositionBadge, SalaryChange } from '../common/Badges';
 import Icon from '../common/Icon';
@@ -16,6 +17,13 @@ const COLUMNS = [
         label: 'Matchup',
         title: 'Opponent rank by FPTS allowed to the position per game over the last four weeks: 1st allowed the fewest. Red: 1st–10th, green: 23rd–32nd',
         sortable: true,
+    },
+    {
+        key: 'implied_total',
+        label: 'Total',
+        title: "The team's implied points from the betting lines (its share of the over/under, by the spread), with the game's over/under below",
+        sortable: true,
+        align: 'right',
     },
     { key: 'grade', label: 'Grade', align: 'center' },
     { key: 'avg_fpts', label: 'Avg', title: 'FPTS per game over the last four weeks (last season in week 1)', sortable: true, align: 'right' },
@@ -60,6 +68,18 @@ function SkeletonRows() {
             ))}
         </tr>
     ));
+}
+
+// The team's implied points over the game's over/under.
+function TeamTotal({ player }) {
+    const implied = player.implied_total;
+    if (implied === null || implied === undefined) return <span className="muted">–</span>;
+    return (
+        <span className="team-total" title={linesSummary(player)}>
+            <span className="strong">{formatPoints(implied)}</span>
+            <span className="team-total-game">O/U {player.game_total}</span>
+        </span>
+    );
 }
 
 // Points scored against the projection, with a glyph so beat/missed doesn't
@@ -160,6 +180,7 @@ export default function PoolTable({ rows, playerPool, optimizer, lineupCount, lo
                                         </span>
                                     </span>
                                 </td>
+                                <td className="align-right num"><TeamTotal player={player} /></td>
                                 <td className="align-center"><GradeBadge grade={player.grade} /></td>
                                 <td className="align-right num muted">{formatPoints(player.avg_fpts)}</td>
                                 <td className="align-right num strong">{formatPoints(player.proj_fpts)}</td>

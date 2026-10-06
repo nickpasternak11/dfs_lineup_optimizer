@@ -118,7 +118,7 @@
     font-size: 0.66rem;
     font-weight: 800;
     letter-spacing: 0.06em;
-    padding: 8px 10px;
+    padding: 8px;
     position: sticky;
     text-transform: uppercase;
     top: 0;
@@ -156,7 +156,7 @@
 .pool-table td {
     border-bottom: 1px solid var(--border);
     font-size: 0.82rem;
-    padding: 7px 10px;
+    padding: 7px 8px;
     vertical-align: middle;
     white-space: nowrap;
 }
@@ -304,6 +304,18 @@ th.align-right .sort-button { flex-direction: row; }
 
 .matchup-rank.matchup-tough { background: var(--bad-soft); color: var(--bad); }
 .matchup-rank.matchup-soft { background: var(--good-soft); color: var(--good); }
+
+.team-total {
+    align-items: flex-end;
+    display: inline-flex;
+    flex-direction: column;
+}
+
+.team-total-game {
+    color: var(--text-faint);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
 
 .kickoff {
     color: var(--text-faint);

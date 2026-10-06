@@ -190,6 +190,27 @@ test('the matchup ranks the opponent against the position, sorts by it, and show
     expect(within(dialog).getByText('17.1 a game allowed')).toBeInTheDocument();
 });
 
+test('the implied team total shows over the over/under, and on the card', async () => {
+    client.fetchProjections.mockResolvedValue(POOL.map(p => (
+        p.player === 'Josh Allen'
+            ? { ...p, opponent: 'NE', game_total: 49.5, team_spread: -7, implied_total: 28.25 }
+            : p
+    )));
+    await renderApp();
+
+    const total = within(poolRow('Josh Allen')).getByText('28.3').closest('.team-total');
+    expect(total).toHaveTextContent('O/U 49.5');
+    expect(total).toHaveAttribute('title', 'BUF −7 · O/U 49.5 · implied BUF 28.3, NE 21.3');
+    // No lines yet: a dash.
+    expect(within(poolRow('Bijan Robinson')).queryByText(/O\/U/)).not.toBeInTheDocument();
+
+    client.fetchPlayerGameLog.mockResolvedValue(ALLEN_LOG);
+    fireEvent.click(poolRow('Josh Allen').querySelector('.matchup-cell'));
+    const dialog = await screen.findByRole('dialog', { name: /Josh Allen/ });
+    expect(within(dialog).getByText('Total')).toBeInTheDocument();
+    expect(within(dialog).getByText('O/U 49.5 · BUF −7')).toBeInTheDocument();
+});
+
 test('a past week counts every game: players stay available and the optimizer includes them', async () => {
     const played = POOL.map(p => ({ ...p, week: 3, kickoff: '2026-09-27T17:00:00+0000' }));
     client.fetchProjections.mockImplementation(async (year, week) => (week === '3' ? played : POOL));

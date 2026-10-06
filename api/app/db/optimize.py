@@ -29,6 +29,11 @@ _RECENT_WEEKS = """
 # player's position per game over the same weeks: 1 allowed the fewest (the
 # toughest matchup), 32 the most. A defense's matchup is the offense it
 # faces, ranked by what it gave up to the DSTs it played.
+#
+# The betting lines come from the nflverse schedule, refreshed with the game
+# logs each morning. nflverse's spread_line is the home team's expected
+# margin; team_spread flips it to the team's own, betting-style (favorites
+# negative), so its implied total is (total - spread) / 2.
 PLAYER_POOL_QUERY = text(
     f"""
     WITH defense_games AS (
@@ -78,7 +83,10 @@ PLAYER_POOL_QUERY = text(
            results.gsis_id, results.actual_dk_points,
            matchups.fpts_allowed AS opp_fpts_allowed,
            matchups.fpts_allowed_rank AS opp_fpts_allowed_rank,
-           matchups.games AS opp_games
+           matchups.games AS opp_games,
+           lines.total_line AS game_total,
+           lines.spread AS team_spread,
+           round((lines.total_line - lines.spread) / 2, 2) AS implied_total
     FROM weekly_player_pool AS pool
     LEFT JOIN player_week_results AS results
       ON results.year = pool.year
@@ -90,6 +98,15 @@ PLAYER_POOL_QUERY = text(
     LEFT JOIN matchups
       ON matchups.team = nfl_team(pool.opponent)
      AND matchups.position = pool.position
+    LEFT JOIN LATERAL (
+        SELECT games.total_line,
+               CASE WHEN games.home_team = nfl_team(pool.team)
+                    THEN -games.spread_line ELSE games.spread_line END AS spread
+        FROM nfl_games AS games
+        WHERE games.year = pool.year
+          AND games.week = pool.week
+          AND nfl_team(pool.team) IN (games.home_team, games.away_team)
+    ) AS lines ON true
     WHERE pool.year = :year
       AND pool.week = :week
       AND pool.salary IS NOT NULL
@@ -99,7 +116,10 @@ PLAYER_POOL_QUERY = text(
 )
 
 # NUMERIC comes back as Decimal, which pulp can't handle.
-FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value", "actual_dk_points", "opp_fpts_allowed"]
+FLOAT_COLUMNS = [
+    "avg_fpts", "proj_fpts", "value", "actual_dk_points", "opp_fpts_allowed",
+    "game_total", "team_spread", "implied_total",
+]
 
 # Player pools keyed by (year, week), shared by every request in this worker.
 # Each caller gets its own copy, so filtering or reweighting one request's

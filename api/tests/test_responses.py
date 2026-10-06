@@ -18,10 +18,13 @@ def query_columns() -> list[str]:
         re.findall(r"SELECT(.*?)\bFROM\b", PLAYER_POOL_QUERY.text, re.S),
         key=lambda s: s.count(","),
     )
+    # Drop parenthesized arguments, innermost first, so their commas don't split.
+    while "(" in select:
+        select = re.sub(r"\([^()]*\)", "", select)
     # "pool.year" -> "year"; "COALESCE(...) AS avg_fpts" -> "avg_fpts"
     return [
         (column.rsplit(" AS ", 1)[1] if " AS " in column else column.split(".")[-1]).strip()
-        for column in re.sub(r"\([^)]*\)", "()", select).split(",")
+        for column in select.split(",")
     ]
 
 
@@ -50,6 +53,9 @@ def full_pool(pool) -> pd.DataFrame:
     df["opp_fpts_allowed"] = [27.3] + [float("nan")] * (len(df) - 1)
     df["opp_fpts_allowed_rank"] = [24.0] + [float("nan")] * (len(df) - 1)
     df["opp_games"] = [3.0] + [float("nan")] * (len(df) - 1)
+    df["game_total"] = [49.5] + [float("nan")] * (len(df) - 1)
+    df["team_spread"] = [-7.0] + [float("nan")] * (len(df) - 1)
+    df["implied_total"] = [28.25] + [float("nan")] * (len(df) - 1)
     df.loc[0, "kickoff"] = pd.Timestamp("2099-09-27T17:00:00", tz="UTC")
     df.loc[1, "avg_fpts"] = float("nan")
     for column in FLOAT_COLUMNS:
@@ -78,6 +84,8 @@ def test_projection_records_validate(full_pool):
     assert historical.gsis_id is None and historical.actual_dk_points is None
     assert (current.opp_fpts_allowed, current.opp_fpts_allowed_rank, current.opp_games) == (27.3, 24, 3)
     assert historical.opp_fpts_allowed_rank is None
+    assert (current.game_total, current.team_spread, current.implied_total) == (49.5, -7.0, 28.25)
+    assert historical.implied_total is None
     assert historical.kickoff is None
     assert historical.home is None
     assert historical.avg_fpts is None

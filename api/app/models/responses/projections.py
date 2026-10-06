@@ -55,6 +55,15 @@ class ProjectionRecord(BaseModel):
         "teams: 1 allowed the fewest (toughest matchup), 32 the most"
     )
     opp_games: int | None = Field(description="Games behind opp_fpts_allowed")
+    game_total: float | None = Field(description="The game's over/under")
+    team_spread: float | None = Field(
+        description="The team's point spread, betting-style: -3.5 when favored "
+        "by 3.5"
+    )
+    implied_total: float | None = Field(
+        description="The team's implied points, (game_total - team_spread) / 2; "
+        "NULL until the game has lines"
+    )
 
 
 GetProjectionsResponse = list[ProjectionRecord]
