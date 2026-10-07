@@ -3,7 +3,7 @@ import sys
 
 from dfs_common.season import current_season_year
 from src.configs import FIRST_SEASON, log
-from src.loader import load_player_ids, load_season
+from src.loader import load_player_ids, load_season, refresh_links
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,6 +49,13 @@ if __name__ == "__main__":
         except Exception:  # noqa: BLE001 - one bad season shouldn't stop the rest
             log.exception("Game log load failed for %s", year)
             failed.append(year)
+
+    # Even after a failed season: the others' new games still need linking.
+    try:
+        refresh_links()
+    except Exception:  # noqa: BLE001
+        log.exception("Refreshing pool player links failed")
+        failed.append("links")
 
     if failed:
         log.error("Game log load failed for: %s", failed)

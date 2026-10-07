@@ -46,10 +46,13 @@
     --pos-flex: #475569;
     --pos-flex-soft: #e8edf3;
 
-    /* Chart series: the reference categorical slots 1 (blue) and 2 (orange),
-       checked for colorblind separation against each theme's surface. */
+    /* Chart series: the reference categorical slots 1 (blue), 2 (orange) and
+       3 (aqua), checked for colorblind separation against each theme's
+       surface. Aqua is under 3:1 on white, so a chart using it keeps its
+       legend and table view. */
     --series-1: #2a78d6;
     --series-2: #eb6834;
+    --series-3: #1baf7a;
 
     --row-locked: #ecf8f0;
     --row-unavailable: #fbf3f3;
@@ -105,6 +108,7 @@
 
     --series-1: #3987e5;
     --series-2: #d95926;
+    --series-3: #199e70;
 
     --row-locked: rgba(34, 197, 94, 0.09);
     --row-unavailable: rgba(248, 113, 113, 0.06);

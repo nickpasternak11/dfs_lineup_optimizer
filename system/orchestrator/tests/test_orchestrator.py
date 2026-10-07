@@ -94,8 +94,13 @@ def test_schedule_is_unchanged(instance):
     assert ("run_backfill", "tuesday", "09:30:00") in jobs
     assert ("run_backup", "None", "03:00:00") in jobs
     assert ("run_game_log_loader", "None", "06:00:00") in jobs
+    assert ("run_projection_model", "None", "08:30:00") in jobs
+    assert ("run_lineup_snapshot", "None", "09:00:00") in jobs
+    # Sunday late swap: FantasyPros' news, a model run, then the swap.
+    assert {("run_projection_scraper", "sunday", "11:35:00"), ("run_projection_model", "sunday", "11:40:00"),
+            ("run_late_swap", "sunday", "11:50:00")} <= jobs
     projection_runs = [job for job in jobs if job[0] == "run_projection_scraper"]
-    assert len(projection_runs) == 3 * 11  # hourly 10:00-20:00, Tue-Thu
+    assert len(projection_runs) == 3 * 11 + 1  # hourly 10:00-20:00 Tue-Thu, and Sunday's
 
 
 def test_failed_scraper_alerts_with_its_last_log_lines(instance, jobs_dir, alerts, monkeypatch):
@@ -130,6 +135,9 @@ def test_scrapers_skip_the_off_season(instance, monkeypatch):
     instance.run_projection_scraper()
     instance.run_backfill()
     instance.run_game_log_loader()
+    instance.run_projection_model()
+    instance.run_lineup_snapshot()
+    instance.run_late_swap()
     assert calls == []
 
 
@@ -184,3 +192,24 @@ def test_catch_up_check_failure_alerts(instance, catch_up_env, alerts, monkeypat
     monkeypatch.setattr(orchestrator, "get_current_week", unreachable)
     instance.catch_up()
     assert "Catch-up check failed: Could not find the current week" in alerts[0]
+
+
+def test_projection_model_predicts(instance, monkeypatch):
+    calls = []
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: calls.append((name, args)))
+    instance.run_projection_model()
+    assert calls == [("projection-model", ["predict"])]
+
+
+def test_lineup_snapshot_saves_lineups(instance, monkeypatch):
+    calls = []
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: calls.append((name, args)))
+    instance.run_lineup_snapshot()
+    assert calls == [("projection-model", ["lineups", "--on-first-game-day"])]
+
+
+def test_late_swap_re_optimizes_the_saved_lineups(instance, monkeypatch):
+    calls = []
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: calls.append((name, args)))
+    instance.run_late_swap()
+    assert calls == [("projection-model", ["lineups", "--late-swap"])]

@@ -19,6 +19,7 @@ from sqlalchemy import (
     SmallInteger,
     Text,
     func,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -113,9 +114,10 @@ class NflGame(Base):
 
 class PlayerGameLog(Base):
     __tablename__ = "player_game_logs"
-    __table_args__ = {
-        "comment": "nflverse weekly QB/RB/WR/TE stats with DraftKings points."
-    }
+    __table_args__ = (
+        Index("player_game_logs_gsis_id_idx", "gsis_id"),
+        {"comment": "nflverse weekly QB/RB/WR/TE stats with DraftKings points."},
+    )
 
     year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
@@ -192,6 +194,56 @@ class NflPlayer(Base):
     # Overall pick number.
     draft_pick: Mapped[int | None] = mapped_column(SmallInteger)
     scraped_at: Mapped[datetime] = _scraped_at()
+
+
+class ModelProjection(Base):
+    __tablename__ = "model_projections"
+    __table_args__ = {
+        "comment": "Snapshots of our model's DraftKings projections, written before "
+        "kickoff by dfs-projection-model and never updated."
+    }
+
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    # weekly_player_pool's spelling, so a snapshot joins the pool directly.
+    player: Mapped[str] = mapped_column(Text, primary_key=True)
+    # When the run that made it started; a run's rows share it.
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    position: Mapped[str] = mapped_column(Text, nullable=False)
+    team: Mapped[str | None] = mapped_column(Text)
+    gsis_id: Mapped[str | None] = mapped_column(Text)
+    proj_dk_points: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    model_version: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class LineupSnapshot(Base):
+    __tablename__ = "lineup_snapshots"
+    __table_args__ = {
+        "comment": "The optimizer's suggested lineups, saved before kickoff by "
+        "dfs-projection-model and never updated."
+    }
+
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    # The projection the optimizer ran on: "fantasypros" or "model".
+    source: Mapped[str] = mapped_column(Text, primary_key=True)
+    # "projection", "blend_90_10" or "blend_80_20" (projection blended with
+    # the recent average).
+    strategy: Mapped[str] = mapped_column(Text, primary_key=True)
+    # "initial" (saved before the week's first game) or "late_swap" (Sunday's
+    # re-optimization of the players whose games hadn't started).
+    phase: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'initial'"))
+    # The player's place in the lineup as the optimizer returned it, 0-8.
+    slot: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    player: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[str] = mapped_column(Text, nullable=False)
+    team: Mapped[str | None] = mapped_column(Text)
+    salary: Mapped[int] = mapped_column(Integer, nullable=False)
+    # The source's own projection, and what the lineup was optimized on (the
+    # same for "projection"; blended with the recent average otherwise).
+    projection: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    optimized_points: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
 
 
 WEEKLY_PLAYER_POOL_COLUMNS = [

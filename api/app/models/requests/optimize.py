@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -10,3 +12,7 @@ class OptimizeRequest(BaseModel):
     include_started_players: bool = False
     excluded_players: list[str] = []
     included_players: list[str] = []
+    projection_source: Literal["fantasypros", "model"] = Field(
+        default="fantasypros",
+        description="Optimize on FantasyPros' projection or our model's latest one before kickoff",
+    )

@@ -58,6 +58,34 @@ class ScraperOrchestrator:
         schedule.every().day.at("06:00", "America/New_York").do(
             self.run_game_log_loader
         )
+        # Our model's projections → Daily, 8:30 AM ET, after the game logs
+        # load and before the earliest kickoffs (London, 9:30 AM ET). Each run
+        # stores a snapshot for games still to come, so the last one before a
+        # game's kickoff is the one it's scored on. On Tuesday morning, before
+        # the new week's pool exists, there's nothing left to project.
+        schedule.every().day.at("08:30", "America/New_York").do(
+            self.run_projection_model
+        )
+        # Suggested lineups saved for the weekly review → Daily, 9:00 AM ET,
+        # after that morning's projections. The job saves only on the day of
+        # the week's first game (usually Thursday), once, so the lineups cover
+        # the whole Thursday-to-Monday classic slate.
+        schedule.every().day.at("09:00", "America/New_York").do(
+            self.run_lineup_snapshot
+        )
+        # Sunday late swap. Inactives for the 1 PM games come out around
+        # 11:30 AM ET, so: FantasyPros' Sunday news at 11:35, a model run at
+        # 11:40, then each saved lineup's not-yet-started players
+        # re-optimized at 11:50 (players lock at their own kickoff).
+        schedule.every().sunday.at("11:35", "America/New_York").do(
+            self.run_projection_scraper
+        )
+        schedule.every().sunday.at("11:40", "America/New_York").do(
+            self.run_projection_model
+        )
+        schedule.every().sunday.at("11:50", "America/New_York").do(
+            self.run_late_swap
+        )
         # Missed-run catch-up → Daily at noon ET (and at startup, see run())
         schedule.every().day.at("12:00", "America/New_York").do(self.catch_up)
         # Database backup → Daily, 3:00 AM ET
@@ -93,6 +121,24 @@ class ScraperOrchestrator:
             return
         log.info("Starting scheduled game log load...")
         self.run_scraper("game-log-loader")
+
+    def run_projection_model(self):
+        if self.skip_off_season("projection model"):
+            return
+        log.info("Starting scheduled projection model run...")
+        self.run_scraper("projection-model", ["predict"])
+
+    def run_lineup_snapshot(self):
+        if self.skip_off_season("lineup snapshot"):
+            return
+        log.info("Saving this week's suggested lineups if its first game is today...")
+        self.run_scraper("projection-model", ["lineups", "--on-first-game-day"])
+
+    def run_late_swap(self):
+        if self.skip_off_season("late swap"):
+            return
+        log.info("Saving Sunday's late swap of the week's lineups...")
+        self.run_scraper("projection-model", ["lineups", "--late-swap"])
 
     def run_backfill(self):
         if self.skip_off_season("backfill"):

@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import App from './App';
 import * as client from './api/client';
+import { clearAccuracyCache } from './hooks/useAccuracy';
 
 vi.mock('./api/client');
 
@@ -224,4 +225,250 @@ test('a past week counts every game: players stay available and the optimizer in
     const lastCall = client.fetchLineups.mock.calls[client.fetchLineups.mock.calls.length - 1][0];
     expect(lastCall).toMatchObject({ week: '3', includeStarted: true });
     expect(screen.getByRole('switch', { name: /Include started games/ })).toBeDisabled();
+});
+
+const metrics = (mae, within, rankCorr, bias) => ({ mae, bias, rmse: mae * 1.3, within, rank_corr: rankCorr });
+const cell = (n, proj, recent) => ({ player_weeks: n, metrics: { projection: proj, recent_avg: recent } });
+const ACCURACY = {
+    view: 'history',
+    seasons: [2025, 2024],
+    first_week: { year: 2024, week: 3 },
+    model_versions: [],
+    sources: [
+        { key: 'projection', label: 'FantasyPros', description: 'FantasyPros' },
+        { key: 'recent_avg', label: 'Recent avg', description: 'The Avg column' },
+    ],
+    year: null,
+    position: null,
+    min_proj: 5,
+    coverage: { considered: 120, scored: 110, no_stats: 8, unlinked: 2, no_baseline: 10, evaluated: 100 },
+    summary: cell(100, metrics(5.84, 0.534, 0.413, 0.434), metrics(6.64, 0.482, 0.265, -0.167)),
+    by_position: [
+        { position: 'QB', ...cell(40, metrics(6.5, 0.47, 0.31, 1.3), metrics(7.4, 0.42, 0.19, 0.1)) },
+        { position: 'RB', ...cell(60, metrics(6.2, 0.52, 0.53, 0.8), metrics(6.8, 0.49, 0.41, -0.2)) },
+    ],
+    by_week: [
+        { year: 2024, week: 3, ...cell(50, metrics(5.5, 0.55, 0.4, 0.3), metrics(6.4, 0.5, 0.3, 0)) },
+        { year: 2025, week: 3, ...cell(50, metrics(6.1, 0.52, 0.42, 0.5), metrics(6.9, 0.46, 0.23, -0.3)) },
+    ],
+    by_salary: [
+        { low: 4000, high: 6000, ...cell(100, metrics(5.8, 0.53, null, 0.4), metrics(6.6, 0.48, null, -0.2)) },
+    ],
+    calibration: {
+        projection: [{ low: 10, high: 15, player_weeks: 60, predicted: 12.4, actual: 12.5 }],
+        recent_avg: [{ low: 10, high: 15, player_weeks: 55, predicted: 12.1, actual: 11.2 }],
+    },
+};
+
+describe('accuracy page', () => {
+    beforeEach(() => {
+        clearAccuracyCache();
+        client.fetchAccuracy.mockResolvedValue(ACCURACY);
+        window.location.hash = '#/accuracy';
+    });
+    afterEach(() => {
+        window.location.hash = '';
+    });
+
+    test('compares the projection with the baseline', async () => {
+        render(<App />);
+        expect(await screen.findByRole('heading', { name: 'Projection accuracy' })).toBeInTheDocument();
+        expect(client.fetchAccuracy).toHaveBeenCalledWith({ view: 'history', year: null, position: null, minProj: 5 });
+        // The lineups page's slate picker isn't shown here.
+        expect(screen.queryByLabelText('Week')).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Accuracy' })).toHaveAttribute('aria-current', 'page');
+
+        const miss = screen.getByText('Average miss', { selector: '.stat-label' }).closest('.accuracy-tile');
+        expect(miss).toHaveTextContent('5.8 FPTS');
+        expect(miss).toHaveTextContent('Recent avg 6.6 · ▲ 0.8 FPTS better');
+        expect(screen.getByText('Players beat it by 0.4 FPTS on average')).toBeInTheDocument();
+        expect(screen.getByText(/100 player-weeks with a final game since 2024/)).toHaveTextContent(
+            'Not compared: 8 inactive, 2 not matched to NFL stats, 10 with no recent games to average.',
+        );
+
+        // By position: the better value of each pair is bold.
+        const qb = screen.getByRole('rowheader', { name: 'QB' }).closest('tr');
+        expect(within(qb).getByText('6.5')).toHaveClass('is-better');
+        expect(within(qb).getByText('7.4')).not.toHaveClass('is-better');
+        // Salary tiers have no ranking column.
+        const salary = screen.getByRole('table', { name: 'By salary' });
+        expect(within(salary).queryByText('Ranking')).not.toBeInTheDocument();
+        expect(within(salary).getByRole('rowheader', { name: '$4,000–$5,900' })).toBeInTheDocument();
+    });
+
+    test('filters reload the report', async () => {
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'RB' }));
+        });
+        expect(client.fetchAccuracy).toHaveBeenLastCalledWith({ view: 'history', year: null, position: 'RB', minProj: 5 });
+
+        await act(async () => {
+            fireEvent.change(screen.getByLabelText('Season'), { target: { value: '2024' } });
+        });
+        expect(client.fetchAccuracy).toHaveBeenLastCalledWith({ view: 'history', year: 2024, position: 'RB', minProj: 5 });
+    });
+
+    test('the week chart reads out each week from the keyboard', async () => {
+        render(<App />);
+        const chart = await screen.findByRole('group', { name: /Average miss by week, 2024 W3 to 2025 W3/ });
+
+        fireEvent.focus(chart);
+        expect(within(chart).getByRole('status')).toHaveTextContent('2025 W3');
+        fireEvent.keyDown(chart, { key: 'ArrowLeft' });
+        expect(within(chart).getByRole('status')).toHaveTextContent('2024 W3FantasyPros 5.5Recent avg 6.450 player-weeks');
+    });
+
+    test('the live view leads with our model and resets the season', async () => {
+        const live = {
+            ...ACCURACY,
+            view: 'live',
+            seasons: [2026],
+            first_week: { year: 2026, week: 5 },
+            model_versions: ['1'],
+            coverage: { ...ACCURACY.coverage, evaluated: 80 },
+            sources: [
+                { key: 'model', label: 'Our model', description: 'Ours' },
+                ...ACCURACY.sources,
+            ],
+            summary: {
+                player_weeks: 80,
+                metrics: {
+                    model: metrics(5.6, 0.55, 0.42, 0.1),
+                    projection: metrics(5.9, 0.52, 0.44, 0.5),
+                    recent_avg: metrics(6.7, 0.47, 0.27, -0.1),
+                },
+            },
+        };
+        client.fetchAccuracy.mockImplementation(async ({ view }) => (view === 'live' ? live : ACCURACY));
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        await act(async () => {
+            fireEvent.change(screen.getByLabelText('Season'), { target: { value: '2024' } });
+        });
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Live: our model' }));
+        });
+
+        expect(client.fetchAccuracy).toHaveBeenLastCalledWith({ view: 'live', year: null, position: null, minProj: 5 });
+        const miss = screen.getByText('Average miss', { selector: '.stat-label' }).closest('.accuracy-tile');
+        expect(miss).toHaveTextContent('5.6 FPTS');
+        expect(miss).toHaveTextContent('FantasyPros 5.9 · ▲ 0.3 FPTS better');
+        expect(miss).toHaveTextContent('Recent avg 6.7 · ▲ 1.1 FPTS better');
+        expect(screen.getByText(/80 player-weeks with a final game since 2026 week 5/)).toBeInTheDocument();
+        expect(screen.getByText(/Version 1 doesn.t know who.s inactive yet/)).toBeInTheDocument();
+    });
+
+    test('the live view says when there is no record yet', async () => {
+        const empty = { ...ACCURACY, view: 'live', seasons: [], first_week: null, summary: { player_weeks: 0, metrics: {} } };
+        client.fetchAccuracy.mockImplementation(async ({ view }) => (view === 'live' ? empty : ACCURACY));
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Live: our model' }));
+        });
+        expect(screen.getByText(/No live record yet/)).toBeInTheDocument();
+        expect(screen.queryByText('No finished games match these filters yet.')).not.toBeInTheDocument();
+    });
+
+    const reviewPlayer = (name, actual) => ({
+        slot: 0, player: name, position: 'WR', team: 'BUF', salary: 5000, projection: 10, actual,
+    });
+    const REVIEW = {
+        weeks: [{ year: 2026, week: 6 }, { year: 2026, week: 5 }],
+        year: 2026,
+        week: 6,
+        saved_at: '2026-10-11T13:00:00Z',
+        swapped_at: null,
+        complete: true,
+        lineups: [
+            { phase: 'initial', source: 'fantasypros', strategy: 'projection', projected: 128.5, actual: 117.0, players: [reviewPlayer('Puka Nacua', 21.4)] },
+            { phase: 'initial', source: 'model', strategy: 'projection', projected: 131.2, actual: 135.0, players: [reviewPlayer('Jahmyr Gibbs', null)] },
+        ],
+        best: { actual: 180.0, players: [reviewPlayer('Ja\'Marr Chase', 38.0)] },
+        season: [
+            { week: 5, complete: true, best: 170.0, lineups: [
+                { phase: 'initial', source: 'fantasypros', strategy: 'projection', projected: 125, actual: 121.0 },
+                { phase: 'initial', source: 'model', strategy: 'projection', projected: 129, actual: 125.0 },
+            ] },
+            { week: 6, complete: true, best: 180.0, lineups: [
+                { phase: 'initial', source: 'fantasypros', strategy: 'projection', projected: 128.5, actual: 117.0 },
+                { phase: 'initial', source: 'model', strategy: 'projection', projected: 131.2, actual: 135.0 },
+            ] },
+        ],
+    };
+
+    test('the lineups view scores the saved lineups against the best possible', async () => {
+        client.fetchLineupReview.mockResolvedValue(REVIEW);
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        const accuracyCalls = client.fetchAccuracy.mock.calls.length;
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Lineups' }));
+        });
+
+        expect(client.fetchLineupReview).toHaveBeenCalledWith({ year: null, week: null });
+        expect(client.fetchAccuracy.mock.calls.length).toBe(accuracyCalls);
+        expect(screen.getByText(/Saved Sun, Oct 11, 9:00 AM ET, before the week.s first game/)).toBeInTheDocument();
+        const model = screen.getByRole('rowheader', { name: 'Our model · Projection' }).closest('tr');
+        expect(model).toHaveTextContent('131.2135.075%');
+        expect(screen.getByRole('rowheader', { name: 'Best possible, in hindsight' }).closest('tr')).toHaveTextContent('180.0100%');
+        // The season table averages each lineup over its weeks.
+        const season = screen.getByRole('table', { name: '2026 season: actual points, as played' });
+        expect(within(season).getByRole('rowheader', { name: 'Average' }).closest('tr')).toHaveTextContent('119.0130.0175.0');
+
+        await act(async () => {
+            fireEvent.change(screen.getByLabelText('Week'), { target: { value: '2026-5' } });
+        });
+        expect(client.fetchLineupReview).toHaveBeenLastCalledWith({ year: 2026, week: 5 });
+    });
+
+    test('a Sunday late swap shows beside the lineup it swapped', async () => {
+        const swap = (actual, name) => ({
+            phase: 'late_swap', source: 'model', strategy: 'projection', projected: 133.0, actual, players: [reviewPlayer(name, 30.0)],
+        });
+        client.fetchLineupReview.mockResolvedValue({
+            ...REVIEW,
+            swapped_at: '2026-10-11T15:50:00Z',
+            lineups: [...REVIEW.lineups, swap(141.5, 'Kyren Williams')],
+            season: [{ ...REVIEW.season[1], lineups: [...REVIEW.season[1].lineups, { ...swap(141.5, 'x'), players: undefined }] }, REVIEW.season[0]],
+        });
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Lineups' }));
+        });
+
+        expect(screen.getByText(/swapped Sun, Oct 11, 11:50 AM ET/)).toBeInTheDocument();
+        const model = screen.getByRole('rowheader', { name: 'Our model · Projection' }).closest('tr');
+        // Before swaps 135.0, after 141.5 (+6.5), 79% of the best 180.
+        expect(model).toHaveTextContent('131.2135.0141.5 (+6.5)79%');
+        // FantasyPros wasn't swapped: its "after" cell is empty, its share uses the original.
+        expect(screen.getByRole('rowheader', { name: 'FantasyPros · Projection' }).closest('tr')).toHaveTextContent('117.0–65%');
+        expect(screen.getByText(/Our model · Projection, after Sunday swaps: 141.5 actual/)).toBeInTheDocument();
+    });
+
+    test('the lineups view before any are saved', async () => {
+        client.fetchLineupReview.mockResolvedValue({ ...REVIEW, weeks: [], lineups: [], best: null, season: [] });
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Lineups' }));
+        });
+        expect(screen.getByText(/No saved lineups yet/)).toBeInTheDocument();
+    });
+
+    test('the header links switch pages', async () => {
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        await act(async () => {
+            window.location.hash = '#/';
+            window.dispatchEvent(new HashChangeEvent('hashchange'));
+        });
+        expect(await screen.findByText('Suggested lineups')).toBeInTheDocument();
+    });
 });

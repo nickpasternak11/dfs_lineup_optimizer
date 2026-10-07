@@ -23,12 +23,14 @@ WORKDIR /app
 # The base image's pip and setuptools have known vulnerabilities.
 RUN pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0
 
-# The scrapers run as child processes of the orchestrator, so it installs their
+# The jobs run as child processes of the orchestrator, so it installs their
 # dependencies too (both scrapers pin the same set; the game log loader needs a
-# subset of it).
+# subset of it; the projection model adds scikit-learn and scipy on the same
+# numpy and pandas).
 COPY system/orchestrator/requirements.txt .
 COPY system/salary-scraper/requirements.txt scraper-requirements.txt
-RUN pip install -r requirements.txt -r scraper-requirements.txt
+COPY system/projection-model/requirements.txt model-requirements.txt
+RUN pip install -r requirements.txt -r scraper-requirements.txt -r model-requirements.txt
 
 FROM base as builder
 
@@ -37,6 +39,7 @@ COPY system/orchestrator/ .
 COPY system/salary-scraper/ ./jobs/salary-scraper/
 COPY system/projection-scraper/ ./jobs/projection-scraper/
 COPY system/game-log-loader/ ./jobs/game-log-loader/
+COPY system/projection-model/ ./jobs/projection-model/
 
 # `make test` target; not part of the deployed image.
 FROM builder AS test

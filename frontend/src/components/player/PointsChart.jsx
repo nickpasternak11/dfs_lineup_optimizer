@@ -1,29 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
+import useWidth from '../../hooks/useWidth';
 import { niceScale } from '../../lib/chartScale';
 import { formatPoints } from '../../lib/format';
 import { opponentLabel, resultLabel, weekLabel } from '../../lib/playerInfo';
+import '../charts/charts.css';
 
 const MARGIN = { top: 22, right: 8, bottom: 38, left: 34 };
 const HEIGHT = 240;
 const MAX_BAR = 24;
 const RADIUS = 4;
-
-// Width of the element, kept current as it resizes; the SVG is laid out in
-// real pixels so its text never scales.
-const useWidth = (fallback) => {
-    const ref = useRef(null);
-    const [width, setWidth] = useState(fallback);
-    useEffect(() => {
-        const element = ref.current;
-        if (!element) return undefined;
-        setWidth(element.clientWidth || fallback);
-        if (typeof ResizeObserver === 'undefined') return undefined;
-        const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width || fallback));
-        observer.observe(element);
-        return () => observer.disconnect();
-    }, [fallback]);
-    return [ref, width];
-};
 
 // A column with a 4px rounded data end and a square baseline; negative values
 // hang below the zero line with the rounding at the bottom.

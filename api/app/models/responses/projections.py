@@ -64,6 +64,10 @@ class ProjectionRecord(BaseModel):
         description="The team's implied points, (game_total - team_spread) / 2; "
         "NULL until the game has lines"
     )
+    model_fpts: float | None = Field(
+        description="Our model's latest projection made before the player's "
+        "kickoff; NULL until the model has projected the week"
+    )
 
 
 GetProjectionsResponse = list[ProjectionRecord]

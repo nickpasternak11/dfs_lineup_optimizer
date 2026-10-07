@@ -1,0 +1,285 @@
+.accuracy-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0 auto;
+    max-width: 1680px;
+    padding: 20px 20px 40px;
+}
+
+.accuracy-title {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-bottom: 6px;
+}
+
+.accuracy-intro h1 {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+
+.accuracy-intro p {
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    line-height: 1.5;
+    margin: 0;
+    max-width: 78ch;
+}
+
+.accuracy-filters {
+    align-items: flex-end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+}
+
+.accuracy-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.accuracy-filter > span {
+    color: var(--text-faint);
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.accuracy-filter .select {
+    min-width: 150px;
+}
+
+.accuracy-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: opacity 0.15s ease;
+}
+
+/* The previous report stays up while the next loads. */
+.accuracy-body.is-stale {
+    opacity: 0.55;
+}
+
+.accuracy-tiles {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.accuracy-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+}
+
+.accuracy-tile-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.accuracy-tile-unit {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.accuracy-tile-note {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+/* "▼ 0.2 FPTS worse" wraps as a unit. */
+.accuracy-difference { white-space: nowrap; }
+.accuracy-tile-note .is-good { color: var(--good); }
+.accuracy-tile-note .is-bad { color: var(--bad); }
+
+.accuracy-coverage {
+    color: var(--text-faint);
+    font-size: 0.78rem;
+    margin: -4px 0 0;
+}
+
+.accuracy-charts {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.accuracy-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 16px;
+}
+
+.accuracy-card h2 {
+    font-size: 1rem;
+    font-weight: 800;
+    margin: 0;
+}
+
+.accuracy-card-lead,
+.accuracy-footnote {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.accuracy-footnote {
+    color: var(--text-faint);
+    font-size: 0.74rem;
+}
+
+.accuracy-message {
+    background: var(--surface-sunken);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    margin: 0;
+    padding: 24px;
+    text-align: center;
+}
+
+.accuracy-skeleton {
+    height: 320px;
+    width: 100%;
+}
+
+/* Tables: the by-position and by-salary breakdowns, and each chart's data. */
+.metric-table-wrap {
+    overflow-x: auto;
+}
+
+.metric-table {
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    width: 100%;
+}
+
+.metric-table caption {
+    font-size: 1rem;
+    font-weight: 800;
+    padding-bottom: 10px;
+    text-align: left;
+}
+
+.metric-table th,
+.metric-table td {
+    border-bottom: 1px solid var(--border);
+    padding: 7px 10px;
+    white-space: nowrap;
+}
+
+.metric-table thead th {
+    color: var(--text-faint);
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-align: left;
+    text-transform: uppercase;
+}
+
+.metric-table thead th.align-right {
+    text-align: right;
+}
+
+.metric-table .metric-group {
+    border-bottom: 1px solid var(--border-strong);
+    text-align: center;
+}
+
+.metric-table .source-head {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: none;
+}
+
+.metric-table tbody th {
+    font-weight: 700;
+    text-align: left;
+}
+
+.metric-table tbody tr:last-child th,
+.metric-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.metric-table tr.is-selected {
+    background: var(--surface-sunken);
+}
+
+.metric-table .is-better {
+    font-weight: 800;
+}
+
+.metric-table td:not(.is-better):not(.strong) {
+    color: var(--text-muted);
+}
+
+/* The review's actual points: the number each row is about. */
+.metric-table td.strong {
+    font-weight: 800;
+}
+
+.chart-data summary {
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.chart-data[open] summary {
+    margin-bottom: 8px;
+}
+
+.chart-data .metric-table-wrap {
+    max-height: 280px;
+    overflow: auto;
+}
+
+.swap-swing {
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    font-weight: 600;
+}
+
+/* Nine players: shown whole. */
+.chart-data .metric-table-wrap.roster-wrap {
+    max-height: none;
+}
+
+@media (max-width: 1100px) {
+    .accuracy-charts {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 720px) {
+    .accuracy-page {
+        padding: 14px 12px 32px;
+    }
+
+    .accuracy-filter,
+    .accuracy-filter .select {
+        width: 100%;
+    }
+
+    .accuracy-filter .segmented {
+        display: flex;
+        overflow-x: auto;
+    }
+}

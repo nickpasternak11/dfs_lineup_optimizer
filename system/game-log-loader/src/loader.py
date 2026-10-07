@@ -1,4 +1,12 @@
-from dfs_db import DstGameLog, NflGame, NflPlayer, PlayerGameLog, replace_matching, session_scope
+from dfs_db import (
+    DstGameLog,
+    NflGame,
+    NflPlayer,
+    PlayerGameLog,
+    refresh_player_links,
+    replace_matching,
+    session_scope,
+)
 from dfs_db.upsert import DEFAULT_MIN_RATIO
 from src import nflverse
 from src.configs import log
@@ -44,3 +52,10 @@ def load_player_ids(allow_shrink: bool = False) -> None:
             session, NflPlayer, ids, {}, 0 if allow_shrink else DEFAULT_MIN_RATIO
         )
     log.info("Loaded %s players (ids and bios)", count)
+
+
+def refresh_links() -> None:
+    """Re-match pool players to the game logs just loaded (pool_player_links)."""
+    with session_scope() as session:
+        refresh_player_links(session)
+    log.info("Refreshed pool player links")

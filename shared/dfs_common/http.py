@@ -21,3 +21,11 @@ def fetch(url: str, params: dict | None = None, headers: dict | None = None, tim
     response = _http.get(url, params=params, headers=headers, timeout=timeout)
     response.raise_for_status()
     return response
+
+
+def post(url: str, json: dict, timeout: int = 60):
+    """POST a JSON body; raises on any non-2xx. Not retried: the adapter's
+    retries cover GET only."""
+    response = _http.post(url, json=json, timeout=timeout)
+    response.raise_for_status()
+    return response
