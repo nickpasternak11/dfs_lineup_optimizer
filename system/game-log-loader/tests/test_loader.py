@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 
 import pytest
-from dfs_db import DstGameLog, NflGame, NflPlayer, PlayerGameLog
+from dfs_db import DstGameLog, InjuryReport, NflGame, NflPlayer, PlayerGameLog, WeeklyRoster
 from src import loader
 
 
@@ -12,7 +12,7 @@ def writes(monkeypatch, nflverse_files):
     monkeypatch.setattr(
         loader.nflverse,
         "download_season",
-        lambda year: {k: nflverse_files[k] for k in ("player_stats", "team_stats", "games")},
+        lambda year: {k: nflverse_files[k] for k in ("player_stats", "team_stats", "games", "injuries", "rosters")},
     )
     monkeypatch.setattr(loader.nflverse, "download_player_ids", lambda: nflverse_files["player_ids"])
 
@@ -32,12 +32,13 @@ def writes(monkeypatch, nflverse_files):
 def test_a_season_replaces_its_games_and_logs(writes):
     loader.load_season(2025)
 
-    assert [model for model, *_ in writes] == [NflGame, PlayerGameLog, DstGameLog]
+    assert [model for model, *_ in writes] == [NflGame, PlayerGameLog, DstGameLog, InjuryReport, WeeklyRoster]
     assert all(where == {"year": 2025} for _, _, where, _ in writes)
     assert all(min_ratio == 0.8 for *_, min_ratio in writes)
     counts = {model: rows for model, rows, *_ in writes}
     assert counts[PlayerGameLog] == 4  # the K and OLB are dropped
     assert counts[DstGameLog] == 10
+    assert counts[WeeklyRoster] == 5  # the kicker and the row with no id are dropped
 
 
 def test_allow_shrink_disables_the_guard(writes):

@@ -196,6 +196,51 @@ class NflPlayer(Base):
     scraped_at: Mapped[datetime] = _scraped_at()
 
 
+class InjuryReport(Base):
+    __tablename__ = "injury_reports"
+    __table_args__ = {
+        "comment": "The NFL's weekly injury reports from nflverse: final game status "
+        "and practice participation."
+    }
+
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    gsis_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    season_type: Mapped[str] = mapped_column(Text, nullable=False)
+    team: Mapped[str] = mapped_column(Text, nullable=False)
+    player: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[str | None] = mapped_column(Text)
+    # Out, Doubtful, Questionable (Probable until 2015); NULL when the player
+    # was listed for practice but given no game status.
+    report_status: Mapped[str | None] = mapped_column(Text)
+    report_injury: Mapped[str | None] = mapped_column(Text)
+    # The week's latest practice: Full, Limited or DNP.
+    practice_status: Mapped[str | None] = mapped_column(Text)
+    practice_injury: Mapped[str | None] = mapped_column(Text)
+    scraped_at: Mapped[datetime] = _scraped_at()
+
+
+
+class WeeklyRoster(Base):
+    __tablename__ = "weekly_rosters"
+    __table_args__ = {
+        "comment": "Each week's roster status for QBs, RBs, WRs and TEs, from nflverse."
+    }
+
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    gsis_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    season_type: Mapped[str] = mapped_column(Text, nullable=False)
+    team: Mapped[str] = mapped_column(Text, nullable=False)
+    player: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[str] = mapped_column(Text, nullable=False)
+    # ACT, INA (inactive on game day), RES (injured reserve and the other
+    # reserve lists), DEV (practice squad), CUT, RET...
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    # The NFL's code for the status's detail.
+    status_detail: Mapped[str | None] = mapped_column(Text)
+    scraped_at: Mapped[datetime] = _scraped_at()
+
 class ModelProjection(Base):
     __tablename__ = "model_projections"
     __table_args__ = {

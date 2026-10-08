@@ -3,11 +3,12 @@
 - `predict`: project this week's pool players whose games are still to come
   and store the snapshot in model_projections (the orchestrator's daily job).
 - `lineups`: save the optimizer's suggested lineups on each projection
-  source for this week's games still to come, for the weekly review. The
-  orchestrator runs it every morning with --on-first-game-day, so it saves
-  once a week, before the first game, and Sunday at 11:50 AM ET with
-  --late-swap, which keeps each saved lineup's players whose games have
-  started and re-optimizes the rest.
+  source for this week's games still to come, for the weekly review. Until
+  the week's first kickoff, each save replaces the last (the newest counts);
+  after it, saves are refused. The orchestrator runs it every morning with
+  --on-first-game-day, so it saves on the day of the first game, and
+  Sunday at 11:50 AM ET with --late-swap, which keeps each saved lineup's
+  players whose games have started and re-optimizes the rest.
 - `backtest`: train season by season and score against FantasyPros on the
   accuracy page's rows. Reads only.
 - `props`: score player props on the season an Odds API export covers.
@@ -34,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--on-first-game-day",
         action="store_true",
-        help="lineups: save only on the day of the week's first game, and only once a week",
+        help="lineups: save only on the day of the week's first game",
     )
     parser.add_argument(
         "--late-swap",
@@ -55,7 +56,7 @@ def build_features(tables: dict) -> pd.DataFrame:
     snaps = nflverse.snap_counts(int(tables["player_logs"].year.max()))
     return pd.concat(
         [
-            player_features(tables["player_logs"], tables["games"], snaps),
+            player_features(tables["player_logs"], tables["games"], snaps, tables["injuries"], tables["rosters"]),
             dst_features(tables["dst_logs"], tables["games"], nflverse.schedule()),
         ],
         ignore_index=True,
@@ -93,14 +94,13 @@ def run_lineups(args: argparse.Namespace) -> None:
     if args.late_swap:
         save_late_swap(year, week, now, args.dry_run)
         return
-    if args.on_first_game_day:
-        first = data.first_kickoff(year, week)
-        if not lineups.is_first_game_day(first, now):
-            log.info("%s week %s starts %s; not saving lineups today", year, week, first)
-            return
-        if data.has_saved_lineups(year, week):
-            log.info("%s week %s lineups are already saved", year, week)
-            return
+    first = data.first_kickoff(year, week)
+    if not lineups.before_first_kickoff(first, now):
+        log.info("%s week %s kicked off at %s; its lineups are locked (the late swap re-optimizes them)", year, week, first)
+        return
+    if args.on_first_game_day and not lineups.is_first_game_day(first, now):
+        log.info("%s week %s starts %s; not saving lineups today", year, week, first)
+        return
     suggested = lineups.suggested_lineups(year, week)
     rows = lineups.snapshot_rows(suggested, lineups.pool_projections(year, week), year, week, now)
     if rows.empty:

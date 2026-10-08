@@ -110,3 +110,64 @@ def test_nfl_players_carry_bios(nflverse_files):
     allen = nflverse.nfl_players(nflverse_files["player_ids"]).set_index("gsis_id").loc["00-0034857"]
     assert (allen.player, str(allen.birthdate), allen.height, allen.weight) == ("Josh Allen", "1996-05-21", 77, 237)
     assert (allen.college, allen.draft_year, allen.draft_round, allen.draft_pick) == ("Wyoming", 2018, 1, 7)
+
+
+def test_injury_reports_keep_game_status_and_practice(nflverse_files):
+    reports = nflverse.injury_reports(nflverse_files["injuries"]).set_index("player")
+
+    milano = reports.loc["Matt Milano"]
+    assert (milano.year, milano.week, milano.team) == (2025, 5, "BUF")
+    assert (milano.report_status, milano.practice_status) == ("Questionable", "Limited")
+    assert (reports.loc["Dorian Williams", "report_status"], reports.loc["Dorian Williams", "practice_status"]) == ("Out", "DNP")
+    # Practiced in full with no game status.
+    assert pd.isna(reports.loc["Jackson Hawes", "report_status"])
+    assert reports.loc["Jackson Hawes", "practice_status"] == "Full"
+    # Probable (before 2016) stays; "Note" rows carry no status.
+    assert reports.loc["Probable Player", "report_status"] == "Probable"
+    assert pd.isna(reports.loc["Note Player", "report_status"]) and pd.isna(reports.loc["Note Player", "practice_status"])
+
+
+def test_injury_reports_drop_missing_ids_and_keep_a_traded_players_later_row(nflverse_files):
+    reports = nflverse.injury_reports(nflverse_files["injuries"])
+    assert "No Id" not in set(reports.player)
+    traded = reports[reports.player == "Traded Player"]
+    assert list(zip(traded.team, traded.report_status)) == [("BUF", "Out")]
+    assert not reports.duplicated(["year", "week", "gsis_id"]).any()
+
+
+def test_injury_reports_load_from_2009(monkeypatch):
+    requested = []
+    monkeypatch.setattr(nflverse, "read_csv", lambda url: requested.append(url) or pd.DataFrame())
+    nflverse.download_season(2008)
+    assert not any("injuries" in url for url in requested)
+    nflverse.download_season(2012)
+    assert requested[-1].endswith("/injuries/injuries_2012.csv")
+
+
+def test_injury_files_before_2025_have_no_season_type(nflverse_files):
+    # 2009-2024 files carry game_type only.
+    old_format = nflverse_files["injuries"].drop(columns="season_type").assign(game_type="WC")
+    reports = nflverse.injury_reports(old_format)
+    assert set(reports.season_type) == {"POST"}
+    assert set(nflverse.injury_reports(nflverse_files["injuries"]).season_type) == {"REG"}
+
+
+def test_weekly_rosters_keep_each_skill_players_status(nflverse_files):
+    rosters = nflverse.weekly_rosters(nflverse_files["rosters"]).set_index("player")
+
+    assert sorted(rosters.index) == ["David White", "Deneric Prince", "Elijah Moore", "Gabe Davis", "Josh Allen"]
+    allen = rosters.loc["Josh Allen"]
+    assert (allen.year, allen.week, allen.season_type, allen.team, allen.gsis_id) == (2025, 5, "REG", "BUF", "00-0034857")
+    assert (allen.position, allen.status) == ("QB", "ACT")
+    assert (rosters.loc["Deneric Prince", "status"], rosters.loc["Deneric Prince", "status_detail"]) == ("RES", "R01")
+    assert rosters.loc["Gabe Davis", "status"] == "DEV"
+    assert set(nflverse.weekly_rosters(nflverse_files["rosters"].assign(game_type="DIV")).season_type) == {"POST"}
+
+
+def test_weekly_rosters_load_from_2016(monkeypatch):
+    requested = []
+    monkeypatch.setattr(nflverse, "read_csv", lambda url: requested.append(url) or pd.DataFrame())
+    nflverse.download_season(2015)
+    assert not any("weekly_rosters" in url for url in requested)
+    nflverse.download_season(2016)
+    assert requested[-1].endswith("/weekly_rosters/roster_weekly_2016.csv")

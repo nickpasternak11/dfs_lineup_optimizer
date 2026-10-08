@@ -61,7 +61,13 @@ def predict_week(
 
     features = pd.concat(
         [
-            player_features(pd.concat([tables["player_logs"], players], ignore_index=True), tables["games"], snaps),
+            player_features(
+                pd.concat([tables["player_logs"], players], ignore_index=True),
+                tables["games"],
+                snaps,
+                tables.get("injuries"),
+                tables.get("rosters"),
+            ),
             dst_features(pd.concat([tables["dst_logs"], defenses], ignore_index=True), tables["games"], schedule),
         ],
         ignore_index=True,
@@ -69,6 +75,8 @@ def predict_week(
     is_upcoming = features.pool_player.notna()
     kwargs = {} if model_factory is None else {"model_factory": model_factory}
     predicted = train_and_predict(features[~is_upcoming], features[is_upcoming], POSITIONS, **kwargs)
+    # Listed Out or Doubtful, or off the active roster: they won't play.
+    predicted["model"] = predicted.model.where(~predicted.ruled_out.eq(True), 0.0)
 
     teams = pool.drop_duplicates("player").set_index("player").pool_team
     gsis_id = predicted.gsis_id.where(~predicted.gsis_id.fillna("").str.startswith(UNLINKED_PREFIX))
