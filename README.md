@@ -207,7 +207,7 @@ It also loads the NFL's weekly injury reports (`injury_reports`, from 2009): one
 - **Thursday games:** final statuses come out Wednesday afternoon and are loaded Thursday morning, before the 8:30 model run and the 9:00 lineup save.
 - **Sunday games:** final statuses come out Friday afternoon and are loaded Saturday morning.
 
-The reports don't cover game-day inactives (which Questionable players sit) or players on injured reserve, who aren't on the report at all.
+The reports don't cover game-day inactives (which Questionable players sit) or players on injured reserve, who aren't on the report at all. nflverse's weekly rosters do mark injured reserve (reliably from 2016; earlier files repeat one status all season), but counting those players as missing didn't help the backtest (average miss 5.82 against 5.81, ranking 0.393 against 0.391), so they aren't loaded. Even the old version that knew exactly who played scores no better than the reports (see [Live projections](#live-projections)).
 
 The `player_week_results` view puts every pool player's projection next to what they actually scored, the basis for variance estimates and backtesting:
 
@@ -299,7 +299,7 @@ At 9 AM ET on the day of the week's first game, after that morning's projections
 - **11:40 AM ET:** a model run
 - **11:50 AM ET:** the swap (`make save-lineups ARGS=--late-swap`)
 
-The swap is only as good as Sunday's information. Until the model knows who's inactive (#46), its swaps mostly re-pick Thursday's players.
+The swap is only as good as Sunday's information. The FantasyPros scrape has the inactives, but the model only knows who Friday's injury report ruled out, not which Questionable players sit.
 
 Snapshots carry `model_version`:
 
