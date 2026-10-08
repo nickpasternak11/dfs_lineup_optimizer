@@ -12,6 +12,9 @@ GAMES_URL = NFLVERSE + "/schedules/games.csv.gz"
 # the final game status and that week's practice participation. Rebuilt about
 # twice a day in season. Plain CSV: the .csv.gz only exists from 2023.
 INJURIES_URL = NFLVERSE + "/injuries/injuries_{year}.csv"
+# Every team's roster each week, with each player's status that week: active,
+# inactive on game day, reserve lists (injured, PUP...), practice squad...
+ROSTERS_URL = NFLVERSE + "/weekly_rosters/roster_weekly_{year}.csv"
 
 # DynastyProcess's crosswalk of player ids across sites; the only public source
 # linking nflverse's GSIS ids to FantasyPros ids.
@@ -23,3 +26,6 @@ PLAYER_IDS_URL = (
 FIRST_SEASON = 1999
 # Injury reports start here.
 FIRST_INJURY_SEASON = 2009
+# Roster statuses are weekly from here; earlier files repeat one status for
+# the whole season (66% of players listed on reserve played).
+FIRST_ROSTER_SEASON = 2016

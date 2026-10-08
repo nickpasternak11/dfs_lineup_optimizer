@@ -207,7 +207,7 @@ It also loads the NFL's weekly injury reports (`injury_reports`, from 2009): one
 - **Thursday games:** final statuses come out Wednesday afternoon and are loaded Thursday morning, before the 8:30 model run and the 9:00 lineup save.
 - **Sunday games:** final statuses come out Friday afternoon and are loaded Saturday morning.
 
-The reports don't cover game-day inactives (which Questionable players sit) or players on injured reserve, who aren't on the report at all. nflverse's weekly rosters do mark injured reserve (reliably from 2016; earlier files repeat one status all season), but counting those players as missing didn't help the backtest (average miss 5.82 against 5.81, ranking 0.393 against 0.391), so they aren't loaded. Even the old version that knew exactly who played scores no better than the reports (see [Live projections](#live-projections)).
+The reports don't cover game-day inactives (which Questionable players sit) or players on a reserve list (injured reserve, PUP...), who aren't on the report at all. For those, it loads nflverse's weekly rosters too (`weekly_rosters`, from 2016; earlier files repeat one status all season): each QB, RB, WR and TE's roster status each week. From 2016 to 2025, 0.1% of players with a status other than active or game-day inactive played. The model projects them at 0. It doesn't use the rosters for teammates-out: counting those players as missing there didn't help the backtest (average miss 5.82 against 5.81, ranking 0.393 against 0.391). Even the old version that knew exactly who played scores no better than the reports (see [Live projections](#live-projections)).
 
 The `player_week_results` view puts every pool player's projection next to what they actually scored, the basis for variance estimates and backtesting:
 
@@ -305,6 +305,7 @@ Snapshots carry `model_version`:
 
 - **Version 1** had no injury data, so live it couldn't see who was out.
 - **Version 2** (#46) uses the injury reports. Players listed Out or Doubtful are projected at 0: of skill-position regulars listed 2016–2025, none listed Out played and 0.9% of Doubtful did.
+- **Version 3** adds the weekly rosters: players off the active roster are projected at 0, for example Tank Dell in 2026 week 5, practicing on his way back from reserve but not yet activated. Practice-squad players count as off until the roster shows them elevated, usually on Saturday.
 - **Questionable players** are projected as if they play, because 63% did (76% after a full practice, 42% after none). Swap them on Sunday if they're ruled inactive.
 
 In the backtest, teammates-out from the injury reports scores the same as the old version that knew who actually played: average miss 5.80 and ranking 0.394 against 5.80 and 0.394. So the backtest holds, and live predictions now get the same information.
@@ -422,6 +423,7 @@ All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker
 | `dst_game_logs` | Game log loader | Weekly team defense stats, points allowed and DraftKings points |
 | `nfl_players` | Game log loader | nflverse `gsis_id` to FantasyPros `fp_player_id`, plus birth date, height, weight, college and draft |
 | `injury_reports` | Game log loader | The NFL's weekly injury reports: final game status and practice participation, from 2009 |
+| `weekly_rosters` | Game log loader | Each week's roster status for QBs, RBs, WRs and TEs (active, reserve, practice squad...), from 2016 |
 | `pool_player_links` (materialized view) | Game log loader (refresh) | Pool players matched to nflverse ids by name, team and week |
 | `model_projections` | Projection model | Our model's projections, one snapshot per daily run, never updated |
 | `lineup_snapshots` | Projection model | The optimizer's suggested lineups on each projection source, saved the morning of each week's first game, never updated |

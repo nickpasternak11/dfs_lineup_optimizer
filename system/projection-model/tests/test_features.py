@@ -211,3 +211,15 @@ def test_with_injury_reports_teammates_out_counts_who_was_ruled_out_or_moved():
     # Without injury reports, everyone who didn't play counts (hindsight).
     hindsight = row(player_features(logs, games_for(logs)), "wr3", 3)
     assert hindsight.vacated_target_share == pytest.approx(0.9)
+
+
+def test_ruled_out_is_known_from_the_report_or_the_roster(logs):
+    injuries = pd.DataFrame([injury(3, "wr1", "Doubtful", "DNP")])
+    rosters = pd.DataFrame([
+        {"year": 2025, "week": 4, "gsis_id": "wr2", "status": "RES"},
+        {"year": 2025, "week": 4, "gsis_id": "wr1", "status": "INA"},  # decided on game day: not known
+    ])
+    features = player_features(logs, games_for(logs), injuries=injuries, rosters=rosters)
+    out = set(zip(features.gsis_id[features.ruled_out], features.week[features.ruled_out]))
+    assert out == {("wr1", 3), ("wr2", 4)}
+    assert not player_features(logs, games_for(logs)).ruled_out.any()

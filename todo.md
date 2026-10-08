@@ -23,7 +23,7 @@ The model trails FantasyPros mostly on ranking (0.394 against 0.434), less on av
 
 ## Before anyone else uses the app (#48)
 
-- [ ] #45 Salaries from DraftKings and the schedule from nflverse, not FantasyPros. The DraftKings pool lists players on injured reserve: zero them with nflverse's weekly rosters (tested and left out of #55 for now, see the README).
+- [ ] #45 Salaries from DraftKings and the schedule from nflverse, not FantasyPros. Players on a reserve list are already projected at 0 from nflverse's weekly rosters (#55); check that FantasyPros' projections get the same treatment once the pool comes from DraftKings.
 - [ ] #47 Our own headshots, logos and rankings.
 - [ ] #44 Replace FantasyPros' projections in the optimizer, once the live record shows ours are better.
 

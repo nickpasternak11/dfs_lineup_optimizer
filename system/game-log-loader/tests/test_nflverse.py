@@ -150,3 +150,24 @@ def test_injury_files_before_2025_have_no_season_type(nflverse_files):
     reports = nflverse.injury_reports(old_format)
     assert set(reports.season_type) == {"POST"}
     assert set(nflverse.injury_reports(nflverse_files["injuries"]).season_type) == {"REG"}
+
+
+def test_weekly_rosters_keep_each_skill_players_status(nflverse_files):
+    rosters = nflverse.weekly_rosters(nflverse_files["rosters"]).set_index("player")
+
+    assert sorted(rosters.index) == ["David White", "Deneric Prince", "Elijah Moore", "Gabe Davis", "Josh Allen"]
+    allen = rosters.loc["Josh Allen"]
+    assert (allen.year, allen.week, allen.season_type, allen.team, allen.gsis_id) == (2025, 5, "REG", "BUF", "00-0034857")
+    assert (allen.position, allen.status) == ("QB", "ACT")
+    assert (rosters.loc["Deneric Prince", "status"], rosters.loc["Deneric Prince", "status_detail"]) == ("RES", "R01")
+    assert rosters.loc["Gabe Davis", "status"] == "DEV"
+    assert set(nflverse.weekly_rosters(nflverse_files["rosters"].assign(game_type="DIV")).season_type) == {"POST"}
+
+
+def test_weekly_rosters_load_from_2016(monkeypatch):
+    requested = []
+    monkeypatch.setattr(nflverse, "read_csv", lambda url: requested.append(url) or pd.DataFrame())
+    nflverse.download_season(2015)
+    assert not any("weekly_rosters" in url for url in requested)
+    nflverse.download_season(2016)
+    assert requested[-1].endswith("/weekly_rosters/roster_weekly_2016.csv")

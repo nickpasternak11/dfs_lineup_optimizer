@@ -121,3 +121,13 @@ def test_players_ruled_out_are_projected_at_zero(tables, pool):
     rows = predict.predict_week(tables, pool, 2025, 5, NOW, model_factory=Mean).set_index("player")
     assert rows.loc["Receiver One", "proj_dk_points"] == 0.0
     assert rows.loc["Rookie Wideout", "proj_dk_points"] > 0
+
+
+def test_players_off_the_active_roster_are_projected_at_zero(tables, pool):
+    # On a reserve list, so not on the injury report at all.
+    tables = {**tables, "rosters": pd.DataFrame({
+        "year": [2025, 2025], "week": [5, 5], "gsis_id": ["wr1", "qb1"], "status": ["RES", "ACT"],
+    })}
+    rows = predict.predict_week(tables, pool, 2025, 5, NOW, model_factory=Mean).set_index("player")
+    assert rows.loc["Receiver One", "proj_dk_points"] == 0.0
+    assert rows.loc["Rookie Wideout", "proj_dk_points"] > 0

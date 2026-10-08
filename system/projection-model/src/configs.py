@@ -19,7 +19,9 @@ POSITIONS = ["QB", "RB", "WR", "TE", "DST"]
 #    as features, teammates listed Out or Doubtful (or on another team) as
 #    missing, and Out or Doubtful players projected at 0. Game-day inactives
 #    (who among the Questionable sits) aren't known.
-MODEL_VERSION = "2"
+# 3: weekly roster statuses: players off the active roster (a reserve list,
+#    the practice squad...) projected at 0. They aren't on the injury report.
+MODEL_VERSION = "3"
 
 # Read straight from nflverse on each run rather than stored: only the model
 # uses them so far.

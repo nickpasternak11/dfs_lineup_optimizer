@@ -8,10 +8,12 @@ from dfs_common.http import fetch
 from src import scoring
 from src.configs import (
     FIRST_INJURY_SEASON,
+    FIRST_ROSTER_SEASON,
     GAMES_URL,
     INJURIES_URL,
     PLAYER_IDS_URL,
     PLAYER_STATS_URL,
+    ROSTERS_URL,
     TEAM_STATS_URL,
 )
 
@@ -34,6 +36,8 @@ def download_season(year: int) -> dict[str, pd.DataFrame]:
     }
     if year >= FIRST_INJURY_SEASON:
         files["injuries"] = read_csv(INJURIES_URL.format(year=year))
+    if year >= FIRST_ROSTER_SEASON:
+        files["rosters"] = read_csv(ROSTERS_URL.format(year=year))
     return files
 
 
@@ -241,4 +245,27 @@ def injury_reports(injuries: pd.DataFrame) -> pd.DataFrame:
         }
     )
     # A player traded mid-week can appear twice; keep the later team's row.
+    return out.drop_duplicates(["year", "week", "gsis_id"], keep="last").reset_index(drop=True)
+
+
+def weekly_rosters(rosters: pd.DataFrame) -> pd.DataFrame:
+    """One row per QB, RB, WR and TE per week: their team and roster status
+    (ACT, INA for inactive on game day, RES for injured reserve and the other
+    reserve lists, DEV for the practice squad, CUT, RET...), with the NFL's
+    code for the detail."""
+    df = rosters.dropna(subset=["gsis_id"])
+    df = df[df.position.isin(FANTASY_POSITIONS)]
+    out = pd.DataFrame(
+        {
+            "year": df.season.astype(int),
+            "week": df.week.astype(int),
+            "season_type": df.game_type.where(df.game_type.eq("REG"), "POST"),
+            "team": df.team,
+            "gsis_id": df.gsis_id.astype(str),
+            "player": df.full_name,
+            "position": df.position,
+            "status": df.status,
+            "status_detail": df.status_description_abbr,
+        }
+    )
     return out.drop_duplicates(["year", "week", "gsis_id"], keep="last").reset_index(drop=True)

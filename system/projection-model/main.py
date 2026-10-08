@@ -55,7 +55,7 @@ def build_features(tables: dict) -> pd.DataFrame:
     snaps = nflverse.snap_counts(int(tables["player_logs"].year.max()))
     return pd.concat(
         [
-            player_features(tables["player_logs"], tables["games"], snaps, tables["injuries"]),
+            player_features(tables["player_logs"], tables["games"], snaps, tables["injuries"], tables["rosters"]),
             dst_features(tables["dst_logs"], tables["games"], nflverse.schedule()),
         ],
         ignore_index=True,

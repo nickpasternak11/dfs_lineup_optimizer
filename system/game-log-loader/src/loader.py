@@ -4,6 +4,7 @@ from dfs_db import (
     NflGame,
     NflPlayer,
     PlayerGameLog,
+    WeeklyRoster,
     refresh_player_links,
     replace_matching,
     session_scope,
@@ -39,6 +40,9 @@ def load_season(year: int, allow_shrink: bool = False) -> None:
         if "injuries" in data:
             injuries = nflverse.injury_reports(data["injuries"])
             written["injury reports"] = replace_matching(session, InjuryReport, injuries, season, min_ratio)
+        if "rosters" in data:
+            rosters = nflverse.weekly_rosters(data["rosters"])
+            written["roster statuses"] = replace_matching(session, WeeklyRoster, rosters, season, min_ratio)
     weeks = f"weeks {players.week.min()}-{players.week.max()}"
     log.info(
         "Loaded %s %s: %s",

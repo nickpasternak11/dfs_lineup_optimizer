@@ -43,6 +43,11 @@ REGULAR_SHARE = {"target_share": 0.08, "carry_share": 0.10, "attempt_share": 0.5
 # Final injury-report statuses that mean a player won't play: of skill-position
 # regulars listed 2016-2025, 0% of Out and 0.9% of Doubtful played.
 RULED_OUT = {"Out", "Doubtful"}
+# Weekly roster statuses (from 2016) that can still play: active, or
+# inactive on game day, which comes after the model's last run. Of
+# skill-position players with any other status 2016-2025 (reserve lists,
+# practice squad, suspended, released...), 0.1% played.
+ACTIVE_ROSTER = {"ACT", "INA"}
 # The week's latest practice, as a number: more practice, more likely to play
 # (Questionable players: 76% played after a full practice, 42% after none).
 PRACTICE_LEVEL = {"Full": 2.0, "Limited": 1.0, "DNP": 0.0}
@@ -204,13 +209,16 @@ def player_features(
     games: pd.DataFrame,
     snaps: pd.DataFrame | None = None,
     injuries: pd.DataFrame | None = None,
+    rosters: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """One row per QB/RB/WR/TE regular-season game, with its features and its
     DraftKings points (the target). `snaps` (nflverse.snap_counts) adds each
     game's share of the offense's snaps (from 2013); `injuries` (the weekly
     injury reports) adds each player's own status and decides who's missing
     for teammates-out. Without them those features are missing, which the
-    model handles."""
+    model handles. `ruled_out` marks rows whose player won't play: listed
+    Out or Doubtful, or off the active roster in `rosters` (weekly roster
+    statuses)."""
     df = logs[logs.season_type == "REG"].copy()
     df["position"] = df.position.replace({"FB": "RB"})
     df = df[df.position.isin(SKILL_POSITIONS)]
@@ -270,7 +278,16 @@ def player_features(
     out = out.merge(vacated_team, on=["year", "week", "team"], how="left")
     out = out.merge(vacated_position, on=["year", "week", "team", "position"], how="left")
     out[VACATED_FEATURES] = out[VACATED_FEATURES].fillna(0.0)
-    return injury_status(out, injuries)
+    out = injury_status(out, injuries)
+    out["ruled_out"] = out.report_status.isin(RULED_OUT)
+    if rosters is not None:
+        # Players on a reserve list aren't on the injury report. For
+        # teammates-out, the rosters backtested no better than the reports.
+        week = ["year", "week", "gsis_id"]
+        off = rosters.loc[~rosters.status.isin(ACTIVE_ROSTER), week].drop_duplicates()
+        keys = pd.MultiIndex.from_frame(out[week])
+        out["ruled_out"] |= keys.isin(pd.MultiIndex.from_frame(off))
+    return out
 
 
 def dst_features(dst: pd.DataFrame, games: pd.DataFrame, schedule: pd.DataFrame | None = None) -> pd.DataFrame:

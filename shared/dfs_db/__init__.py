@@ -11,6 +11,7 @@ from dfs_db.models import (
     PlayerGameLog,
     PlayerProjection,
     PlayerSalary,
+    WeeklyRoster,
 )
 from dfs_db.links import refresh_player_links
 from dfs_db.names import normalize_names, reconcile_week_names
@@ -41,6 +42,7 @@ __all__ = [
     "PlayerProjection",
     "PlayerSalary",
     "SnapshotShrankError",
+    "WeeklyRoster",
     "get_engine",
     "get_session",
     "get_session_factory",
