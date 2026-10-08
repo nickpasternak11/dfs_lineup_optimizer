@@ -1,33 +1,51 @@
 import React, { useState } from 'react';
 import useLineupReview from '../../hooks/useLineupReview';
+import { PositionBadge } from '../common/Badges';
+import { orderLineup } from '../../lib/lineupOrder';
 import { formatPoints, formatSalary } from '../../lib/format';
 import {
     finalLineup, formatSavedAt, formatSwing, lineupKey, lineupLabel, pairLineups, seasonSummary, shareOfBest,
 } from '../../lib/lineupReview';
 
+// Every roster table has the same columns and widths, so they line up down
+// the page, and lists its players in DraftKings' slot order, as the
+// optimizer's lineups do: QB, RB, RB, WR, WR, WR, TE, FLEX, DST. The best
+// lineup in hindsight has no projection, so its slots go by actual points.
 function Roster({ players, showProjection = true }) {
+    const slots = orderLineup(players.map(player => ({
+        ...player,
+        proj_fpts: (showProjection ? player.projection : player.actual) ?? 0,
+    })));
     return (
         <div className="metric-table-wrap roster-wrap">
             <table className="metric-table roster-table">
+                <colgroup>
+                    <col className="roster-col-slot" />
+                    <col />
+                    <col className="roster-col-team" />
+                    <col className="roster-col-num" />
+                    <col className="roster-col-num" />
+                    <col className="roster-col-num" />
+                </colgroup>
                 <thead>
                     <tr>
-                        <th scope="col">Pos</th>
+                        <th scope="col">Slot</th>
                         <th scope="col">Player</th>
                         <th scope="col">Team</th>
                         <th scope="col" className="align-right">Salary</th>
-                        {showProjection && <th scope="col" className="align-right">Projected</th>}
+                        <th scope="col" className="align-right">Projected</th>
                         <th scope="col" className="align-right">Actual</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {players.map(player => (
+                    {slots.map(({ slot, player }) => (
                         <tr key={player.player}>
-                            <td>{player.position}</td>
-                            <th scope="row">{player.player}</th>
+                            <td><PositionBadge position={slot === 'FLEX' ? 'flex' : player.position} label={slot} /></td>
+                            <th scope="row" className="roster-table-player" title={player.player}>{player.player}</th>
                             <td>{player.team}</td>
                             <td className="align-right num">{formatSalary(player.salary)}</td>
-                            {showProjection && <td className="align-right num">{formatPoints(player.projection)}</td>}
-                            <td className="align-right num">
+                            <td className="align-right num">{showProjection ? formatPoints(player.projection) : '–'}</td>
+                            <td className="align-right num strong">
                                 {player.actual === null ? <span title="Didn't play, or the game isn't final">–</span> : formatPoints(player.actual)}
                             </td>
                         </tr>

@@ -427,6 +427,37 @@ describe('accuracy page', () => {
         expect(client.fetchLineupReview).toHaveBeenLastCalledWith({ year: 2026, week: 5 });
     });
 
+    test('saved rosters list players in DraftKings slot order, like the optimizer', async () => {
+        const player = (name, position, projection) => ({
+            slot: 0, player: name, position, team: 'BUF', salary: 5000, projection, actual: 10,
+        });
+        // Saved in no particular order; the fourth WR is the FLEX.
+        const players = [
+            player('Bills', 'DST', 8), player('Wide Four', 'WR', 9), player('Tight End', 'TE', 10),
+            player('Wide One', 'WR', 20), player('Back Two', 'RB', 14), player('Quarterback', 'QB', 22),
+            player('Wide Three', 'WR', 12), player('Back One', 'RB', 18), player('Wide Two', 'WR', 15),
+        ];
+        client.fetchLineupReview.mockResolvedValue({
+            ...REVIEW,
+            lineups: [{ phase: 'initial', source: 'model', strategy: 'projection', projected: 128, actual: 90, players }],
+            best: null,
+        });
+        render(<App />);
+        await screen.findByRole('heading', { name: 'Projection accuracy' });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Lineups' }));
+        });
+
+        const roster = screen.getByRole('rowheader', { name: 'Quarterback' }).closest('table');
+        const rows = within(roster).getAllByRole('row').slice(1);
+        expect(rows.map(row => within(row).getByRole('rowheader').textContent)).toEqual([
+            'Quarterback', 'Back One', 'Back Two', 'Wide One', 'Wide Two', 'Wide Three', 'Tight End', 'Wide Four', 'Bills',
+        ]);
+        expect(rows.map(row => row.querySelector('.pos-badge').textContent)).toEqual([
+            'QB', 'RB', 'RB', 'WR', 'WR', 'WR', 'TE', 'FLEX', 'DST',
+        ]);
+    });
+
     test('a Sunday late swap shows beside the lineup it swapped', async () => {
         const swap = (actual, name) => ({
             phase: 'late_swap', source: 'model', strategy: 'projection', projected: 133.0, actual, players: [reviewPlayer(name, 30.0)],
