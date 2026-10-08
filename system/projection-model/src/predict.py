@@ -13,7 +13,7 @@ import pandas as pd
 from dfs_db import ModelProjection, session_scope, upsert_dataframe
 
 from src.configs import MODEL_VERSION, POSITIONS, log
-from src.features import dst_features, player_features
+from src.features import RULED_OUT, dst_features, player_features
 from src.model import train_and_predict
 
 # Players the crosswalk doesn't link (mostly rookies) still get a row, keyed
@@ -61,7 +61,12 @@ def predict_week(
 
     features = pd.concat(
         [
-            player_features(pd.concat([tables["player_logs"], players], ignore_index=True), tables["games"], snaps),
+            player_features(
+                pd.concat([tables["player_logs"], players], ignore_index=True),
+                tables["games"],
+                snaps,
+                tables.get("injuries"),
+            ),
             dst_features(pd.concat([tables["dst_logs"], defenses], ignore_index=True), tables["games"], schedule),
         ],
         ignore_index=True,
@@ -69,6 +74,9 @@ def predict_week(
     is_upcoming = features.pool_player.notna()
     kwargs = {} if model_factory is None else {"model_factory": model_factory}
     predicted = train_and_predict(features[~is_upcoming], features[is_upcoming], POSITIONS, **kwargs)
+    # Listed Out or Doubtful: they won't play (0% and 0.9% did, 2016-2025).
+    ruled_out = predicted.report_status.isin(RULED_OUT) if "report_status" in predicted else False
+    predicted["model"] = predicted.model.where(~ruled_out, 0.0)
 
     teams = pool.drop_duplicates("player").set_index("player").pool_team
     gsis_id = predicted.gsis_id.where(~predicted.gsis_id.fillna("").str.startswith(UNLINKED_PREFIX))

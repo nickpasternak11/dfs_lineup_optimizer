@@ -174,3 +174,40 @@ def test_game_context_is_what_is_known_before_kickoff():
     assert (context.loc["GB", "rest_days"], context.loc["GB", "dome"]) == (7, 1.0)
     assert context.loc["DAL", "dome"] == 0.0
     assert set(context.columns) == {"game_id", "rest_days", "dome"}
+
+
+
+def injury(week, gsis_id, status, practice=None):
+    return {"year": 2025, "week": week, "gsis_id": gsis_id, "team": "BUF",
+            "report_status": status, "practice_status": practice}
+
+
+def test_own_injury_status_is_known_before_kickoff(logs):
+    injuries = pd.DataFrame([injury(3, "wr1", "Questionable", "Limited"), injury(4, "wr2", None, "Full")])
+    features = player_features(logs, games_for(logs), injuries=injuries)
+    wr1 = row(features, "wr1", 3)
+    assert (wr1.listed, wr1.questionable, wr1.practice, wr1.report_status) == (1.0, 1.0, 1.0, "Questionable")
+    # Practiced in full, no game status.
+    wr2 = row(features, "wr2", 4)
+    assert (wr2.listed, wr2.questionable, wr2.practice) == (1.0, 0.0, 2.0)
+    # Not on the report.
+    assert row(features, "wr1", 2).listed == 0.0 and pd.isna(row(features, "wr1", 2).practice)
+
+
+def test_with_injury_reports_teammates_out_counts_who_was_ruled_out_or_moved():
+    regulars = [("wr1", "WR", 6, 0), ("wr2", "WR", 3, 0), ("wr3", "WR", 1, 0), ("rb1", "RB", 0, 10)]
+    rows = team_week(1, regulars) + team_week(2, regulars)
+    # Week 3: wr1 ruled out, rb1 traded to MIA, wr2 sat without being listed.
+    rows += team_week(3, [("wr3", "WR", 5, 0)])
+    rows += [log(3, "rb1", "RB", "MIA", "NYJ", 9.0, carries=12)]
+    logs = pd.DataFrame(rows)
+    injuries = pd.DataFrame([injury(3, "wr1", "Out", "DNP")])
+
+    features = player_features(logs, games_for(logs), injuries=injuries)
+
+    wr3 = row(features, "wr3", 3)
+    assert wr3.vacated_target_share == pytest.approx(0.6)  # wr1's 6 of 10, not wr2's 3
+    assert wr3.vacated_carry_share == pytest.approx(1.0)  # rb1, now on another team
+    # Without injury reports, everyone who didn't play counts (hindsight).
+    hindsight = row(player_features(logs, games_for(logs)), "wr3", 3)
+    assert hindsight.vacated_target_share == pytest.approx(0.9)

@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from src import predict
+from src.configs import MODEL_VERSION
 from src.features import player_features
 
 NOW = datetime(2025, 10, 12, 15, 0, tzinfo=timezone.utc)
@@ -104,9 +105,19 @@ def test_a_snapshot_row_per_upcoming_pool_player(tables, pool):
     # Unlinked players and defenses store no gsis_id.
     assert pd.isna(rows.loc["Rookie Wideout", "gsis_id"]) and pd.isna(rows.loc["Bills", "gsis_id"])
     assert (rows.team == "BUF").all() and (rows.week == 5).all()
-    assert (rows.generated_at == NOW).all() and (rows.model_version == "1").all()
+    assert (rows.generated_at == NOW).all() and (rows.model_version == MODEL_VERSION).all()
 
 
 def test_nothing_to_project_once_every_game_has_started(tables, pool):
     later = datetime(2025, 10, 14, tzinfo=timezone.utc)
     assert predict.predict_week(tables, pool, 2025, 5, later, model_factory=Mean).empty
+
+
+def test_players_ruled_out_are_projected_at_zero(tables, pool):
+    tables = {**tables, "injuries": pd.DataFrame({
+        "year": [2025], "week": [5], "gsis_id": ["wr1"], "team": ["BUF"],
+        "report_status": ["Out"], "practice_status": ["DNP"],
+    })}
+    rows = predict.predict_week(tables, pool, 2025, 5, NOW, model_factory=Mean).set_index("player")
+    assert rows.loc["Receiver One", "proj_dk_points"] == 0.0
+    assert rows.loc["Rookie Wideout", "proj_dk_points"] > 0

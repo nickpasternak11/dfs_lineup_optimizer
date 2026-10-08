@@ -13,10 +13,13 @@ FIRST_TEST_SEASON = 2018
 POSITIONS = ["QB", "RB", "WR", "TE", "DST"]
 
 # Stored with each live projection; bump it when the features or model
-# change, so the accuracy page can tell versions apart. Version 1 has no
-# inactive list yet (#46): live, teammates-out only sees regulars who are
-# no longer in the pool, not ones ruled out that week.
-MODEL_VERSION = "1"
+# change, so the accuracy page can tell versions apart.
+# 1: no injury data; live, teammates-out saw almost no one missing.
+# 2: the weekly injury reports (#46): each player's own status and practice
+#    as features, teammates listed Out or Doubtful (or on another team) as
+#    missing, and Out or Doubtful players projected at 0. Game-day inactives
+#    (who among the Questionable sits) aren't known.
+MODEL_VERSION = "2"
 
 # Read straight from nflverse on each run rather than stored: only the model
 # uses them so far.

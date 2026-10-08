@@ -1,0 +1,15 @@
+season,season_type,game_type,team,week,gsis_id,position,full_name,first_name,last_name,report_primary_injury,report_secondary_injury,report_status,practice_primary_injury,practice_secondary_injury,practice_status
+2025,REG,REG,BUF,5,00-0033571,LB,Matt Milano,Matthew,Milano,Pectoral,,Questionable,Pectoral,,Limited Participation in Practice
+2025,REG,REG,BUF,5,00-0035230,DT,Ed Oliver,Edward,Oliver,Ankle,,Questionable,Ankle,,Limited Participation in Practice
+2025,REG,REG,BUF,5,00-0036976,T,Spencer Brown,Spencer,Brown,Calf,,Questionable,Calf,,Limited Participation in Practice
+2025,REG,REG,BUF,5,00-0038557,LB,Dorian Williams,Dorian,Williams,Knee,,Out,Knee,,Did Not Participate In Practice
+2025,REG,REG,BUF,5,00-0040197,CB,Dorian Strong,Dorian,Strong,Neck,,Out,Neck,,Did Not Participate In Practice
+2025,REG,REG,BUF,5,00-0040724,DT,T.J. Sanders,Tanaeri,Sanders,Knee,,Questionable,Knee,,Limited Participation in Practice
+2025,REG,REG,BUF,5,00-0040194,TE,Jackson Hawes,Jackson,Hawes,,,,Ankle,,Full Participation in Practice
+2025,REG,REG,NE,5,00-0036198,G,Mike Onwenu,Michael,Onwenu,,,,Shoulder,,Full Participation in Practice
+2025,REG,REG,NE,5,00-0036302,S,Jaylinn Hawkins,Jaylinn,Hawkins,,,,Hamstring,,Full Participation in Practice
+2025,REG,REG,BUF,5,00-0099001,LB,Probable Player,Matthew,Milano,Pectoral,,Probable,Pectoral,,Limited Participation in Practice
+2025,REG,REG,BUF,5,00-0099002,LB,Note Player,Matthew,Milano,Pectoral,,Note,Pectoral,,Note
+2025,REG,REG,BUF,5,,LB,No Id,Matthew,Milano,Pectoral,,Questionable,Pectoral,,Limited Participation in Practice
+2025,REG,REG,NE,5,00-0099003,LB,Traded Player,Matthew,Milano,Pectoral,,Questionable,Pectoral,,Limited Participation in Practice
+2025,REG,REG,BUF,5,00-0099003,LB,Traded Player,Matthew,Milano,Pectoral,,Out,Pectoral,,Limited Participation in Practice

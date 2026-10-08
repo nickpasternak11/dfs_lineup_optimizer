@@ -1,5 +1,6 @@
 from dfs_db import (
     DstGameLog,
+    InjuryReport,
     NflGame,
     NflPlayer,
     PlayerGameLog,
@@ -35,6 +36,9 @@ def load_season(year: int, allow_shrink: bool = False) -> None:
             "player logs": replace_matching(session, PlayerGameLog, players, season, min_ratio),
             "DST logs": replace_matching(session, DstGameLog, dsts, season, min_ratio),
         }
+        if "injuries" in data:
+            injuries = nflverse.injury_reports(data["injuries"])
+            written["injury reports"] = replace_matching(session, InjuryReport, injuries, season, min_ratio)
     weeks = f"weeks {players.week.min()}-{players.week.max()}"
     log.info(
         "Loaded %s %s: %s",
