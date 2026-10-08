@@ -293,7 +293,7 @@ make predict-model                   # store a snapshot now
 make predict-model ARGS="--dry-run"  # print instead
 ```
 
-At 9 AM ET on the day of the week's first game, after that morning's projections, the orchestrator also saves the week's suggested lineups for the review, once a week (`make save-lineups` by hand, with the API running). Sunday brings the late swap:
+At 9 AM ET on the day of the week's first game, after that morning's projections, the orchestrator also saves the week's suggested lineups for the review. You can save again any time before the first kickoff, for example after fresh projections (`make predict-model`, then `make save-lineups`, with the API running): each save is a new snapshot, and the newest one is what the review and the late swap use. Once the first game kicks off, saves are refused, since the whole slate is locked by then. Sunday brings the late swap:
 
 - **11:35 AM ET:** a FantasyPros scrape, for Sunday's news and inactives
 - **11:40 AM ET:** a model run
