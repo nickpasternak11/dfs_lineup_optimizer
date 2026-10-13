@@ -40,6 +40,18 @@ VACATED_WINDOW = 3
 # these shares, no stats almost always means they didn't play.
 REGULAR_SHARE = {"target_share": 0.08, "carry_share": 0.10, "attempt_share": 0.50}
 
+# Final injury-report statuses that mean a player won't play: of skill-position
+# regulars listed 2016-2025, 0% of Out and 0.9% of Doubtful played.
+RULED_OUT = {"Out", "Doubtful"}
+# Weekly roster statuses (from 2016) that can still play: active, or
+# inactive on game day, which comes after the model's last run. Of
+# skill-position players with any other status 2016-2025 (reserve lists,
+# practice squad, suspended, released...), 0.1% played.
+ACTIVE_ROSTER = {"ACT", "INA"}
+# The week's latest practice, as a number: more practice, more likely to play
+# (Questionable players: 76% played after a full practice, 42% after none).
+PRACTICE_LEVEL = {"Full": 2.0, "Limited": 1.0, "DNP": 0.0}
+
 
 def _order(df: pd.DataFrame) -> pd.Series:
     return df.year * 100 + df.week
@@ -85,15 +97,22 @@ def team_lines(games: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([home, away], ignore_index=True)
 
 
-def vacated_usage(df: pd.DataFrame, snaps: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+def vacated_usage(
+    df: pd.DataFrame,
+    snaps: pd.DataFrame | None = None,
+    injuries: pd.DataFrame | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """The usage a team has to replace in each game: the recent shares of its
-    regulars who aren't playing (injured, traded, gone since last season).
-    Who's inactive is announced 90 minutes before kickoff, ahead of DraftKings'
-    lineup lock, so this is pre-game information.
+    regulars who won't play it.
+
+    With `injuries` (the weekly injury reports), a regular is missing when
+    listed Out or Doubtful, or when they're on another team that week (a
+    trade, a move since last season). That's what's known before kickoff,
+    live and in training alike. Without them, a regular is missing from any
+    game they didn't play (by snap counts, else the logs): hindsight, so a
+    backtest-only fallback.
 
     df: player rows with shares and positions, sorted by player then game.
-    snaps: snap counts, which say exactly who played (from 2013); without
-    them, a player plays when the logs list them.
     Returns per team-game totals and per team-game-position totals, keyed by
     year, week, team (and position).
     """
@@ -110,15 +129,23 @@ def vacated_usage(df: pd.DataFrame, snaps: pd.DataFrame | None = None) -> tuple[
     # Every regular is expected in the team's next few games...
     expected = pd.concat([rows.assign(g=rows.g + k) for k in range(1, VACATED_WINDOW + 1)])
     expected = expected.sort_values("t").drop_duplicates(["team", "g", "gsis_id"], keep="last")
-    # ...and counts as vacated in the ones they don't play.
+    # ...and counts as vacated in the ones they miss.
     keys = games[["team", "g", "year", "week"]]
-    played = df[["year", "week", "gsis_id"]]
-    if snaps is not None:
-        played = pd.concat([played, snaps.loc[snaps.offense_snaps > 0, ["year", "week", "gsis_id"]]])
-    played = played.drop_duplicates().assign(played=True)
     expected = expected.drop(columns="t").merge(keys, on=["team", "g"])
-    absent = expected.merge(played, on=["year", "week", "gsis_id"], how="left")
-    absent = absent[absent.played.isna()].copy()
+    week = ["year", "week", "gsis_id"]
+    if injuries is not None:
+        ruled_out = injuries.loc[injuries.report_status.isin(RULED_OUT), week].drop_duplicates().assign(ruled_out=True)
+        now = df[[*week, "team"]].rename(columns={"team": "now_team"}).drop_duplicates(week)
+        status = expected.merge(ruled_out, on=week, how="left").merge(now, on=week, how="left")
+        moved = status.now_team.notna() & status.now_team.ne(status.team)
+        absent = status[status.ruled_out.eq(True) | moved].copy()
+    else:
+        played = df[week]
+        if snaps is not None:
+            played = pd.concat([played, snaps.loc[snaps.offense_snaps > 0, week]])
+        played = played.drop_duplicates().assign(played=True)
+        absent = expected.merge(played, on=week, how="left")
+        absent = absent[absent.played.isna()].copy()
     for share, floor in REGULAR_SHARE.items():
         absent[share] = absent[share].where(absent[share] >= floor, 0.0)
 
@@ -159,11 +186,39 @@ def _with_context(out: pd.DataFrame, schedule: pd.DataFrame | None) -> pd.DataFr
     return out.merge(game_context(schedule), on=["game_id", "team"], how="left")
 
 
-def player_features(logs: pd.DataFrame, games: pd.DataFrame, snaps: pd.DataFrame | None = None) -> pd.DataFrame:
+def injury_status(df: pd.DataFrame, injuries: pd.DataFrame | None) -> pd.DataFrame:
+    """Each row's own injury-report entry for its game, all known before
+    kickoff: report_status, and as features whether they're listed at all,
+    Questionable or Probable (until 2015), and how much they practiced."""
+    if injuries is None:
+        return df.assign(report_status=None, **dict.fromkeys(STATUS_FEATURES, np.nan))
+    week = ["year", "week", "gsis_id"]
+    report = injuries[[*week, "report_status", "practice_status"]].drop_duplicates(week)
+    df = df.merge(report, on=week, how="left")
+    listed = df.report_status.notna() | df.practice_status.notna()
+    return df.assign(
+        listed=listed.astype(float),
+        questionable=df.report_status.eq("Questionable").astype(float),
+        probable=df.report_status.eq("Probable").astype(float),
+        practice=df.practice_status.map(PRACTICE_LEVEL),
+    ).drop(columns="practice_status")
+
+
+def player_features(
+    logs: pd.DataFrame,
+    games: pd.DataFrame,
+    snaps: pd.DataFrame | None = None,
+    injuries: pd.DataFrame | None = None,
+    rosters: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     """One row per QB/RB/WR/TE regular-season game, with its features and its
     DraftKings points (the target). `snaps` (nflverse.snap_counts) adds each
-    game's share of the offense's snaps and says exactly who played (from
-    2013); without it those features are missing, which the model handles."""
+    game's share of the offense's snaps (from 2013); `injuries` (the weekly
+    injury reports) adds each player's own status and decides who's missing
+    for teammates-out. Without them those features are missing, which the
+    model handles. `ruled_out` marks rows whose player won't play: listed
+    Out or Doubtful, or off the active roster in `rosters` (weekly roster
+    statuses)."""
     df = logs[logs.season_type == "REG"].copy()
     df["position"] = df.position.replace({"FB": "RB"})
     df = df[df.position.isin(SKILL_POSITIONS)]
@@ -219,10 +274,19 @@ def player_features(logs: pd.DataFrame, games: pd.DataFrame, snaps: pd.DataFrame
     )
     out = out.merge(team_lines(games), on=["game_id", "team"], how="left")
 
-    vacated_team, vacated_position = vacated_usage(df, snaps)
+    vacated_team, vacated_position = vacated_usage(df, snaps, injuries)
     out = out.merge(vacated_team, on=["year", "week", "team"], how="left")
     out = out.merge(vacated_position, on=["year", "week", "team", "position"], how="left")
     out[VACATED_FEATURES] = out[VACATED_FEATURES].fillna(0.0)
+    out = injury_status(out, injuries)
+    out["ruled_out"] = out.report_status.isin(RULED_OUT)
+    if rosters is not None:
+        # Players on a reserve list aren't on the injury report. For
+        # teammates-out, the rosters backtested no better than the reports.
+        week = ["year", "week", "gsis_id"]
+        off = rosters.loc[~rosters.status.isin(ACTIVE_ROSTER), week].drop_duplicates()
+        keys = pd.MultiIndex.from_frame(out[week])
+        out["ruled_out"] |= keys.isin(pd.MultiIndex.from_frame(off))
     return out
 
 
@@ -246,6 +310,8 @@ def dst_features(dst: pd.DataFrame, games: pd.DataFrame, schedule: pd.DataFrame 
     return _with_context(out, schedule)
 
 
+STATUS_FEATURES = ["listed", "questionable", "probable", "practice"]
+
 VACATED_FEATURES = [
     "vacated_target_share", "vacated_carry_share", "vacated_attempt_share",
     "vacated_position_target_share", "vacated_position_carry_share",
@@ -258,6 +324,7 @@ PLAYER_FEATURES = (
     + ["opp_allowed"]
     + LINE_FEATURES
     + VACATED_FEATURES
+    + STATUS_FEATURES
 )
 DST_FEATURES = (
     [f"{c}_{s}" for c in DST_STATS for s in ("short", "long")] + ["opp_allowed"] + LINE_FEATURES + GAME_CONTEXT
