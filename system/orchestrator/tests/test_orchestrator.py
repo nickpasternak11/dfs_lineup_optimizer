@@ -95,6 +95,8 @@ def test_schedule_is_unchanged(instance):
     assert ("run_backup", "None", "03:00:00") in jobs
     assert ("run_game_log_loader", "None", "06:00:00") in jobs
     assert ("run_projection_model", "None", "08:30:00") in jobs
+    # And Tuesday, once the new week's salaries and projections are in.
+    assert ("run_projection_model", "tuesday", "10:15:00") in jobs
     # Sunday late swap: FantasyPros' news, a model run, then the swap.
     assert {("run_projection_scraper", "sunday", "11:35:00"), ("run_projection_model", "sunday", "11:40:00"),
             ("run_late_swap", "sunday", "11:50:00")} <= jobs

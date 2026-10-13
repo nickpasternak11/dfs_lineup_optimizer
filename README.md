@@ -130,6 +130,7 @@ Scheduled runs (orchestrator):
 - **Past-season backfill**: Tuesdays at 9:30 AM ET (see below)
 - **Projection scraper**: hourly, 10:00 AM–8:00 PM ET, Tuesday through Thursday
 - **Game log loader**: daily at 6:00 AM ET (see [Game Logs and Results](#game-logs-and-results))
+- **Our model's projections**: daily at 8:30 AM ET, and Tuesdays at 10:15 AM ET for the new week (see [Live projections](#live-projections))
 - **Suggested lineups**: about an hour before each week's first kickoff (see [Live projections](#live-projections))
 - **Missed-run catch-up**: daily at noon ET, and whenever the orchestrator starts
 - **Database backup**: daily at 3:00 AM ET
@@ -205,7 +206,7 @@ Each run replaces whole seasons, since nflverse rebuilds its files with stat cor
 
 It also loads the NFL's weekly injury reports (`injury_reports`, from 2009): one row per listed player per week, with the final game status (Out, Doubtful, Questionable; Probable until 2015) and that week's latest practice participation. nflverse rebuilds them about twice a day in season, so the 6 AM load has each week's final statuses before the model needs them:
 
-- **Thursday games:** final statuses come out Wednesday afternoon and are loaded Thursday morning, before the 8:30 model run and the 9:00 lineup save.
+- **Thursday games:** final statuses come out Wednesday afternoon and are loaded Thursday morning, before the 8:30 model run and long before the lineup save.
 - **Sunday games:** final statuses come out Friday afternoon and are loaded Saturday morning.
 
 The reports don't cover game-day inactives (which Questionable players sit) or players on a reserve list (injured reserve, PUP...), who aren't on the report at all. For those, it loads nflverse's weekly rosters too (`weekly_rosters`, from 2016; earlier files repeat one status all season): each QB, RB, WR and TE's roster status each week. From 2016 to 2025, 0.1% of players with a status other than active or game-day inactive played. The model projects them at 0. It doesn't use the rosters for teammates-out: counting those players as missing there didn't help the backtest (average miss 5.82 against 5.81, ranking 0.393 against 0.391). Even the old version that knew exactly who played scores no better than the reports (see [Live projections](#live-projections)).
@@ -282,7 +283,7 @@ History looks close to tapped out. The remaining gap, mostly ranking, is pre-gam
 
 #### Live projections
 
-Every morning in season at 8:30 AM ET, the orchestrator runs the model's `predict` step:
+Every morning in season at 8:30 AM ET, the orchestrator runs the model's `predict` step. On Tuesday that run comes before the new week's salaries, so there's a second run at 10:15 AM ET, after the salaries and the first FantasyPros projections: the new week has our projections from Tuesday, not Wednesday.
 
 - **Training:** on every game played so far.
 - **Projections:** each pool player whose game hasn't kicked off is projected, through placeholder rows for the upcoming games. The same feature code builds their history from earlier games and their betting lines from the schedule.
