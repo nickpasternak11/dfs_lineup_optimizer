@@ -250,6 +250,11 @@ The metrics live in `dfs_common.accuracy` so model work can score new sources th
 make backtest-model    # reads the database (and nflverse), writes nothing; a couple of minutes
 ```
 
+Two read-only experiments for tournaments (#51) live in `system/projection-model/experiments/`, with their results on the issue:
+
+- `make experiment NAME=boom_bust`: how predictable boom and bust are. Our projection plus the typical miss gives calibrated chances of 20+ points; nothing tried predicts booms much beyond that.
+- `make experiment NAME=lineup_simulation`: how teammates' results move together (a QB with his WRs and TE about +0.2, a defense against the opposing QB about −0.3) and how simulated lineups compare over the weeks with salaries.
+
 - **Training data:** every QB/RB/WR/TE and team defense regular-season game since 2012 (`make backfill-game-logs`), about 81,500 player-weeks.
 - **Features,** all known before kickoff:
   - recent and longer-run usage and production (targets, carries, pass attempts, yards, TDs, DraftKings points, shares of the team's targets, carries, attempts and snaps), shifted so a game never sees its own result
