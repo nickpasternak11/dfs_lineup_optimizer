@@ -19,7 +19,7 @@ DOCKER_RUN := docker run --rm \
 MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
 .PHONY: down build run run-salary-scraper run-projection-scraper run-game-log-loader \
-	backfill backfill-game-logs predict-model save-lineups backtest-model backtest-props normalize-names psql \
+	backfill backfill-game-logs predict-model save-lineups backtest-model backtest-props experiment normalize-names psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
@@ -154,6 +154,12 @@ backtest-model:
 PROPS_DIR ?= /dfs_data/props
 backtest-props:
 	$(DOCKER_RUN) -v $(PROPS_DIR):/props:ro dfs-projection-model props $(ARGS)
+
+# Read-only experiments in system/projection-model/experiments (#51):
+# NAME=boom_bust (how predictable boom and bust are) or NAME=lineup_simulation
+# (teammate correlations and simulated lineups). Print results; a few minutes.
+experiment:
+	$(DOCKER_RUN) --entrypoint python dfs-projection-model experiments/$(NAME).py
 
 # One-time: rename players stored under other spellings (legacy CSVs, the
 # salary page) to FantasyPros' rankings spelling. Safe to re-run; preview with
