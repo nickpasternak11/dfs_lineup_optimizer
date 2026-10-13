@@ -179,7 +179,7 @@ function SeasonTable({ review }) {
     );
 }
 
-// The lineups the optimizer suggested before each week's first game, on each
+// The lineups the optimizer suggested before each week's first kickoff, on each
 // projection source, and Sunday's late swap of them, scored on what their
 // players did.
 export default function LineupReview() {
@@ -191,9 +191,9 @@ export default function LineupReview() {
     if (!review || review.weeks.length === 0) {
         return (
             <p className="accuracy-message">
-                No saved lineups yet. They&apos;re saved at 9 AM ET on the day of each week&apos;s first game
-                (usually Thursday), for the whole Thursday-to-Monday slate, on FantasyPros&apos; projections and
-                our model&apos;s, and swapped Sunday at 11:50 AM ET.
+                No saved lineups yet. They&apos;re saved about an hour before each week&apos;s first kickoff
+                (usually Thursday night), for the whole Thursday-to-Monday slate, on FantasyPros&apos; projections
+                and our model&apos;s, and swapped Sunday at 11:50 AM ET.
             </p>
         );
     }
