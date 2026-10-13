@@ -1,11 +1,13 @@
 """Save the optimizer's suggested lineups before the games, for the weekly
 review. The API owns the optimizer, so this asks it for the three lineups on
-each projection source and stores them as a snapshot, never updated.
+each projection source and stores them as a snapshot, never updated. Every
+lineup uses SAVED_LINEUP_SETTINGS: the QB stacked with one of his own
+pass catchers, and no DST facing the lineup's own players.
 
-They're saved the morning of the week's first game, so they cover the whole
-Thursday-to-Monday slate of a DraftKings classic contest. That's Thursday
-most weeks, but a week can start on a Wednesday (Christmas), a Friday or a
-Saturday.
+They're saved shortly before the week's first kickoff, so they cover the
+whole Thursday-to-Monday slate of a DraftKings classic contest. That's
+Thursday night most weeks, but a week can start on a Wednesday (Christmas),
+a Friday or a Saturday.
 
 A classic contest locks each player at their own game's kickoff, so on
 Sunday, after inactives are out, each saved lineup gets a late swap: its
@@ -19,6 +21,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import requests
 from dfs_common.http import post
+from dfs_common.lineups import SAVED_LINEUP_SETTINGS
 from dfs_db import LineupSnapshot, session_scope, upsert_dataframe
 
 from src.configs import API_URL, log
@@ -51,12 +54,15 @@ def is_first_game_day(first_kickoff: datetime | None, now: datetime) -> bool:
 
 
 def suggested_lineups(year: int, week: int) -> dict[str, list[list[dict]]]:
-    """The API's default lineups on each source. A source it can't optimize
+    """The API's lineups on each source, with SAVED_LINEUP_SETTINGS. A source it can't optimize
     (our model before it has projected the week) is skipped."""
     lineups = {}
     for source in SOURCES:
         try:
-            response = post(f"{API_URL}/optimize", {"year": year, "week": week, "projection_source": source})
+            response = post(
+                f"{API_URL}/optimize",
+                {"year": year, "week": week, "projection_source": source, **SAVED_LINEUP_SETTINGS},
+            )
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code in (400, 404):
                 log.warning("No %s lineups for %s week %s: %s", source, year, week, e.response.text)
@@ -87,6 +93,7 @@ def late_swap_requests(initial: pd.DataFrame, pool: pd.DataFrame, year: int, wee
             "include_started_players": True,
             "included_players": locked,
             "excluded_players": sorted(started - set(locked)),
+            **SAVED_LINEUP_SETTINGS,
         }))
     return requests_
 
