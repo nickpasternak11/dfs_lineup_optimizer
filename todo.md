@@ -4,8 +4,8 @@ As of 2026-10-12. The issues have the detail; this is the order.
 
 ## Now
 
-- [ ] Merge the open PRs: #55 first (your stack already runs it), then #56 and #58, then #57. #57 conflicts with #55 on one README paragraph; resolve that when you get to it.
-- [ ] Close #40 and #41: the accuracy page shipped in #49, last week's review in #53.
+- [x] Merge #55–#58, and close #40 and #41.
+- [ ] Deploy develop: `make build`, `make run` (the restart policy needs the containers recreated).
 - [ ] After Monday night's game, review week 5, the first live week: the Lineups review and our model's live accuracy.
 - [ ] Decide on a Tuesday model run (about 10:15 AM ET, after the new week's salaries), so our projections are there Tuesday instead of Wednesday.
 
@@ -40,6 +40,7 @@ The model trails FantasyPros mostly on ranking (0.394 against 0.434), less on av
 ## Before anyone else uses the app (#48)
 
 - [ ] #45 Salaries from DraftKings and the schedule from nflverse, not FantasyPros. Players on a reserve list are already projected at 0 from nflverse's weekly rosters (#55); check that FantasyPros' projections get the same treatment once the pool comes from DraftKings.
+- [ ] #46 Injury badges in the app from nflverse's injury reports and rosters, not FantasyPros (the model already uses them). Game-day inactives still have no free, licensed source.
 - [ ] #47 Our own headshots, logos and rankings.
 - [ ] #44 Replace FantasyPros' projections in the optimizer, once the live record shows ours are better.
 
