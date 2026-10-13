@@ -30,9 +30,15 @@ const compare = (column, direction) => (a, b) => {
 const uniqueSorted = (pool, field) => [...new Set(pool.map(p => p[field]).filter(Boolean))].sort();
 
 // Filtering, sorting and the Available/Unavailable split for the pool table,
-// plus per-player context the table shows (lineup exposure, matchup strength).
-export default function usePlayerPool({ pool, lineups, locked, excluded, includeStarted }) {
+// plus per-player context the table shows (lineup exposure).
+export default function usePlayerPool({ pool, lineups, locked, excluded, includeStarted, isPastSlate }) {
     const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS, cutoff: defaultKickoffCutoff() }));
+
+    // The kickoff cutoff defaults by today's weekday, which only means
+    // something for the live week; a past week starts on all games.
+    useEffect(() => {
+        setFilters(prev => ({ ...prev, cutoff: isPastSlate ? '' : defaultKickoffCutoff() }));
+    }, [isPastSlate]);
     const [sort, setSort] = useState({ column: 'salary', direction: 'desc' });
     const [tab, setTab] = useState('available');
     const now = useNow(60 * 1000);
@@ -51,13 +57,6 @@ export default function usePlayerPool({ pool, lineups, locked, excluded, include
         }));
         return byPlayer;
     }, [lineups]);
-
-    // An opponent's DST rank stands in for how hard the matchup is.
-    const defenseRank = useMemo(() => {
-        const byTeam = {};
-        pool.filter(p => p.position === 'DST').forEach((p) => { byTeam[p.team] = p.rank; });
-        return byTeam;
-    }, [pool]);
 
     const unavailableReason = useMemo(() => (player) => {
         const started = !includeStarted && hasKickoffPassed(player.kickoff, now);
@@ -110,6 +109,6 @@ export default function usePlayerPool({ pool, lineups, locked, excluded, include
         filters, setFilter, clearFilters: () => setFilters(EMPTY_FILTERS), hasActiveFilters,
         options, sort, toggleSort, tab, setTab,
         available, unavailable, rows: tab === 'available' ? available : unavailable,
-        exposure, defenseRank, unavailableReason,
+        exposure, unavailableReason,
     };
 }

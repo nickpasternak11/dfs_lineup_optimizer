@@ -118,7 +118,7 @@
     font-size: 0.66rem;
     font-weight: 800;
     letter-spacing: 0.06em;
-    padding: 8px 10px;
+    padding: 8px;
     position: sticky;
     text-transform: uppercase;
     top: 0;
@@ -156,7 +156,7 @@
 .pool-table td {
     border-bottom: 1px solid var(--border);
     font-size: 0.82rem;
-    padding: 7px 10px;
+    padding: 7px 8px;
     vertical-align: middle;
     white-space: nowrap;
 }
@@ -284,8 +284,38 @@ th.align-right .sort-button { flex-direction: row; }
     font-weight: 700;
 }
 
-.matchup-tough { color: var(--bad); }
-.matchup-soft { color: var(--good); }
+.matchup-line {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
+}
+
+/* The opponent's rank against this position; its text keeps the tier from
+   resting on color alone. */
+.matchup-rank {
+    background: var(--surface-sunken);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: 0.66rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    padding: 1px 6px;
+}
+
+.matchup-rank.matchup-tough { background: var(--bad-soft); color: var(--bad); }
+.matchup-rank.matchup-soft { background: var(--good-soft); color: var(--good); }
+
+.team-total {
+    align-items: flex-end;
+    display: inline-flex;
+    flex-direction: column;
+}
+
+.team-total-game {
+    color: var(--text-faint);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
 
 .kickoff {
     color: var(--text-faint);
@@ -296,6 +326,38 @@ th.align-right .sort-button { flex-direction: row; }
 .value-hot {
     color: var(--good);
     font-weight: 800;
+}
+
+.row-clickable {
+    cursor: pointer;
+}
+
+.player-name-button {
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    padding: 0;
+    text-align: left;
+}
+
+.player-name-button:hover {
+    color: var(--accent-strong);
+    text-decoration: underline;
+}
+
+.actual-beat,
+.actual-missed {
+    font-weight: 800;
+}
+
+.actual-beat { color: var(--good); }
+.actual-missed { color: var(--bad); }
+
+.actual-glyph {
+    font-size: 0.6rem;
+    margin-left: 3px;
 }
 
 .row-actions {

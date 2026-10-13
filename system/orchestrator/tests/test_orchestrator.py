@@ -93,8 +93,17 @@ def test_schedule_is_unchanged(instance):
     assert ("run_salary_scraper", "tuesday", "09:00:00") in jobs
     assert ("run_backfill", "tuesday", "09:30:00") in jobs
     assert ("run_backup", "None", "03:00:00") in jobs
+    assert ("run_game_log_loader", "None", "06:00:00") in jobs
+    assert ("run_projection_model", "None", "08:30:00") in jobs
+    # Sunday late swap: FantasyPros' news, a model run, then the swap.
+    assert {("run_projection_scraper", "sunday", "11:35:00"), ("run_projection_model", "sunday", "11:40:00"),
+            ("run_late_swap", "sunday", "11:50:00")} <= jobs
+    # Lineups: checked every 15 minutes for the week's first kickoff.
+    checks = [job for job in schedule.get_jobs() if job.job_func.__name__ == "save_lineups_before_kickoff"]
+    assert [(job.interval, job.unit) for job in checks] == [(15, "minutes")]
+    assert not any(name == "run_lineup_snapshot" for name, *_ in jobs)
     projection_runs = [job for job in jobs if job[0] == "run_projection_scraper"]
-    assert len(projection_runs) == 3 * 11  # hourly 10:00-20:00, Tue-Thu
+    assert len(projection_runs) == 3 * 11 + 1  # hourly 10:00-20:00 Tue-Thu, and Sunday's
 
 
 def test_failed_scraper_alerts_with_its_last_log_lines(instance, jobs_dir, alerts, monkeypatch):
@@ -128,7 +137,19 @@ def test_scrapers_skip_the_off_season(instance, monkeypatch):
     instance.run_salary_scraper()
     instance.run_projection_scraper()
     instance.run_backfill()
+    instance.run_game_log_loader()
+    instance.run_projection_model()
+    instance.run_lineup_snapshot()
+    instance.run_late_swap()
+    instance.save_lineups_before_kickoff()
     assert calls == []
+
+
+def test_game_log_loader_runs_the_current_season(instance, monkeypatch):
+    calls = []
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: calls.append((name, args)))
+    instance.run_game_log_loader()
+    assert calls == [("game-log-loader", None)]
 
 
 @pytest.fixture
@@ -175,3 +196,63 @@ def test_catch_up_check_failure_alerts(instance, catch_up_env, alerts, monkeypat
     monkeypatch.setattr(orchestrator, "get_current_week", unreachable)
     instance.catch_up()
     assert "Catch-up check failed: Could not find the current week" in alerts[0]
+
+
+def test_projection_model_predicts(instance, monkeypatch):
+    calls = []
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: calls.append((name, args)))
+    instance.run_projection_model()
+    assert calls == [("projection-model", ["predict"])]
+
+
+def test_lineup_snapshot_saves_lineups(instance, monkeypatch):
+    calls = []
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: calls.append((name, args)))
+    instance.run_lineup_snapshot()
+    assert calls == [("projection-model", ["lineups", "--on-first-game-day"])]
+
+
+def test_late_swap_re_optimizes_the_saved_lineups(instance, monkeypatch):
+    calls = []
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: calls.append((name, args)))
+    instance.run_late_swap()
+    assert calls == [("projection-model", ["lineups", "--late-swap"])]
+
+
+
+@pytest.fixture
+def kickoff_env(instance, monkeypatch):
+    """The pre-kickoff check with a fake due week."""
+    ran = []
+    state = {"due": None}
+    monkeypatch.setattr(orchestrator, "due_week", lambda now: state["due"])
+    monkeypatch.setattr(instance, "run_scraper", lambda name, args=None: ran.append((name, args)))
+    return ran, state
+
+
+def test_lineups_are_saved_on_fresh_projections_before_the_first_kickoff(instance, kickoff_env):
+    ran, state = kickoff_env
+    state["due"] = (2026, 5)
+    instance.save_lineups_before_kickoff()
+    assert ran == [
+        ("projection-scraper", None),
+        ("projection-model", ["predict"]),
+        ("projection-model", ["lineups", "--on-first-game-day"]),
+    ]
+
+
+def test_nothing_runs_when_no_week_is_due(instance, kickoff_env):
+    ran, _ = kickoff_env
+    instance.save_lineups_before_kickoff()
+    assert ran == []
+
+
+def test_a_failed_pre_kickoff_check_runs_nothing(instance, kickoff_env, alerts, monkeypatch):
+    ran, _ = kickoff_env
+
+    def unreachable(now):
+        raise RuntimeError("connection refused")
+
+    monkeypatch.setattr(orchestrator, "due_week", unreachable)
+    instance.save_lineups_before_kickoff()
+    assert ran == [] and alerts == []

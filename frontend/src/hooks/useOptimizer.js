@@ -38,6 +38,13 @@ export default function useOptimizer() {
     const [refreshCount, setRefreshCount] = useState(0);
 
     const key = slateKey(slate.year, slate.week);
+    // On a past week every game has kicked off, so "hide started games" would
+    // empty the pool and the optimizer; there, every player counts.
+    const isPastSlate = Boolean(current.year && slate.year) && (
+        Number(slate.year) < Number(current.year)
+        || (slate.year === current.year && Number(slate.week) < Number(current.week))
+    );
+    const includeStarted = settings.includeStarted || isPastSlate;
     const excluded = useMemo(() => excludedMap[key] || [], [excludedMap, key]);
 
     useEffect(() => {
@@ -77,9 +84,9 @@ export default function useOptimizer() {
         () => {
             if (!slate.year || !slate.week) return null;
             setOptimizing(true);
-            return fetchLineups({ ...slate, ...settings, excluded, locked });
+            return fetchLineups({ ...slate, ...settings, includeStarted, excluded, locked });
         },
-        [slate.year, slate.week, settings, excluded, locked, refreshCount],
+        [slate.year, slate.week, settings, includeStarted, excluded, locked, refreshCount],
         {
             onData: (data) => {
                 setLineups(data);
@@ -130,7 +137,7 @@ export default function useOptimizer() {
     const clearLocks = useCallback(() => setLocked([]), []);
 
     return {
-        slate, current, settings, pool, lineups, lineupError, locked, excluded,
+        slate, current, settings, includeStarted, isPastSlate, pool, lineups, lineupError, locked, excluded,
         loadingPool, optimizing,
         changeSlate, updateSettings, refresh, toggleExclude, toggleLock, clearLocks,
     };

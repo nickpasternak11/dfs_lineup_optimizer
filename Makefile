@@ -18,11 +18,13 @@ DOCKER_RUN := docker run --rm \
 # Migration tooling additionally needs the CSV data mount.
 MIGRATION_RUN := $(DOCKER_RUN) -v $(DATA_VOLUME)
 
-.PHONY: down build run run-salary-scraper run-projection-scraper backfill psql \
+.PHONY: down build run run-salary-scraper run-projection-scraper run-game-log-loader \
+	backfill backfill-game-logs predict-model save-lineups backtest-model backtest-props normalize-names psql \
 	migrate migrate-dry-run verify-migration \
 	db-upgrade db-downgrade db-stamp db-revision db-history db-current \
 	backup list-backups restore \
-	test test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend test-db \
+	test test-api test-salary-scraper test-projection-scraper test-game-log-loader \
+	test-orchestrator test-projection-model test-frontend test-db \
 	load-test
 
 down:
@@ -44,10 +46,16 @@ run-salary-scraper:
 run-projection-scraper:
 	$(DOCKER_RUN) dfs-projection-scraper $(ARGS)
 
+# nflverse games and game logs for the current season (ARGS="--year 2024" for
+# another). The orchestrator runs this daily at 6:00 AM ET in season.
+run-game-log-loader:
+	$(DOCKER_RUN) dfs-game-log-loader $(ARGS)
+
 # Tests run in each service's `test` build stage, with the same dependencies as
 # the deployed image. No database, network or running stack needed (test-db
 # starts its own throwaway Postgres).
-test: test-api test-salary-scraper test-projection-scraper test-orchestrator test-frontend test-db
+test: test-api test-salary-scraper test-projection-scraper test-game-log-loader test-orchestrator \
+	test-projection-model test-frontend test-db
 
 test-api:
 	docker build -q --target test -f api/Dockerfile -t dfs-api-test . >/dev/null
@@ -60,6 +68,14 @@ test-salary-scraper:
 test-projection-scraper:
 	docker build -q --target test -f system/projection-scraper/Dockerfile -t dfs-projection-scraper-test . >/dev/null
 	docker run --rm dfs-projection-scraper-test
+
+test-game-log-loader:
+	docker build -q --target test -f system/game-log-loader/Dockerfile -t dfs-game-log-loader-test . >/dev/null
+	docker run --rm dfs-game-log-loader-test
+
+test-projection-model:
+	docker build -q --target test -f system/projection-model/Dockerfile -t dfs-projection-model-test . >/dev/null
+	docker run --rm dfs-projection-model-test
 
 test-orchestrator:
 	docker build -q --target test -f system/orchestrator/Dockerfile -t dfs-orchestration-test . >/dev/null
@@ -103,6 +119,47 @@ BACKFILL_START_YEAR ?= 2018
 backfill:
 	$(DOCKER_RUN) dfs-salary-scraper --start-year $(BACKFILL_START_YEAR)
 	$(DOCKER_RUN) dfs-projection-scraper --start-year $(BACKFILL_START_YEAR)
+
+# Every season of nflverse game logs from GAME_LOG_START_YEAR through this one.
+# Earlier than the scrapers' history: the projection model trains on these
+# seasons. Each season is one download, so this takes under a minute. Safe
+# to re-run.
+GAME_LOG_START_YEAR ?= 2012
+backfill-game-logs:
+	$(DOCKER_RUN) dfs-game-log-loader --start-year $(GAME_LOG_START_YEAR)
+
+# Our model's projections for this week's games still to come, stored as a
+# snapshot in model_projections (the orchestrator runs it every morning).
+# ARGS="--dry-run" prints them instead.
+predict-model:
+	$(DOCKER_RUN) dfs-projection-model predict $(ARGS)
+
+# Save the optimizer's suggested lineups, on FantasyPros' projections and our
+# model's, for this week's games still to come (the orchestrator does it at
+# 9 AM ET on the day of the week's first game). ARGS=--late-swap re-optimizes
+# their players whose games haven't started (Sunday's run). The API must be
+# running. ARGS="--dry-run" prints them.
+save-lineups:
+	$(DOCKER_RUN) dfs-projection-model lineups $(ARGS)
+
+# The projection model's walk-forward backtest (#44): trains on each season's
+# earlier seasons and scores it against FantasyPros on the accuracy page's
+# rows. Reads the database, writes nothing; about a minute.
+backtest-model:
+	$(DOCKER_RUN) dfs-projection-model backtest $(ARGS)
+
+# Projections from sportsbook player props (#50) against FantasyPros and the
+# model, on the season an Odds API export covers. Fits on the first half of
+# its weeks, scores the second.
+PROPS_DIR ?= /dfs_data/props
+backtest-props:
+	$(DOCKER_RUN) -v $(PROPS_DIR):/props:ro dfs-projection-model props $(ARGS)
+
+# One-time: rename players stored under other spellings (legacy CSVs, the
+# salary page) to FantasyPros' rankings spelling. Safe to re-run; preview with
+# ARGS=--dry-run. The scrapers keep each new week consistent on their own.
+normalize-names:
+	$(DOCKER_RUN) dfs-db-migrate python -m dfs_db.normalize $(ARGS)
 
 psql:
 	docker compose -f $(COMPOSE_RUN_FILE) exec dfs-postgres \

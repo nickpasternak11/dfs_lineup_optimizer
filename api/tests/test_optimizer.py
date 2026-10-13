@@ -121,3 +121,23 @@ def test_missing_avg_fpts_does_not_break_the_blended_lineups(pool, make_optimize
 def test_empty_pool_is_reported_as_not_found(pool, make_optimizer):
     with pytest.raises(FileNotFoundError):
         make_optimizer(pool.iloc[0:0]).optimize()
+
+
+def test_lineups_can_be_optimized_on_our_models_projections(pool, make_optimizer):
+    # Our model rates the C players highest; players it hasn't projected
+    # (here the D and E ones) are left out.
+    model = {"QB C1": 30.0, "RB C1": 30.0, "WR C1": 30.0, "TE C1": 30.0, "DST C": 30.0}
+    pool["model_fpts"] = [model.get(p, 1.0) if not p.endswith(("D1", "E1")) else None for p in pool["player"]]
+    lineup = make_optimizer(pool).optimize(projection_source="model")
+
+    assert_valid_roster(lineup)
+    assert set(model) <= set(lineup["player"])
+    assert not lineup["player"].str.endswith(("D1", "E1")).any()
+    # The records carry the projection the lineup was built on.
+    assert lineup.set_index("player").loc["QB C1", "proj_fpts"] == 30.0
+
+
+def test_a_week_our_model_hasnt_projected_is_an_error(pool, make_optimizer):
+    pool["model_fpts"] = None
+    with pytest.raises(ValueError, match="hasn't projected"):
+        make_optimizer(pool).optimize(projection_source="model")

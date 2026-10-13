@@ -31,6 +31,30 @@ export const fetchLineups = async ({ year, week, stackQbCount, avoidTeFlex, incl
     return response.data;
 };
 
+export const fetchPlayerGameLog = async (gsisId) => {
+    const response = await axios.get(`${API_URL}/game-logs/players/${encodeURIComponent(gsisId)}`);
+    return response.data;
+};
+
+export const fetchDstGameLog = async (team) => {
+    const response = await axios.get(`${API_URL}/game-logs/dst/${encodeURIComponent(team)}`);
+    return response.data;
+};
+
+export const fetchAccuracy = async ({ view, year, position, minProj }) => {
+    const response = await axios.get(`${API_URL}/accuracy`, {
+        params: { view, year: year ?? undefined, position: position ?? undefined, min_proj: minProj },
+    });
+    return response.data;
+};
+
+export const fetchLineupReview = async ({ year, week }) => {
+    const response = await axios.get(`${API_URL}/lineups/review`, {
+        params: { year: year ?? undefined, week: week ?? undefined },
+    });
+    return response.data;
+};
+
 // FastAPI puts a string in `detail` for HTTPExceptions and a list for
 // validation errors.
 export const errorMessage = (error, fallback) => {

@@ -1,0 +1,31 @@
+# Build context is the repo root (see docker-compose.build.yml).
+FROM python:3.10-slim as base
+
+WORKDIR /app
+
+# The base image's pip and setuptools have known vulnerabilities.
+RUN pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0
+
+COPY system/game-log-loader/requirements.txt .
+RUN pip install -r requirements.txt
+
+FROM base as builder
+
+COPY shared/ ./shared/
+COPY system/game-log-loader/ .
+
+# `make test` target; not part of the deployed image.
+FROM builder AS test
+COPY requirements-test.txt .
+RUN pip install -r requirements-test.txt
+ENV PYTHONPATH="${PYTHONPATH}:/app:/app/shared"
+CMD ["python", "-m", "pytest", "-q", "--import-mode=importlib", "tests"]
+
+FROM builder as service
+
+# Add the current directory and the shared package to PYTHONPATH
+ENV PYTHONPATH="${PYTHONPATH}:/app:/app/shared"
+
+# ENTRYPOINT (not CMD) so `docker run dfs-game-log-loader --year 2025` appends
+# args instead of replacing the command.
+ENTRYPOINT ["python", "main.py"]

@@ -129,3 +129,38 @@ def replace_weeks(
             delete(table).where(table.c.year == int(year), table.c.week == int(week))
         )
     return upsert_dataframe(session, model, df)
+
+
+def replace_matching(
+    session: Session,
+    model: type,
+    df: pd.DataFrame,
+    where: dict[str, Any],
+    min_ratio: float = DEFAULT_MIN_RATIO,
+) -> int:
+    """Replace every row whose columns equal `where` with exactly `df`'s rows.
+
+    For sources published as one complete file per scope -- a season of
+    nflverse game logs ({"year": 2025}), or the whole id crosswalk ({}) --
+    where rows the source dropped (a stat correction, a merged player id) must
+    go too. Same guard and transaction semantics as replace_weeks: raises
+    SnapshotShrankError, before deleting anything, if `df` has fewer than
+    `min_ratio` of the matching rows, including when it is empty.
+    """
+    table = model.__table__
+    conditions = [table.c[name] == value for name, value in where.items()]
+    primary_key = [column.name for column in table.primary_key.columns]
+
+    existing = session.execute(
+        select(func.count()).select_from(table).where(*conditions)
+    ).scalar_one()
+    new_count = len(df.drop_duplicates(subset=primary_key)) if not df.empty else 0
+    if existing and new_count < existing * min_ratio:
+        scope = ", ".join(f"{name}={value}" for name, value in where.items()) or "all rows"
+        raise SnapshotShrankError(
+            f"{table.name} ({scope}): new data has {new_count} rows, current has "
+            f"{existing}; refusing to replace"
+        )
+
+    session.execute(delete(table).where(*conditions))
+    return upsert_dataframe(session, model, df)

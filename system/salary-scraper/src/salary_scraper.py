@@ -1,7 +1,7 @@
 import pandas as pd
 from dfs_common.fantasypros import get_current_week
 from dfs_common.season import current_season_year
-from dfs_db import PlayerSalary, replace_weeks, session_scope
+from dfs_db import PlayerSalary, reconcile_week_names, replace_weeks, session_scope
 from dfs_db.upsert import DEFAULT_MIN_RATIO
 from src.configs import log
 from src.utils import get_salary_data
@@ -45,7 +45,13 @@ class SalaryScraper:
                 df,
                 min_ratio=0 if allow_shrink else DEFAULT_MIN_RATIO,
             )
+            # The salary page sometimes drops a suffix the rankings keep
+            # ("KC Concepcion" vs "KC Concepcion Jr."); adopt the rankings'
+            # spelling, or the player falls out of the week's pool.
+            renamed = reconcile_week_names(session, year, week)
         log.info("Upserted %s salary rows for year=%s, week=%s", rows, year, week)
+        if renamed:
+            log.info("Renamed %s salary rows to FantasyPros' rankings spelling", renamed)
 
 
 if __name__ == "__main__":

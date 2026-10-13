@@ -9,22 +9,133 @@ from app.configs.configs import API_CACHE_TTL_SECONDS, log
 from app.helpers.cache import TTLCache
 from app.helpers.optimize import dataframe_to_records, get_latest_week
 
+# The weeks FantasyPros' recent average covers, and the matchup ranks use:
+# the four before the slate, or all of last regular season in week 1.
+_RECENT_WEEKS = """
+    season_type = 'REG'
+    AND CASE WHEN :week = 1 THEN year = :year - 1
+             ELSE year = :year AND week BETWEEN :week - 4 AND :week - 1 END
+"""
+
+# player_week_results adds each player's nflverse id (for their game log)
+# and, once the game is final, the DraftKings points they actually scored.
+#
+# avg_fpts is rescored in DraftKings points from the game logs: FantasyPros'
+# own average is full PPR, which has no yardage bonuses and takes 2 for a
+# turnover, so it ran ~0.4 points a game below DraftKings (1.2 for QBs).
+# Players we can't link to nflverse keep FantasyPros' number.
+#
+# The matchup columns rank the opponent by the FPTS it allowed to the
+# player's position per game over the same weeks: 1 allowed the fewest (the
+# toughest matchup), 32 the most. A defense's matchup is the offense it
+# faces, ranked by what it gave up to the DSTs it played.
+#
+# The betting lines come from the nflverse schedule, refreshed with the game
+# logs each morning. nflverse's spread_line is the home team's expected
+# margin; team_spread flips it to the team's own, betting-style (favorites
+# negative), so its implied total is (total - spread) / 2.
 PLAYER_POOL_QUERY = text(
-    """
-    SELECT year, week, player, position, team, kickoff, opponent, home,
-           grade, rank, avg_fpts, proj_fpts, salary, salary_change, value,
-           injury_status, injury_type, fp_player_id
-    FROM weekly_player_pool
-    WHERE year = :year
-      AND week = :week
-      AND salary IS NOT NULL
-      AND proj_fpts IS NOT NULL
-    ORDER BY position, rank
+    f"""
+    WITH defense_games AS (
+        SELECT year, week, nfl_team(team) AS defense, nfl_team(opponent) AS offense, dk_points
+        FROM dst_game_logs
+        WHERE {_RECENT_WEEKS}
+    ),
+    allowed AS (
+        -- One row per defense, position and game; a game where nobody at a
+        -- position scored still counts, as zero.
+        SELECT games.defense AS team, positions.position,
+               COALESCE(sum(logs.dk_points), 0) AS points
+        FROM defense_games AS games
+        CROSS JOIN (VALUES ('QB'), ('RB'), ('WR'), ('TE')) AS positions (position)
+        LEFT JOIN player_game_logs AS logs
+          ON logs.year = games.year
+         AND logs.week = games.week
+         AND nfl_team(logs.opponent) = games.defense
+         AND CASE logs.position WHEN 'FB' THEN 'RB' ELSE logs.position END = positions.position
+        GROUP BY games.defense, positions.position, games.year, games.week
+        UNION ALL
+        SELECT offense, 'DST', dk_points
+        FROM defense_games
+    ),
+    matchups AS (
+        SELECT team, position, round(avg(points), 2) AS fpts_allowed, count(*) AS games,
+               rank() OVER (PARTITION BY position ORDER BY avg(points)) AS fpts_allowed_rank
+        FROM allowed
+        GROUP BY team, position
+    ),
+    recent AS (
+        SELECT gsis_id, NULL AS team, round(avg(dk_points), 2) AS dk_avg
+        FROM player_game_logs
+        WHERE {_RECENT_WEEKS}
+        GROUP BY gsis_id
+        UNION ALL
+        SELECT NULL, nfl_team(team), round(avg(dk_points), 2)
+        FROM dst_game_logs
+        WHERE {_RECENT_WEEKS}
+        GROUP BY nfl_team(team)
+    )
+    SELECT pool.year, pool.week, pool.player, pool.position, pool.team,
+           pool.kickoff, pool.opponent, pool.home, pool.grade, pool.rank,
+           COALESCE(recent.dk_avg, pool.avg_fpts) AS avg_fpts,
+           pool.proj_fpts, pool.salary, pool.salary_change,
+           pool.value, pool.injury_status, pool.injury_type, pool.fp_player_id,
+           results.gsis_id, results.actual_dk_points,
+           matchups.fpts_allowed AS opp_fpts_allowed,
+           matchups.fpts_allowed_rank AS opp_fpts_allowed_rank,
+           matchups.games AS opp_games,
+           lines.total_line AS game_total,
+           lines.spread AS team_spread,
+           round((lines.total_line - lines.spread) / 2, 2) AS implied_total,
+           model.proj_dk_points AS model_fpts
+    FROM weekly_player_pool AS pool
+    LEFT JOIN player_week_results AS results
+      ON results.year = pool.year
+     AND results.week = pool.week
+     AND results.player = pool.player
+    LEFT JOIN recent
+      ON CASE WHEN pool.position = 'DST' THEN recent.team = nfl_team(pool.team)
+              ELSE recent.gsis_id = results.gsis_id END
+    LEFT JOIN matchups
+      ON matchups.team = nfl_team(pool.opponent)
+     AND matchups.position = pool.position
+    LEFT JOIN LATERAL (
+        SELECT games.total_line,
+               CASE WHEN games.home_team = nfl_team(pool.team)
+                    THEN -games.spread_line ELSE games.spread_line END AS spread
+        FROM nfl_games AS games
+        WHERE games.year = pool.year
+          AND games.week = pool.week
+          AND nfl_team(pool.team) IN (games.home_team, games.away_team)
+    ) AS lines ON true
+    -- Our model's latest projection made before the player's kickoff.
+    LEFT JOIN LATERAL (
+        SELECT snapshot.proj_dk_points
+        FROM model_projections AS snapshot
+        WHERE snapshot.year = pool.year
+          AND snapshot.week = pool.week
+          AND snapshot.player = pool.player
+          AND (pool.kickoff IS NULL OR snapshot.generated_at < pool.kickoff)
+        ORDER BY snapshot.generated_at DESC
+        LIMIT 1
+    ) AS model ON true
+    WHERE pool.year = :year
+      AND pool.week = :week
+      AND pool.salary IS NOT NULL
+      AND pool.proj_fpts IS NOT NULL
+    ORDER BY pool.position, pool.rank
     """
 )
 
 # NUMERIC comes back as Decimal, which pulp can't handle.
-FLOAT_COLUMNS = ["avg_fpts", "proj_fpts", "value"]
+FLOAT_COLUMNS = [
+    "avg_fpts", "proj_fpts", "value", "actual_dk_points", "opp_fpts_allowed",
+    "game_total", "team_spread", "implied_total", "model_fpts",
+]
+
+# What the optimizer maximizes: FantasyPros' projection (proj_fpts), or our
+# model's (model_fpts), which takes its place in the lineup's records.
+PROJECTION_SOURCES = ("fantasypros", "model")
 
 # Player pools keyed by (year, week), shared by every request in this worker.
 # Each caller gets its own copy, so filtering or reweighting one request's
@@ -50,6 +161,14 @@ class DFSLineupOptimizer:
         )
         self._projections_df: pd.DataFrame | None = None
 
+    @classmethod
+    def from_frame(cls, df: pd.DataFrame, year: int, week: int) -> "DFSLineupOptimizer":
+        """An optimizer over a prepared pool instead of the week's cached one
+        (the hindsight-best lineup, solved on actual points)."""
+        optimizer = cls(year=year, week=week)
+        optimizer._projections_df = df
+        return optimizer
+
     def get_projections_df(self) -> pd.DataFrame:
         """The week's player pool, from the process-wide cache.
 
@@ -72,6 +191,7 @@ class DFSLineupOptimizer:
         include_started_players: bool = False,
         excluded_players: list[str] = [],
         included_players: list[str] = [],
+        projection_source: str = "fantasypros",
     ) -> pd.DataFrame:
         # selected_players = []
         budget = 50000
@@ -87,6 +207,16 @@ class DFSLineupOptimizer:
                 f"No player pool for year={self.current_year}, "
                 f"week={self.current_week}"
             )
+
+        if projection_source == "model":
+            df = df[df["model_fpts"].notna()].reset_index(drop=True)
+            if df.empty:
+                raise ValueError(
+                    f"Our model hasn't projected year={self.current_year}, "
+                    f"week={self.current_week}"
+                )
+            df["proj_fpts"] = df["model_fpts"]
+            df["value"] = (df["proj_fpts"] / (df["salary"] / 1000)).round(2)
 
         # By default, only players whose games have not started are eligible.
         # Slates predating kickoff collection have it NULL and stay eligible.
@@ -266,6 +396,7 @@ class DFSLineupOptimizer:
         include_started_players: bool = False,
         excluded_players: list[str] = [],
         included_players: list[str] = [],
+        projection_source: str = "fantasypros",
     ) -> list[dict]:
         lineups = []
         for weights in [(1, 0), (0.9, 0.1), (0.8, 0.2)]:
@@ -278,6 +409,7 @@ class DFSLineupOptimizer:
                 include_started_players=include_started_players,
                 excluded_players=excluded_players,
                 included_players=included_players,
+                projection_source=projection_source,
             )
             lineups.append(dataframe_to_records(lineup))
         return lineups

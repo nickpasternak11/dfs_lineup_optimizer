@@ -3,7 +3,7 @@ import PoolFilters from './PoolFilters';
 import PoolTable from './PoolTable';
 import './PlayerPool.css';
 
-export default function PlayerPool({ optimizer, playerPool }) {
+export default function PlayerPool({ optimizer, playerPool, onOpenPlayer }) {
     const { tab, setTab, available, unavailable, rows, hasActiveFilters } = playerPool;
     const tabs = [
         { key: 'available', label: 'Available', count: available.length },
@@ -43,6 +43,7 @@ export default function PlayerPool({ optimizer, playerPool }) {
                 lineupCount={optimizer.lineups.length}
                 loading={optimizer.loadingPool}
                 emptyMessage={emptyMessage}
+                onOpenPlayer={onOpenPlayer}
             />
         </section>
     );
