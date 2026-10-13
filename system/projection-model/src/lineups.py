@@ -33,6 +33,15 @@ EASTERN = ZoneInfo("America/New_York")
 SOURCE_COLUMNS = {"fantasypros": "proj_fpts", "model": "model_fpts"}
 
 
+def before_first_kickoff(first_kickoff: datetime | None, now: datetime) -> bool:
+    """Whether the week's lineups can still be saved: until its first game
+    kicks off, the whole slate is open. Each save is a new snapshot, and the
+    newest counts, so a later save replaces an earlier one. Once the first
+    game starts, the lineups are locked; Sunday's late swap re-optimizes
+    them."""
+    return first_kickoff is None or now < first_kickoff
+
+
 def is_first_game_day(first_kickoff: datetime | None, now: datetime) -> bool:
     """Whether `now` is the (Eastern) day of the week's first game, still
     before it kicks off."""

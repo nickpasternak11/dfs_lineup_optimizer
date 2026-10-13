@@ -18,4 +18,6 @@ def nflverse_files():
         "team_stats": read("team_stats"),
         "games": read("games"),
         "player_ids": read("player_ids"),
+        "injuries": read("injuries"),
+        "rosters": read("rosters"),
     }

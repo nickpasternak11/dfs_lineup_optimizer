@@ -79,6 +79,14 @@ def test_lineups_are_saved_the_morning_of_the_weeks_first_game():
     assert not lineups.is_first_game_day(None, datetime(2024, 12, 25, 9, 0, tzinfo=ET))
 
 
+def test_lineups_can_be_saved_again_until_the_first_kickoff():
+    thursday_night = datetime(2026, 10, 8, 20, 15, tzinfo=ET)
+    assert lineups.before_first_kickoff(thursday_night, datetime(2026, 10, 7, 12, 0, tzinfo=ET))
+    assert lineups.before_first_kickoff(thursday_night, datetime(2026, 10, 8, 20, 14, tzinfo=ET))
+    assert not lineups.before_first_kickoff(thursday_night, datetime(2026, 10, 8, 20, 15, tzinfo=ET))
+    assert not lineups.before_first_kickoff(thursday_night, datetime(2026, 10, 11, 12, 0, tzinfo=ET))
+
+
 def test_the_day_is_eastern_not_utc():
     # 8:15 PM ET Thursday is already Friday in UTC.
     kickoff = datetime(2026, 10, 9, 0, 15, tzinfo=timezone.utc)

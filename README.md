@@ -202,6 +202,13 @@ make run-game-log-loader ARGS="--year 2024"  # one season
 
 Each run replaces whole seasons, since nflverse rebuilds its files with stat corrections, and refuses to replace one with under 80% of its rows (override with `--allow-shrink`).
 
+It also loads the NFL's weekly injury reports (`injury_reports`, from 2009): one row per listed player per week, with the final game status (Out, Doubtful, Questionable; Probable until 2015) and that week's latest practice participation. nflverse rebuilds them about twice a day in season, so the 6 AM load has each week's final statuses before the model needs them:
+
+- **Thursday games:** final statuses come out Wednesday afternoon and are loaded Thursday morning, before the 8:30 model run and the 9:00 lineup save.
+- **Sunday games:** final statuses come out Friday afternoon and are loaded Saturday morning.
+
+The reports don't cover game-day inactives (which Questionable players sit) or players on a reserve list (injured reserve, PUP...), who aren't on the report at all. For those, it loads nflverse's weekly rosters too (`weekly_rosters`, from 2016; earlier files repeat one status all season): each QB, RB, WR and TE's roster status each week. From 2016 to 2025, 0.1% of players with a status other than active or game-day inactive played. The model projects them at 0. It doesn't use the rosters for teammates-out: counting those players as missing there didn't help the backtest (average miss 5.82 against 5.81, ranking 0.393 against 0.391). Even the old version that knew exactly who played scores no better than the reports (see [Live projections](#live-projections)).
+
 The `player_week_results` view puts every pool player's projection next to what they actually scored, the basis for variance estimates and backtesting:
 
 ```sql
@@ -248,7 +255,8 @@ make backtest-model    # reads the database (and nflverse), writes nothing; a co
   - the team's recent offense
   - what the opponent allowed to the position over its last six games
   - the game's betting lines: implied totals, spread, over/under and home/away
-  - **teammates out:** the target, carry and pass-attempt share of the team's regulars who aren't playing, by team and by position. Inactives are announced 90 minutes before kickoff, ahead of lineup lock. Snap counts (nflverse, from 2013) say exactly who played.
+  - **teammates out:** the target, carry and pass-attempt share of the team's regulars who won't play, by team and by position. A regular is missing when the injury report lists them Out or Doubtful, or when they're on another team that week (a trade, a move since last season). That's what's known before kickoff, the same in training and live.
+  - **the player's own injury report:** whether they're listed, Questionable (or Probable before 2016), and how much they practiced. Questionable players who play score less (8.8 FPTS against 10.5 for unlisted players, 2016–2025).
   - for defenses, days of rest and whether the game is in a fixed dome. Weather isn't used: nflverse's schedule only records it after the game.
 - **Model:** one gradient-boosted model per position, predicting DraftKings points.
 - **Walk-forward backtest:** each season is predicted by models trained only on the seasons before it, then scored on the accuracy page's rows against FantasyPros and the recent-average baseline.
@@ -285,15 +293,22 @@ make predict-model                   # store a snapshot now
 make predict-model ARGS="--dry-run"  # print instead
 ```
 
-At 9 AM ET on the day of the week's first game, after that morning's projections, the orchestrator also saves the week's suggested lineups for the review, once a week (`make save-lineups` by hand, with the API running). Sunday brings the late swap:
+At 9 AM ET on the day of the week's first game, after that morning's projections, the orchestrator also saves the week's suggested lineups for the review. You can save again any time before the first kickoff, for example after fresh projections (`make predict-model`, then `make save-lineups`, with the API running): each save is a new snapshot, and the newest one is what the review and the late swap use. Once the first game kicks off, saves are refused, since the whole slate is locked by then. Sunday brings the late swap:
 
 - **11:35 AM ET:** a FantasyPros scrape, for Sunday's news and inactives
 - **11:40 AM ET:** a model run
 - **11:50 AM ET:** the swap (`make save-lineups ARGS=--late-swap`)
 
-The swap is only as good as Sunday's information. Until the model knows who's inactive (#46), its swaps mostly re-pick Thursday's players.
+The swap is only as good as Sunday's information. The FantasyPros scrape has the inactives, but the model only knows who Friday's injury report ruled out, not which Questionable players sit.
 
-Snapshots carry `model_version`. Version 1 has no inactive list yet (#46). Live, teammates-out only sees regulars who are no longer in DraftKings' pool, not ones ruled out that week, and a backup may be projected as if they'll start. A player who doesn't play is never scored, so this costs accuracy only for teammates who inherit a missing player's work.
+Snapshots carry `model_version`:
+
+- **Version 1** had no injury data, so live it couldn't see who was out.
+- **Version 2** (#46) uses the injury reports. Players listed Out or Doubtful are projected at 0: of skill-position regulars listed 2016–2025, none listed Out played and 0.9% of Doubtful did.
+- **Version 3** adds the weekly rosters: players off the active roster are projected at 0, for example Tank Dell in 2026 week 5, practicing on his way back from reserve but not yet activated. Practice-squad players count as off until the roster shows them elevated, usually on Saturday.
+- **Questionable players** are projected as if they play, because 63% did (76% after a full practice, 42% after none). Swap them on Sunday if they're ruled inactive.
+
+In the backtest, teammates-out from the injury reports scores the same as the old version that knew who actually played: average miss 5.80 and ranking 0.394 against 5.80 and 0.394. So the backtest holds, and live predictions now get the same information.
 
 #### Player props
 
@@ -407,6 +422,8 @@ All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker
 | `player_game_logs` | Game log loader | Weekly QB/RB/WR/TE stats and DraftKings points, keyed on nflverse's `gsis_id` |
 | `dst_game_logs` | Game log loader | Weekly team defense stats, points allowed and DraftKings points |
 | `nfl_players` | Game log loader | nflverse `gsis_id` to FantasyPros `fp_player_id`, plus birth date, height, weight, college and draft |
+| `injury_reports` | Game log loader | The NFL's weekly injury reports: final game status and practice participation, from 2009 |
+| `weekly_rosters` | Game log loader | Each week's roster status for QBs, RBs, WRs and TEs (active, reserve, practice squad...), from 2016 |
 | `pool_player_links` (materialized view) | Game log loader (refresh) | Pool players matched to nflverse ids by name, team and week |
 | `model_projections` | Projection model | Our model's projections, one snapshot per daily run, never updated |
 | `lineup_snapshots` | Projection model | The optimizer's suggested lineups on each projection source, saved the morning of each week's first game, never updated |
