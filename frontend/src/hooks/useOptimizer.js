@@ -4,7 +4,7 @@ import { errorMessage, fetchCurrentSlate, fetchLineups, fetchProjections } from 
 import { canLockPlayer } from '../lib/rosterRules';
 import { loadExcludedPlayers, saveExcludedPlayers, slateKey } from '../lib/storage';
 
-const DEFAULT_SETTINGS = { stackQbCount: 0, avoidTeFlex: false, includeStarted: false };
+const DEFAULT_SETTINGS = { stackQbCount: 0, avoidTeFlex: false, avoidDstVsPlayers: false, includeStarted: false };
 
 // Runs `load` whenever `deps` change, keeping only the newest response: a
 // slow reply to an older request never overwrites a newer one.

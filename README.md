@@ -340,7 +340,7 @@ Open http://localhost:3000. The app loads the current week and optimizes right a
 
 **Suggested lineups** (right; on top on phones):
 
-- Settings: QB stack (off, +1 or +2 pass catchers from the QB's team), avoid a TE in FLEX, and include players whose games have started.
+- Settings: QB stack (off, +1 or +2 pass catchers from the QB's team), avoid a TE in FLEX, avoid a DST facing your own players, and include players whose games have started. A defense scores off the offense's mistakes, so it pulls against the players it faces (about −0.3 with the opposing QB, #51); tournament lineups usually keep them apart.
 - Three lineups, one per strategy: **Projection** (FantasyPros projections), **90/10 blend** and **80/20 blend** (projection blended with the recent average). Each tab and card headlines the plain projected total so the three compare directly; blended lineups also show the score they were optimized on.
 - Each card shows salary used against the $50,000 cap, the roster in slot order with headshots and matchups, and a copy button that puts the lineup on the clipboard as text.
 - The lock button forces a player into every lineup; the exclude button removes them. Locks reset when the slate changes; exclusions are remembered per week in the browser.

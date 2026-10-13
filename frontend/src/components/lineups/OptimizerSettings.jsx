@@ -47,6 +47,18 @@ export default function OptimizerSettings({ optimizer, onReviewExcluded }) {
             </label>
             <label className="switch setting-row">
                 <span>
+                    <span className="setting-label">Avoid DST vs my players</span>
+                    <span className="setting-hint">Never play a defense against your own offense</span>
+                </span>
+                <input
+                    type="checkbox"
+                    role="switch"
+                    checked={settings.avoidDstVsPlayers}
+                    onChange={e => updateSettings({ avoidDstVsPlayers: e.target.checked })}
+                />
+            </label>
+            <label className="switch setting-row">
+                <span>
                     <span className="setting-label">Include started games</span>
                     <span className="setting-hint">
                         {isPastSlate ? 'Always on for a past week' : 'Allow players whose games already kicked off'}

@@ -9,6 +9,10 @@ class OptimizeRequest(BaseModel):
     stack_qb: bool = False
     stack_qb_count: int = Field(default=0, ge=0, le=2)
     avoid_te_flex: bool = False
+    avoid_dst_vs_players: bool = Field(
+        default=False,
+        description="Never pair a defense with offensive players from the team it faces",
+    )
     include_started_players: bool = False
     excluded_players: list[str] = []
     included_players: list[str] = []

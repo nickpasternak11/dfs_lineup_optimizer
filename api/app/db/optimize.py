@@ -188,6 +188,7 @@ class DFSLineupOptimizer:
         weights: dict = {},
         stack_qb_count: int = 0,
         avoid_te_flex: bool = False,
+        avoid_dst_vs_players: bool = False,
         include_started_players: bool = False,
         excluded_players: list[str] = [],
         included_players: list[str] = [],
@@ -376,6 +377,23 @@ class DFSLineupOptimizer:
                         f"QB_Stack_{team}_{stack_qb_count}",
                     )
 
+        # A defense never faces the lineup's own players: its points come from
+        # the offense's mistakes, so they pull against each other (a DST and
+        # the QB it faces correlate about -0.3, #51).
+        if avoid_dst_vs_players and "opponent" in df:
+            offense_vars: dict[str, list] = {}
+            for i, position, team, _, _ in rows:
+                if position != "DST" and pd.notna(team):
+                    offense_vars.setdefault(team, []).append(player_vars[i])
+            opponents = dict(zip(df.index, df["opponent"].tolist()))
+            for i, position, team, _, _ in rows:
+                faced = offense_vars.get(opponents[i]) if position == "DST" else None
+                if faced:
+                    prob += (
+                        pulp.lpSum(faced) <= (total_players - 1) * (1 - player_vars[i]),
+                        f"DST_Not_Facing_Lineup_{team}",
+                    )
+
         # Solve the problem
         solver = PULP_CBC_CMD(msg=False)
         prob.solve(solver)
@@ -393,6 +411,7 @@ class DFSLineupOptimizer:
         self,
         stack_qb_count: int = 0,
         avoid_te_flex: bool = False,
+        avoid_dst_vs_players: bool = False,
         include_started_players: bool = False,
         excluded_players: list[str] = [],
         included_players: list[str] = [],
@@ -406,6 +425,7 @@ class DFSLineupOptimizer:
                 weights={"proj_fpts": weights[0], "avg_fpts": weights[1]},
                 stack_qb_count=stack_qb_count,
                 avoid_te_flex=avoid_te_flex,
+                avoid_dst_vs_players=avoid_dst_vs_players,
                 include_started_players=include_started_players,
                 excluded_players=excluded_players,
                 included_players=included_players,
