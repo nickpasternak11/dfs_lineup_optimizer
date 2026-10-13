@@ -22,6 +22,7 @@ def optimize(data: OptimizeRequest):
         if lineups := optimizer.get_optimal_lineups(
             stack_qb_count=stack_qb_count,
             avoid_te_flex=data.avoid_te_flex,
+            avoid_dst_vs_players=data.avoid_dst_vs_players,
             include_started_players=data.include_started_players,
             excluded_players=data.excluded_players,
             included_players=data.included_players,

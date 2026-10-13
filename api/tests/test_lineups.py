@@ -91,6 +91,27 @@ def test_the_best_lineup_uses_actual_points_from_players_still_to_play(monkeypat
     assert best.actual.sum() == pytest.approx(136.0)
 
 
+def test_the_best_lineup_follows_the_saved_lineups_settings(monkeypatch):
+    # A's QB scored most, but none of A's pass catchers are in the pool, so
+    # the best lineup stacks B's QB with a B receiver. A's defense scored
+    # most too, but it faced B.
+    rows = [("QB A", "QB", "A", 40.0), ("QB B", "QB", "B", 20.0), ("DST A", "DST", "A", 25.0), ("DST C", "DST", "C", 5.0)]
+    rows += [(f"RB C{i}", "RB", "C", 15.0 - i) for i in range(3)]
+    rows += [(f"WR C{i}", "WR", "C", 18.0 - i) for i in range(4)] + [("WR B", "WR", "B", 6.0)]
+    rows += [("TE C", "TE", "C", 9.0)]
+    opponents = {"A": "B", "B": "A", "C": "D"}
+    players = [{
+        "player": name, "position": position, "team": team, "opponent": opponents[team], "salary": 5000,
+        "proj_fpts": 10.0, "avg_fpts": 10.0, "actual_dk_points": actual, "kickoff": pd.Timestamp("2026-10-11T17:00:00Z"),
+    } for name, position, team, actual in rows]
+    monkeypatch.setattr(lineups_db, "load_player_pool", lambda year, week: pd.DataFrame(players))
+
+    best = lineups_db._solve_best(2026, 6, SAVED.to_pydatetime())
+
+    assert {"QB B", "WR B"} <= set(best.player)
+    assert "DST A" not in set(best.player)
+
+
 def test_route(week):
     response = client.get("/lineups/review", params={"year": 2026, "week": 6})
     assert response.status_code == 200

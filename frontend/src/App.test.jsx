@@ -62,6 +62,16 @@ test('locking a player re-runs the optimizer with them included', async () => {
     expect(screen.getByText(/Locked 1\/9/)).toBeInTheDocument();
 });
 
+test('the defense toggle re-runs the optimizer without a DST facing the lineup', async () => {
+    await renderApp();
+    const lastCall = () => client.fetchLineups.mock.calls[client.fetchLineups.mock.calls.length - 1][0];
+    expect(lastCall().avoidDstVsPlayers).toBe(false);
+    await act(async () => {
+        fireEvent.click(screen.getByRole('switch', { name: /Avoid DST vs my players/ }));
+    });
+    expect(lastCall().avoidDstVsPlayers).toBe(true);
+});
+
 test('changing the week reloads that slate', async () => {
     await renderApp();
     await act(async () => {
