@@ -5,8 +5,8 @@
 - `lineups`: save the optimizer's suggested lineups on each projection
   source for this week's games still to come, for the weekly review. Until
   the week's first kickoff, each save replaces the last (the newest counts);
-  after it, saves are refused. The orchestrator runs it every morning with
-  --on-first-game-day, so it saves on the day of the first game, and
+  after it, saves are refused. The orchestrator runs it with
+  --on-first-game-day about an hour before the week's first kickoff, and
   Sunday at 11:50 AM ET with --late-swap, which keeps each saved lineup's
   players whose games have started and re-optimizes the rest.
 - `backtest`: train season by season and score against FantasyPros on the
