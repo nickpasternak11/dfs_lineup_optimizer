@@ -235,6 +235,32 @@
     font-weight: 800;
 }
 
+/* Lineup rosters: fixed columns, the same in every table, and compact
+   enough that the numbers stay next to the names. Narrower than its
+   minimum (about 11rem for names), it scrolls sideways. */
+.roster-table {
+    max-width: 720px;
+    min-width: 40rem;
+    table-layout: fixed;
+}
+
+.roster-table .roster-col-slot {
+    width: 4.5rem;
+}
+
+.roster-table .roster-col-team {
+    width: 4.5rem;
+}
+
+.roster-table .roster-col-num {
+    width: 6.5rem;
+}
+
+.roster-table .roster-table-player {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .chart-data summary {
     color: var(--text-muted);
     cursor: pointer;
