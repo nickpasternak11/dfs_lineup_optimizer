@@ -114,6 +114,13 @@ def test_a_late_swap_keeps_started_players_and_frees_the_rest():
     assert payload["include_started_players"] is True
 
 
+def test_theres_nothing_to_swap_once_every_game_has_started():
+    pool = pd.DataFrame({"kickoff": ["2025-10-10T00:15:00+0000", "2025-10-14T00:15:00+0000"]})
+    sunday = datetime(2025, 10, 12, 15, 50, tzinfo=timezone.utc)
+    assert lineups.games_left(pool, sunday)  # Monday night is still to come
+    assert not lineups.games_left(pool, datetime(2025, 10, 14, 3, 0, tzinfo=timezone.utc))
+
+
 def test_each_swapped_lineup_keeps_only_its_own_strategy(monkeypatch):
     def fake_post(url, payload):
         return Response(200, [lineup("a", 1.0), lineup("b", 2.0), lineup("c", 3.0)])
