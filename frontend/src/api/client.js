@@ -18,12 +18,15 @@ export const fetchProjections = async (year, week) => {
     return response.data;
 };
 
-export const fetchLineups = async ({ year, week, stackQbCount, avoidTeFlex, includeStarted, excluded, locked }) => {
+export const fetchLineups = async ({
+    year, week, stackQbCount, avoidTeFlex, avoidDstVsPlayers, includeStarted, excluded, locked,
+}) => {
     const response = await axios.post(`${API_URL}/optimize`, {
         year: toInt(year),
         week: toInt(week),
         stack_qb_count: stackQbCount,
         avoid_te_flex: avoidTeFlex,
+        avoid_dst_vs_players: avoidDstVsPlayers,
         include_started_players: includeStarted,
         excluded_players: excluded,
         included_players: locked,

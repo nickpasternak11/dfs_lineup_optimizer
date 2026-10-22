@@ -55,6 +55,19 @@ def test_a_source_the_api_cant_optimize_is_skipped(monkeypatch):
     assert list(lineups.suggested_lineups(2025, 6)) == ["fantasypros"]
 
 
+def test_every_saved_lineup_stacks_its_qb_and_keeps_its_dst_off_its_players(monkeypatch):
+    payloads = []
+
+    def fake_post(url, payload):
+        payloads.append(payload)
+        return Response(200, [lineup("p", 10.0)] * 3)
+
+    monkeypatch.setattr(lineups, "post", fake_post)
+    lineups.suggested_lineups(2025, 6)
+    assert [p["projection_source"] for p in payloads] == ["fantasypros", "model"]
+    assert all(p["stack_qb_count"] == 1 and p["avoid_dst_vs_players"] is True for p in payloads)
+
+
 def test_other_api_failures_are_raised(monkeypatch):
     def fake_post(url, payload):
         raise requests.HTTPError(response=Response(500, "boom"))
@@ -112,6 +125,8 @@ def test_a_late_swap_keeps_started_players_and_frees_the_rest():
     # Started players who weren't in the lineup can't be swapped in.
     assert payload["excluded_players"] == ["Other Thursday TE", "Thursday WR"]
     assert payload["include_started_players"] is True
+    # The swap follows the same settings as the lineup it swaps.
+    assert (payload["stack_qb_count"], payload["avoid_dst_vs_players"]) == (1, True)
 
 
 def test_each_swapped_lineup_keeps_only_its_own_strategy(monkeypatch):

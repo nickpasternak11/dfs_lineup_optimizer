@@ -88,6 +88,40 @@ def test_qb_stack_pairs_the_qb_with_his_receivers(pool, make_optimizer):
     assert len(receivers) >= 2
 
 
+def with_games(pool: pd.DataFrame) -> pd.DataFrame:
+    """A plays B, C plays D, and E plays a team with no one in the pool."""
+    opponents = {"A": "B", "B": "A", "C": "D", "D": "C", "E": "F"}
+    return pool.assign(opponent=pool["team"].map(opponents))
+
+
+def faced_players(lineup: pd.DataFrame) -> pd.DataFrame:
+    """The lineup's offensive players from the team its defense faces."""
+    defense = lineup[lineup["position"] == "DST"].iloc[0]
+    return lineup[(lineup["position"] != "DST") & (lineup["team"] == defense["opponent"])]
+
+
+def test_by_default_a_defense_can_face_the_lineups_players(pool, make_optimizer):
+    # B's defense is best, and A's offense is too: they play each other.
+    pool = with_games(pool)
+    pool.loc[pool["player"] == "DST B", "proj_fpts"] = 15.0
+    lineup = make_optimizer(pool).optimize()
+    assert not faced_players(lineup).empty
+
+
+def test_a_defense_never_faces_the_lineups_players_when_asked(pool, make_optimizer):
+    pool = with_games(pool)
+    pool.loc[pool["player"] == "DST B", "proj_fpts"] = 15.0
+    lineup = make_optimizer(pool).optimize(avoid_dst_vs_players=True)
+    assert_valid_roster(lineup)
+    assert faced_players(lineup).empty
+
+
+def test_avoiding_the_defense_needs_opponents(pool, make_optimizer):
+    # Pools without opponents (older weeks) still optimize.
+    assert "opponent" not in pool
+    assert_valid_roster(make_optimizer(pool).optimize(avoid_dst_vs_players=True))
+
+
 def test_started_games_are_excluded_by_default(pool, make_optimizer):
     pool.loc[pool["player"] == "QB A1", "kickoff"] = pd.Timestamp("2020-01-01", tz="UTC")
     lineup = make_optimizer(pool).optimize()
