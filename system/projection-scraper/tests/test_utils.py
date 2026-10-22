@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from src.utils import get_player_injuries, get_stats, get_weekly_rankings
 
@@ -66,6 +68,7 @@ def test_rankings_page_without_ecr_data_returns_nothing(fake_fetch):
 
 
 def test_stats_averages_per_game(fake_fetch):
+    # A real page (2025, weeks 1-2), cut to three defenses: the table is JSON.
     calls = fake_fetch("stats_dst.html")
 
     df = get_stats("DST", 2025, [1, 2]).set_index("player")
@@ -74,11 +77,29 @@ def test_stats_averages_per_game(fake_fetch):
     assert calls[0][1]["end_week"] == 2
 
     bills = df.loc["Buffalo Bills"]
-    assert bills["avg_fpts"] == 11.0
-    assert bills["avg_sack"] == 3.0  # 6 sacks over 2 games
-    assert bills["rost"] == 85.5
+    assert bills["avg_fpts"] == 5.0
+    assert bills["avg_def_sack"] == 3.0  # 6 sacks over 2 games
+    assert bills["rost"] == 30.3
     assert bills["week"] == 3
-    assert "fpts" not in df.columns
+    assert "fpts" not in df.columns and "fptsg" not in df.columns
+
+
+def serve(monkeypatch, html: str) -> None:
+    monkeypatch.setattr("src.utils.fetch", lambda url, params=None: SimpleNamespace(text=html))
+
+
+def test_rates_are_not_averaged_per_game(monkeypatch):
+    page = '<script>window.FP.reportConfig = {"table": {"rows": [{"id": 1, "rank": 0, "player": {"name": "Wide Out", "team": "BUF"}, "pos": "WR", "rec_att": 20, "tgt_perc": 25.0, "rec_avg": 12.5, "rec_lg": 40, "games": 2, "fpts": 30, "fptsg": 15, "rost": "50%"}]}};</script>'
+    serve(monkeypatch, page)
+    row = get_stats("WR", 2026, [3, 6]).iloc[0]
+    assert (row["avg_rec_att"], row["avg_fpts"], row["rost"]) == (10.0, 15.0, 50.0)
+    assert "avg_rec_avg" not in row and "avg_tgt_perc" not in row and "avg_rec_lg" not in row
+
+
+def test_a_page_without_report_data_is_an_error(monkeypatch):
+    serve(monkeypatch, "<html></html>")
+    with pytest.raises(ValueError, match="No report data"):
+        get_stats("QB", 2026, [3, 6])
 
 
 def test_week_one_stats_come_from_the_whole_previous_season(fake_fetch):

@@ -5,7 +5,7 @@ from io import StringIO
 import bs4
 import pandas as pd
 from dfs_common.fantasypros import fetch
-from src.configs import PROJECTIONS_COLUMN_MAPPINGS, STATS_COLUMN_MAPPINGS, log
+from src.configs import PROJECTIONS_COLUMN_MAPPINGS, log
 
 
 def get_weekly_rankings(position: str, year: int, week: int):
@@ -108,12 +108,32 @@ def get_weekly_projections(
     return df
 
 
+# Stats-page fields that aren't totals to average per game: rates, the
+# long play, and the page's own totals.
+NOT_PER_GAME = {"games", "fpts", "fptsg", "rost", "tgt_perc"}
+NOT_PER_GAME_SUFFIXES = ("_pct", "_avg", "_lg")
+
+
+def report_rows(html: str) -> list[dict]:
+    """The rows of a FantasyPros report page. Since October 2026 the pages
+    build their tables in the browser, from the JSON in
+    window.FP.reportConfig, so there's no HTML table to read."""
+    match = re.search(r"window\.FP\.reportConfig\s*=\s*", html)
+    if match is None:
+        raise ValueError("No report data on the page")
+    config, _ = json.JSONDecoder().raw_decode(html, match.end())
+    return config["table"]["rows"]
+
+
 def get_stats(
     position: str,
     year: int,
     weeks: tuple[int, int] or list[int, int] = None,
     scoring: str = "PPR",
 ):
+    """Each player's stats over a range of weeks, as per-game averages
+    (avg_<field>), with avg_fpts the page's fantasy points per game. `week`
+    is the week after the range, the one the averages are for."""
     range = None
     start = None
     end = None
@@ -138,41 +158,32 @@ def get_stats(
         "scoring": scoring,
     }
     r = fetch(url, params=params)
-    df = pd.io.html.read_html(StringIO(r.text), attrs={"id": "data"})[0].iloc[:, 1:]
-    df.columns = [
-        (
-            f"avg_{col}"
-            if (
-                (
-                    col
-                    not in [
-                        "player",
-                        "cmp_perc",
-                        "games",
-                        "lng",
-                        "fpts",
-                        "avg_fpts",
-                        "rost",
-                    ]
-                )
-                and ("/" not in col)
-            )
-            else col
-        )
-        for col in STATS_COLUMN_MAPPINGS[position]
-    ]
-    player = df.player.str.split("(").str[0].str.strip()
-    df["player"] = player
-    df["position"] = position
-    df["season"] = year
-    df["week"] = end + 1
-    df["rost"] = df.rost.str.strip("%").astype(float)
-    df[[col for col in df.columns if (("avg" in col) and (col != "avg_fpts"))]] = (
-        df[[col for col in df.columns if (("avg" in col) and (col != "avg_fpts"))]]
-        .div(df["games"], axis=0)
-        .round(1)
+    rows = report_rows(r.text)
+    df = pd.DataFrame(
+        [
+            {
+                "player": row["player"]["name"],
+                **{key: value for key, value in row.items() if key not in ("id", "rank", "player", "pos")},
+            }
+            for row in rows
+        ]
     )
-    return df.drop(columns="fpts")
+    if df.empty:
+        return pd.DataFrame(columns=["player", "avg_fpts", "games", "rost", "position", "season", "week"])
+    per_game = [
+        column
+        for column in df.columns
+        if column != "player" and column not in NOT_PER_GAME and not column.endswith(NOT_PER_GAME_SUFFIXES)
+    ]
+    averages = df[per_game].apply(pd.to_numeric, errors="coerce").div(df["games"], axis=0).round(1)
+    out = pd.concat([df[["player"]], averages.add_prefix("avg_")], axis=1)
+    out["avg_fpts"] = pd.to_numeric(df["fptsg"], errors="coerce")
+    out["games"] = df["games"]
+    out["rost"] = pd.to_numeric(df["rost"].astype(str).str.strip("%"), errors="coerce")
+    out["position"] = position
+    out["season"] = year
+    out["week"] = end + 1
+    return out
 
 
 def get_player_injuries(year: int, week: int) -> pd.DataFrame:
