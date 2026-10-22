@@ -63,8 +63,14 @@ class ScraperOrchestrator:
         # load and before the earliest kickoffs (London, 9:30 AM ET). Each run
         # stores a snapshot for games still to come, so the last one before a
         # game's kickoff is the one it's scored on. On Tuesday morning, before
-        # the new week's pool exists, there's nothing left to project.
+        # the new week's pool exists, there's nothing left to project...
         schedule.every().day.at("08:30", "America/New_York").do(
+            self.run_projection_model
+        )
+        # ...so Tuesday gets a second run at 10:15 AM ET, once the new week's
+        # salaries (9:00) and first FantasyPros projections (10:00) are in:
+        # the new week has our projections from Tuesday, not Wednesday.
+        schedule.every().tuesday.at("10:15", "America/New_York").do(
             self.run_projection_model
         )
         # Suggested lineups saved for the weekly review → shortly before each
