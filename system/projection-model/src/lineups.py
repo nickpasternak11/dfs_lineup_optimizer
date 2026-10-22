@@ -77,6 +77,13 @@ def pool_projections(year: int, week: int) -> pd.DataFrame:
     return pd.DataFrame(response.json()).set_index("player")
 
 
+def games_left(pool: pd.DataFrame, now: datetime) -> bool:
+    """Whether any pool player's game is still to start, so there's anything
+    to swap."""
+    kickoff = pd.to_datetime(pool["kickoff"], utc=True, errors="coerce")
+    return bool((kickoff > pd.Timestamp(now)).any())
+
+
 def late_swap_requests(initial: pd.DataFrame, pool: pd.DataFrame, year: int, week: int, now: datetime) -> list[tuple]:
     """(source, strategy, optimize request) per saved lineup: its players
     whose games have started are locked in, every other started player is

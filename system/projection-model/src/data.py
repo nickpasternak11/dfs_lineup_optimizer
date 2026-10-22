@@ -56,17 +56,20 @@ SAVED_LINEUPS_QUERY = text(
     "SELECT EXISTS (SELECT 1 FROM lineup_snapshots WHERE year = :year AND week = :week AND phase = :phase)"
 )
 
-# The week's latest lineups saved before its first game.
-INITIAL_LINEUPS_QUERY = text(
+# Each saved lineup as it stands now: its newest snapshot, the latest late
+# swap if it has one, else the lineup saved before the first game.
+CURRENT_LINEUPS_QUERY = text(
     """
-    SELECT source, strategy, slot, player
-    FROM lineup_snapshots
-    WHERE year = :year AND week = :week AND phase = 'initial'
-      AND generated_at = (
-          SELECT max(generated_at) FROM lineup_snapshots
-          WHERE year = :year AND week = :week AND phase = 'initial'
-      )
-    ORDER BY source, strategy, slot
+    SELECT saved.source, saved.strategy, saved.slot, saved.player
+    FROM lineup_snapshots saved
+    JOIN (
+        SELECT source, strategy, max(generated_at) AS generated_at
+        FROM lineup_snapshots
+        WHERE year = :year AND week = :week
+        GROUP BY source, strategy
+    ) newest USING (source, strategy, generated_at)
+    WHERE saved.year = :year AND saved.week = :week
+    ORDER BY saved.source, saved.strategy, saved.slot
     """
 )
 
@@ -122,6 +125,6 @@ def has_saved_lineups(year: int, week: int, phase: str = "initial") -> bool:
         return bool(connection.execute(SAVED_LINEUPS_QUERY, {"year": year, "week": week, "phase": phase}).scalar())
 
 
-def load_initial_lineups(year: int, week: int) -> pd.DataFrame:
+def load_current_lineups(year: int, week: int) -> pd.DataFrame:
     with get_engine().connect() as connection:
-        return pd.read_sql(INITIAL_LINEUPS_QUERY, connection, params={"year": year, "week": week})
+        return pd.read_sql(CURRENT_LINEUPS_QUERY, connection, params={"year": year, "week": week})

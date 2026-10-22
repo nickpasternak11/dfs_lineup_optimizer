@@ -300,6 +300,8 @@ The orchestrator also saves the week's suggested lineups for the review, automat
 - **11:40 AM ET:** a model run
 - **11:50 AM ET:** the swap (`make save-lineups ARGS=--late-swap`)
 
+You can also swap by hand as often as you like until the week's last kickoff, as DraftKings allows (`make save-lineups ARGS=--late-swap`; add `--dry-run` to preview without saving). Each swap starts from each lineup's newest version, an earlier swap or else the initial save, keeps its players whose games have started, and re-optimizes the rest. The newest swap is the one the review scores, so a swap on Friday's projections is still followed by Sunday's, with the inactives.
+
 The swap is only as good as Sunday's information. The FantasyPros scrape has the inactives, but the model only knows who Friday's injury report ruled out, not which Questionable players sit.
 
 Snapshots carry `model_version`:

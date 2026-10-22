@@ -8,7 +8,9 @@
   after it, saves are refused. The orchestrator runs it with
   --on-first-game-day about an hour before the week's first kickoff, and
   Sunday at 11:50 AM ET with --late-swap, which keeps each saved lineup's
-  players whose games have started and re-optimizes the rest.
+  players whose games have started and re-optimizes the rest. A swap can run
+  any number of times until the last kickoff: each starts from the newest
+  lineup, and the newest swap is the one the review scores.
 - `backtest`: train season by season and score against FantasyPros on the
   accuracy page's rows. Reads only.
 - `props`: score player props on the season an Odds API export covers.
@@ -40,7 +42,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--late-swap",
         action="store_true",
-        help="lineups: re-optimize the saved lineups' players whose games haven't started (once a week)",
+        help="lineups: re-optimize the saved lineups' players whose games haven't started (any number of times)",
     )
     parser.add_argument(
         "--props-file",
@@ -116,12 +118,13 @@ def save_late_swap(year: int, week: int, now: datetime, dry_run: bool) -> None:
     if not data.has_saved_lineups(year, week, "initial"):
         log.info("No %s week %s lineups saved before its first game; nothing to swap", year, week)
         return
-    if data.has_saved_lineups(year, week, "late_swap") and not dry_run:
-        log.info("%s week %s late swap is already saved", year, week)
-        return
     pool = lineups.pool_projections(year, week)
+    if not lineups.games_left(pool, now):
+        log.info("Every %s week %s game has started; nothing left to swap", year, week)
+        return
+    # From each lineup as it stands: an earlier swap, else the initial save.
     swapped = lineups.late_swap_lineups(
-        lineups.late_swap_requests(data.load_initial_lineups(year, week), pool, year, week, now)
+        lineups.late_swap_requests(data.load_current_lineups(year, week), pool, year, week, now)
     )
     rows = lineups.snapshot_rows(swapped, pool, year, week, now, phase="late_swap")
     if rows.empty:
