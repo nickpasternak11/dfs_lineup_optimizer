@@ -7,6 +7,8 @@ import pandas as pd
 from dfs_common.http import fetch
 from src import scoring
 from src.configs import (
+    DEPTH_CHARTS_URL,
+    FIRST_DEPTH_CHART_SEASON,
     FIRST_INJURY_SEASON,
     FIRST_ROSTER_SEASON,
     GAMES_URL,
@@ -38,6 +40,8 @@ def download_season(year: int) -> dict[str, pd.DataFrame]:
         files["injuries"] = read_csv(INJURIES_URL.format(year=year))
     if year >= FIRST_ROSTER_SEASON:
         files["rosters"] = read_csv(ROSTERS_URL.format(year=year))
+    if year >= FIRST_DEPTH_CHART_SEASON:
+        files["depth_charts"] = read_csv(DEPTH_CHARTS_URL.format(year=year))
     return files
 
 
@@ -269,3 +273,27 @@ def weekly_rosters(rosters: pd.DataFrame) -> pd.DataFrame:
         }
     )
     return out.drop_duplicates(["year", "week", "gsis_id"], keep="last").reset_index(drop=True)
+
+
+def qb_depth_charts(depth_charts: pd.DataFrame, year: int) -> pd.DataFrame:
+    """Each team's QBs in order on its latest depth chart: one row per QB,
+    depth 1 for the top of the chart. A QB listed in several formations keeps
+    his best spot; rows with no gsis_id are dropped. The charts keep an
+    injured starter at the top, so who starts also needs the injury report."""
+    df = depth_charts[(depth_charts.pos_abb == "QB") & depth_charts.gsis_id.notna()]
+    df = df[df.gsis_id.astype(str).str.strip().ne("")]
+    if df.empty:
+        return pd.DataFrame(columns=["year", "team", "gsis_id", "player", "depth", "charted_at"])
+    latest = df[df.dt == df.dt.max()].copy()
+    latest["pos_rank"] = latest.pos_rank.astype(int)
+    latest = latest.sort_values("pos_rank").drop_duplicates(["team", "gsis_id"])
+    return pd.DataFrame(
+        {
+            "year": year,
+            "team": latest.team,
+            "gsis_id": latest.gsis_id.astype(str),
+            "player": latest.player_name,
+            "depth": latest.groupby("team").cumcount() + 1,
+            "charted_at": pd.to_datetime(latest.dt, utc=True),
+        }
+    ).reset_index(drop=True)

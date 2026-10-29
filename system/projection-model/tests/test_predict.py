@@ -131,3 +131,29 @@ def test_players_off_the_active_roster_are_projected_at_zero(tables, pool):
     rows = predict.predict_week(tables, pool, 2025, 5, NOW, model_factory=Mean).set_index("player")
     assert rows.loc["Receiver One", "proj_dk_points"] == 0.0
     assert rows.loc["Rookie Wideout", "proj_dk_points"] > 0
+
+
+def with_a_backup_qb(tables, pool):
+    """A second Bills QB with a starter's history, behind the starter on the depth chart."""
+    logs = pd.concat([tables["player_logs"], pd.DataFrame([log(w, "qb2", "QB", "BUF", "MIA", 20.0) for w in (3, 4)])], ignore_index=True)
+    pool = pd.concat([pool, pd.DataFrame({"player": ["Backup Arm"], "position": ["QB"], "pool_team": ["BUF"], "team": ["BUF"], "gsis_id": ["qb2"]})], ignore_index=True)
+    depth = pd.DataFrame({"year": 2025, "team": "BUF", "gsis_id": ["qb_starter", "qb2"], "depth": [1, 2]})
+    return {**tables, "player_logs": logs, "qb_depth": depth}, pool
+
+
+def test_a_backup_qb_is_projected_at_zero(tables, pool):
+    tables, pool = with_a_backup_qb(tables, pool)
+    rows = predict.predict_week(tables, pool, 2025, 5, NOW, model_factory=Mean).set_index("player")
+    assert rows.loc["Backup Arm", "proj_dk_points"] == 0.0
+    assert rows.loc["Receiver One", "proj_dk_points"] > 0
+
+
+def test_the_backup_starts_when_the_starter_is_ruled_out(tables, pool):
+    # Depth charts keep an injured starter at the top.
+    tables, pool = with_a_backup_qb(tables, pool)
+    tables["injuries"] = pd.DataFrame({
+        "year": [2025], "week": [5], "gsis_id": ["qb_starter"], "team": ["BUF"],
+        "report_status": ["Out"], "practice_status": ["DNP"],
+    })
+    rows = predict.predict_week(tables, pool, 2025, 5, NOW, model_factory=Mean).set_index("player")
+    assert rows.loc["Backup Arm", "proj_dk_points"] > 0

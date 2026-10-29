@@ -21,7 +21,9 @@ POSITIONS = ["QB", "RB", "WR", "TE", "DST"]
 #    (who among the Questionable sits) aren't known.
 # 3: weekly roster statuses: players off the active roster (a reserve list,
 #    the practice squad...) projected at 0. They aren't on the injury report.
-MODEL_VERSION = "3"
+# 4: QB depth charts: each team's starter is its highest-ranked QB who isn't
+#    ruled out, and the QBs behind him are projected at 0.
+MODEL_VERSION = "4"
 
 # Read straight from nflverse on each run rather than stored: only the model
 # uses them so far.

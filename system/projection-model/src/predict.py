@@ -13,7 +13,7 @@ import pandas as pd
 from dfs_db import ModelProjection, session_scope, upsert_dataframe
 
 from src.configs import MODEL_VERSION, POSITIONS, log
-from src.features import dst_features, player_features
+from src.features import backup_qbs, dst_features, player_features
 from src.model import train_and_predict
 
 # Players the crosswalk doesn't link (mostly rookies) still get a row, keyed
@@ -77,6 +77,10 @@ def predict_week(
     predicted = train_and_predict(features[~is_upcoming], features[is_upcoming], POSITIONS, **kwargs)
     # Listed Out or Doubtful, or off the active roster: they won't play.
     predicted["model"] = predicted.model.where(~predicted.ruled_out.eq(True), 0.0)
+    # A backup QB doesn't play unless the starter goes down mid-game.
+    backups = backup_qbs(tables.get("qb_depth"), tables.get("injuries"), tables.get("rosters"), year, week)
+    is_backup = predicted.position.eq("QB") & predicted.gsis_id.isin(backups)
+    predicted["model"] = predicted.model.where(~is_backup, 0.0)
 
     teams = pool.drop_duplicates("player").set_index("player").pool_team
     gsis_id = predicted.gsis_id.where(~predicted.gsis_id.fillna("").str.startswith(UNLINKED_PREFIX))
