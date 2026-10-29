@@ -65,7 +65,9 @@ def test_every_saved_lineup_stacks_its_qb_and_keeps_its_dst_off_its_players(monk
     monkeypatch.setattr(lineups, "post", fake_post)
     lineups.suggested_lineups(2025, 6)
     assert [p["projection_source"] for p in payloads] == ["fantasypros", "model"]
-    assert all(p["stack_qb_count"] == 1 and p["avoid_dst_vs_players"] is True for p in payloads)
+    assert all(
+        (p["stack_qb_count"], p["avoid_dst_vs_players"], p["avoid_te_flex"]) == (1, True, True) for p in payloads
+    )
 
 
 def test_other_api_failures_are_raised(monkeypatch):
@@ -126,7 +128,7 @@ def test_a_late_swap_keeps_started_players_and_frees_the_rest():
     assert payload["excluded_players"] == ["Other Thursday TE", "Thursday WR"]
     assert payload["include_started_players"] is True
     # The swap follows the same settings as the lineup it swaps.
-    assert (payload["stack_qb_count"], payload["avoid_dst_vs_players"]) == (1, True)
+    assert (payload["stack_qb_count"], payload["avoid_dst_vs_players"], payload["avoid_te_flex"]) == (1, True, True)
 
 
 def test_theres_nothing_to_swap_once_every_game_has_started():
