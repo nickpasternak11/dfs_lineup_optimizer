@@ -4,6 +4,7 @@ from dfs_db import (
     NflGame,
     NflPlayer,
     PlayerGameLog,
+    QbDepthChart,
     WeeklyRoster,
     refresh_player_links,
     replace_matching,
@@ -43,6 +44,9 @@ def load_season(year: int, allow_shrink: bool = False) -> None:
         if "rosters" in data:
             rosters = nflverse.weekly_rosters(data["rosters"])
             written["roster statuses"] = replace_matching(session, WeeklyRoster, rosters, season, min_ratio)
+        if "depth_charts" in data:
+            depth = nflverse.qb_depth_charts(data["depth_charts"], year)
+            written["QB depth chart spots"] = replace_matching(session, QbDepthChart, depth, season, min_ratio)
     weeks = f"weeks {players.week.min()}-{players.week.max()}"
     log.info(
         "Loaded %s %s: %s",

@@ -15,6 +15,8 @@ INJURIES_URL = NFLVERSE + "/injuries/injuries_{year}.csv"
 # Every team's roster each week, with each player's status that week: active,
 # inactive on game day, reserve lists (injured, PUP...), practice squad...
 ROSTERS_URL = NFLVERSE + "/weekly_rosters/roster_weekly_{year}.csv"
+# Every team's depth chart, snapshotted once or twice a day in season.
+DEPTH_CHARTS_URL = NFLVERSE + "/depth_charts/depth_charts_{year}.csv.gz"
 
 # DynastyProcess's crosswalk of player ids across sites; the only public source
 # linking nflverse's GSIS ids to FantasyPros ids.
@@ -29,3 +31,6 @@ FIRST_INJURY_SEASON = 2009
 # Roster statuses are weekly from here; earlier files repeat one status for
 # the whole season (66% of players listed on reserve played).
 FIRST_ROSTER_SEASON = 2016
+# Depth charts in the snapshot format this loader reads (a `dt` per
+# snapshot). Only the current season's latest one is used.
+FIRST_DEPTH_CHART_SEASON = 2026

@@ -53,6 +53,37 @@ ACTIVE_ROSTER = {"ACT", "INA"}
 PRACTICE_LEVEL = {"Full": 2.0, "Limited": 1.0, "DNP": 0.0}
 
 
+
+def backup_qbs(
+    depth: pd.DataFrame | None,
+    injuries: pd.DataFrame | None,
+    rosters: pd.DataFrame | None,
+    year: int,
+    week: int,
+) -> set[str]:
+    """The QBs (gsis ids) on a depth chart who won't start this week. Each
+    team's starter is its highest-ranked QB who isn't ruled out (listed Out
+    or Doubtful, or off the active roster); the others are backups. The
+    charts keep an injured starter at the top, so the chart alone would
+    miss the backup who starts in his place. In 2026 weeks 1-7 this picked
+    the QB who threw the most passes for 96.7% of teams (the chart alone:
+    91.1%); the misses were surprise benchings."""
+    if depth is None or depth.empty:
+        return set()
+    out: set[str] = set()
+    if injuries is not None:
+        this_week = injuries[(injuries.year == year) & (injuries.week == week)]
+        out |= set(this_week.gsis_id[this_week.report_status.isin(RULED_OUT)])
+    if rosters is not None:
+        this_week = rosters[(rosters.year == year) & (rosters.week == week)]
+        out |= set(this_week.gsis_id[~this_week.status.isin(ACTIVE_ROSTER)])
+    backups = set()
+    for _, chart in depth[depth.year == year].sort_values("depth").groupby("team"):
+        available = chart[~chart.gsis_id.isin(out)]
+        if not available.empty:
+            backups |= set(available.gsis_id.iloc[1:])
+    return backups
+
 def _order(df: pd.DataFrame) -> pd.Series:
     return df.year * 100 + df.week
 

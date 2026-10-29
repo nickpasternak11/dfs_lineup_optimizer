@@ -11,6 +11,7 @@ from dfs_db.models import (
     PlayerGameLog,
     PlayerProjection,
     PlayerSalary,
+    QbDepthChart,
     WeeklyRoster,
 )
 from dfs_db.links import refresh_player_links
@@ -41,6 +42,7 @@ __all__ = [
     "PlayerGameLog",
     "PlayerProjection",
     "PlayerSalary",
+    "QbDepthChart",
     "SnapshotShrankError",
     "WeeklyRoster",
     "get_engine",

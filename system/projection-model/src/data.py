@@ -29,6 +29,8 @@ INJURIES_QUERY = text(
 
 ROSTERS_QUERY = text("SELECT year, week, gsis_id, status FROM weekly_rosters")
 
+QB_DEPTH_QUERY = text("SELECT year, team, gsis_id, depth FROM qb_depth_charts")
+
 GAMES_QUERY = text(
     "SELECT game_id, year, week, kickoff, home_team, away_team, spread_line, total_line FROM nfl_games"
 )
@@ -97,6 +99,7 @@ def load(accuracy_rows: bool = True) -> dict[str, pd.DataFrame]:
             "games": _floats(pd.read_sql(GAMES_QUERY, connection)),
             "injuries": pd.read_sql(INJURIES_QUERY, connection),
             "rosters": pd.read_sql(ROSTERS_QUERY, connection),
+            "qb_depth": pd.read_sql(QB_DEPTH_QUERY, connection),
         }
         if accuracy_rows:
             tables["pool"] = read_accuracy_rows(connection)

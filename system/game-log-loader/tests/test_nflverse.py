@@ -171,3 +171,23 @@ def test_weekly_rosters_load_from_2016(monkeypatch):
     assert not any("weekly_rosters" in url for url in requested)
     nflverse.download_season(2016)
     assert requested[-1].endswith("/weekly_rosters/roster_weekly_2016.csv")
+
+
+def test_qb_depth_charts_keep_each_teams_latest_order(nflverse_files):
+    depth = nflverse.qb_depth_charts(nflverse_files["depth_charts"], 2026).set_index("player")
+
+    # The latest snapshot's QBs only: no receiver, no older snapshot, no row without an id.
+    assert list(depth.sort_values("depth").index) == ["Lamar Jackson", "Tyler Huntley", "Joe Fagnano", "Skylar Thompson"]
+    lamar = depth.loc["Lamar Jackson"]
+    # Listed again lower in another formation; his best spot counts.
+    assert (lamar.year, lamar.team, lamar.gsis_id, lamar.depth) == (2026, "BAL", "00-0034796", 1)
+    assert str(lamar.charted_at) == "2026-10-29 14:07:35+00:00"
+
+
+def test_depth_charts_load_from_2026(monkeypatch):
+    requested = []
+    monkeypatch.setattr(nflverse, "read_csv", lambda url: requested.append(url) or pd.DataFrame())
+    nflverse.download_season(2025)
+    assert not any("depth_charts" in url for url in requested)
+    nflverse.download_season(2026)
+    assert requested[-1].endswith("/depth_charts/depth_charts_2026.csv.gz")

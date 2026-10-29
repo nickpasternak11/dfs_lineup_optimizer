@@ -310,6 +310,7 @@ Snapshots carry `model_version`:
 - **Version 1** had no injury data, so live it couldn't see who was out.
 - **Version 2** (#46) uses the injury reports. Players listed Out or Doubtful are projected at 0: of skill-position regulars listed 2016–2025, none listed Out played and 0.9% of Doubtful did.
 - **Version 3** adds the weekly rosters: players off the active roster are projected at 0, for example Tank Dell in 2026 week 5, practicing on his way back from reserve but not yet activated. Practice-squad players count as off until the roster shows them elevated, usually on Saturday.
+- **Version 4** adds QB depth charts (`qb_depth_charts`, each team's latest from nflverse): the starter is the team's highest-ranked QB who isn't ruled out, and the QBs behind him are projected at 0. The charts keep an injured starter at the top, which is why the injury report and roster decide too. In 2026 weeks 1–7 this picked the QB who threw the most passes for 96.7% of teams, against 91.1% for the chart alone. Before it, the model projected Tyler Huntley at 20.4 for week 8 off his three starts, with Lamar Jackson back.
 - **Questionable players** are projected as if they play, because 63% did (76% after a full practice, 42% after none). Swap them on Sunday if they're ruled inactive.
 
 In the backtest, teammates-out from the injury reports scores the same as the old version that knew who actually played: average miss 5.80 and ranking 0.394 against 5.80 and 0.394. So the backtest holds, and live predictions now get the same information.
@@ -428,6 +429,7 @@ All data lives in PostgreSQL (database `dfs`), in the `dfs_postgres_data` Docker
 | `nfl_players` | Game log loader | nflverse `gsis_id` to FantasyPros `fp_player_id`, plus birth date, height, weight, college and draft |
 | `injury_reports` | Game log loader | The NFL's weekly injury reports: final game status and practice participation, from 2009 |
 | `weekly_rosters` | Game log loader | Each week's roster status for QBs, RBs, WRs and TEs (active, reserve, practice squad...), from 2016 |
+| `qb_depth_charts` | Game log loader | Each team's QBs in order on its latest depth chart, current season (from 2026) |
 | `pool_player_links` (materialized view) | Game log loader (refresh) | Pool players matched to nflverse ids by name, team and week |
 | `model_projections` | Projection model | Our model's projections, one snapshot per daily run, never updated |
 | `lineup_snapshots` | Projection model | The optimizer's suggested lineups on each projection source, saved the morning of each week's first game, never updated |

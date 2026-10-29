@@ -241,6 +241,21 @@ class WeeklyRoster(Base):
     status_detail: Mapped[str | None] = mapped_column(Text)
     scraped_at: Mapped[datetime] = _scraped_at()
 
+
+class QbDepthChart(Base):
+    __tablename__ = "qb_depth_charts"
+    __table_args__ = {"comment": "Each team's QBs in order on its latest depth chart, from nflverse."}
+
+    year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    team: Mapped[str] = mapped_column(Text, primary_key=True)
+    gsis_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    player: Mapped[str] = mapped_column(Text, nullable=False)
+    # 1 for the top of the chart. An injured starter stays at 1.
+    depth: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    # When nflverse snapshotted the chart.
+    charted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    scraped_at: Mapped[datetime] = _scraped_at()
+
 class ModelProjection(Base):
     __tablename__ = "model_projections"
     __table_args__ = {
