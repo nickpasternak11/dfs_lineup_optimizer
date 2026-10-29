@@ -94,11 +94,12 @@ def test_the_best_lineup_uses_actual_points_from_players_still_to_play(monkeypat
 def test_the_best_lineup_follows_the_saved_lineups_settings(monkeypatch):
     # A's QB scored most, but none of A's pass catchers are in the pool, so
     # the best lineup stacks B's QB with a B receiver. A's defense scored
-    # most too, but it faced B.
+    # most too, but it faced B. Both C tight ends outscored every FLEX option,
+    # but only one TE plays.
     rows = [("QB A", "QB", "A", 40.0), ("QB B", "QB", "B", 20.0), ("DST A", "DST", "A", 25.0), ("DST C", "DST", "C", 5.0)]
     rows += [(f"RB C{i}", "RB", "C", 15.0 - i) for i in range(3)]
     rows += [(f"WR C{i}", "WR", "C", 18.0 - i) for i in range(4)] + [("WR B", "WR", "B", 6.0)]
-    rows += [("TE C", "TE", "C", 9.0)]
+    rows += [("TE C", "TE", "C", 25.0), ("TE C2", "TE", "C", 30.0)]
     opponents = {"A": "B", "B": "A", "C": "D"}
     players = [{
         "player": name, "position": position, "team": team, "opponent": opponents[team], "salary": 5000,
@@ -110,6 +111,7 @@ def test_the_best_lineup_follows_the_saved_lineups_settings(monkeypatch):
 
     assert {"QB B", "WR B"} <= set(best.player)
     assert "DST A" not in set(best.player)
+    assert list(best.loc[best.position == "TE", "player"]) == ["TE C2"]
 
 
 def test_route(week):
