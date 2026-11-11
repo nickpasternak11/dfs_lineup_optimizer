@@ -91,11 +91,11 @@ def test_the_best_lineup_uses_actual_points_from_players_still_to_play(monkeypat
     assert best.actual.sum() == pytest.approx(136.0)
 
 
-def test_the_best_lineup_follows_the_saved_lineups_settings(monkeypatch):
-    # A's QB scored most, but none of A's pass catchers are in the pool, so
-    # the best lineup stacks B's QB with a B receiver. A's defense scored
-    # most too, but it faced B. Both C tight ends outscored every FLEX option,
-    # but only one TE plays.
+def test_the_best_lineup_ignores_the_saved_lineups_rules(monkeypatch):
+    # A's QB scored most with none of his pass catchers in the pool, and A's
+    # defense faced B's QB; both C tight ends outscored every other FLEX
+    # option. The saved lineups' rules would rule all three out; the
+    # hindsight best takes them.
     rows = [("QB A", "QB", "A", 40.0), ("QB B", "QB", "B", 20.0), ("DST A", "DST", "A", 25.0), ("DST C", "DST", "C", 5.0)]
     rows += [(f"RB C{i}", "RB", "C", 15.0 - i) for i in range(3)]
     rows += [(f"WR C{i}", "WR", "C", 18.0 - i) for i in range(4)] + [("WR B", "WR", "B", 6.0)]
@@ -109,9 +109,8 @@ def test_the_best_lineup_follows_the_saved_lineups_settings(monkeypatch):
 
     best = lineups_db._solve_best(2026, 6, SAVED.to_pydatetime())
 
-    assert {"QB B", "WR B"} <= set(best.player)
-    assert "DST A" not in set(best.player)
-    assert list(best.loc[best.position == "TE", "player"]) == ["TE C2"]
+    assert {"QB A", "DST A", "TE C", "TE C2"} <= set(best.player)
+    assert "WR B" not in set(best.player)
 
 
 def test_route(week):
