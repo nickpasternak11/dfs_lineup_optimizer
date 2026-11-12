@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { LINEUP_STRATEGIES } from '../../lib/constants';
+import React, { useState } from 'react';
+import { errorMessage } from '../../api/client';
 import { formatPoints } from '../../lib/format';
 import Icon from '../common/Icon';
 import LineupCard from './LineupCard';
@@ -7,17 +7,13 @@ import OptimizerSettings from './OptimizerSettings';
 import './LineupPanel.css';
 
 export default function LineupPanel({ optimizer, onReviewExcluded }) {
-    const { lineups, lineupError, optimizing, refresh, pool } = optimizer;
+    const { lineups, lineupError, optimizing, refresh } = optimizer;
     const [active, setActive] = useState(0);
     const shown = Math.min(active, Math.max(lineups.length - 1, 0));
+    const current = lineups[shown];
 
-    const projection = useMemo(() => {
-        const byName = {};
-        pool.forEach((p) => { byName[p.player] = p.proj_fpts; });
-        return byName;
-    }, [pool]);
-
-    const totalFor = lineup => lineup.reduce((sum, p) => sum + (projection[p.player] ?? p.proj_fpts ?? 0), 0);
+    // Each lineup's players carry its own source's projection as proj_fpts.
+    const totalFor = lineup => lineup.reduce((sum, p) => sum + (p.proj_fpts ?? 0), 0);
 
     return (
         <section className="card lineup-panel" aria-label="Lineups">
@@ -55,28 +51,29 @@ export default function LineupPanel({ optimizer, onReviewExcluded }) {
                 )}
                 {!lineupError && lineups.length > 0 && (
                     <>
-                        <div className="lineup-tabs" role="tablist" aria-label="Lineup strategy">
-                            {lineups.map((lineup, index) => (
+                        <div className="lineup-tabs" role="tablist" aria-label="Projection source">
+                            {lineups.map(({ source, label, detail, lineup }, index) => (
                                 <button
-                                    key={index}
+                                    key={source}
                                     type="button"
                                     role="tab"
                                     aria-selected={shown === index}
                                     onClick={() => setActive(index)}
-                                    title={LINEUP_STRATEGIES[index]?.detail}
+                                    title={detail}
                                 >
-                                    <span className="lineup-tab-label">{LINEUP_STRATEGIES[index]?.label || `Lineup ${index + 1}`}</span>
-                                    <span className="lineup-tab-points num">{formatPoints(totalFor(lineup))}</span>
+                                    <span className="lineup-tab-label">{label}</span>
+                                    <span className="lineup-tab-points num">{lineup ? formatPoints(totalFor(lineup)) : '—'}</span>
                                 </button>
                             ))}
                         </div>
-                        <LineupCard
-                            key={shown}
-                            lineup={lineups[shown]}
-                            strategy={LINEUP_STRATEGIES[shown] || { detail: '' }}
-                            projection={projection}
-                            optimizer={optimizer}
-                        />
+                        {current.lineup ? (
+                            <LineupCard key={current.source} lineup={current.lineup} detail={current.detail} optimizer={optimizer} />
+                        ) : (
+                            <div className="lineup-message">
+                                <strong>No {current.label} lineup</strong>
+                                <span>{errorMessage(current.error, 'The optimizer could not build this lineup.')}</span>
+                            </div>
+                        )}
                     </>
                 )}
             </div>

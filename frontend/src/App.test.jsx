@@ -31,7 +31,7 @@ const LINEUP = POOL.filter(p => p.player !== 'Old Timer');
 beforeEach(() => {
     client.fetchCurrentSlate.mockResolvedValue({ year: '2026', week: '4' });
     client.fetchProjections.mockResolvedValue(POOL);
-    client.fetchLineups.mockResolvedValue([LINEUP, LINEUP, LINEUP]);
+    client.fetchLineup.mockResolvedValue(LINEUP);
     client.errorMessage.mockImplementation((error, fallback) => fallback);
 });
 
@@ -44,7 +44,12 @@ const renderApp = async () => {
 test('loads the current week and shows the pool and lineups', async () => {
     await renderApp();
     expect(client.fetchProjections).toHaveBeenCalledWith('2026', '4');
-    expect(screen.getByRole('tab', { name: /Projection/ })).toBeInTheDocument();
+    // One lineup per projection source.
+    const tabs = within(screen.getByRole('tablist', { name: 'Projection source' })).getAllByRole('tab');
+    expect(tabs.map(tab => tab.textContent)).toEqual([
+        expect.stringMatching(/^FantasyPros/), expect.stringMatching(/^Our model/), expect.stringMatching(/^FP \+ model/),
+    ]);
+    expect(client.fetchLineup.mock.calls.slice(-3).map(([request]) => request.source)).toEqual(['fantasypros', 'model', 'average']);
     // In the pool table and in the lineup card.
     expect(screen.getAllByText('Josh Allen')).toHaveLength(2);
     // Players whose games have started are under Unavailable, not Available.
@@ -57,14 +62,14 @@ test('locking a player re-runs the optimizer with them included', async () => {
     await act(async () => {
         fireEvent.click(within(row).getByRole('button', { name: 'Lock Bijan Robinson' }));
     });
-    const lastCall = client.fetchLineups.mock.calls[client.fetchLineups.mock.calls.length - 1][0];
+    const lastCall = client.fetchLineup.mock.calls[client.fetchLineup.mock.calls.length - 1][0];
     expect(lastCall.locked).toEqual(['Bijan Robinson']);
     expect(screen.getByText(/Locked 1\/9/)).toBeInTheDocument();
 });
 
 test('the defense toggle re-runs the optimizer without a DST facing the lineup', async () => {
     await renderApp();
-    const lastCall = () => client.fetchLineups.mock.calls[client.fetchLineups.mock.calls.length - 1][0];
+    const lastCall = () => client.fetchLineup.mock.calls[client.fetchLineup.mock.calls.length - 1][0];
     expect(lastCall().avoidDstVsPlayers).toBe(false);
     await act(async () => {
         fireEvent.click(screen.getByRole('switch', { name: /Avoid DST vs my players/ }));
@@ -81,8 +86,23 @@ test('changing the week reloads that slate', async () => {
     expect(screen.getByRole('button', { name: 'Back to this week' })).toBeInTheDocument();
 });
 
+test('a source the optimizer cannot use yet says so, and the others still show', async () => {
+    client.fetchLineup.mockImplementation(async ({ source }) => {
+        if (source === 'fantasypros') return LINEUP;
+        throw new Error('not projected');
+    });
+    client.errorMessage.mockImplementation(() => "Our model hasn't projected this week");
+    await renderApp();
+    expect(screen.getByRole('tab', { name: /Our model/ })).toHaveTextContent('—');
+    await act(async () => {
+        fireEvent.click(screen.getByRole('tab', { name: /Our model/ }));
+    });
+    expect(screen.getByText('No Our model lineup')).toBeInTheDocument();
+    expect(screen.getByText("Our model hasn't projected this week")).toBeInTheDocument();
+});
+
 test('an optimizer error is shown in place of the lineups', async () => {
-    client.fetchLineups.mockRejectedValue(new Error('boom'));
+    client.fetchLineup.mockRejectedValue(new Error('boom'));
     render(<App />);
     expect(await screen.findByText('No lineups')).toBeInTheDocument();
 });
@@ -232,7 +252,7 @@ test('a past week counts every game: players stay available and the optimizer in
     });
 
     expect(poolRow('Bijan Robinson')).toBeTruthy();
-    const lastCall = client.fetchLineups.mock.calls[client.fetchLineups.mock.calls.length - 1][0];
+    const lastCall = client.fetchLineup.mock.calls[client.fetchLineup.mock.calls.length - 1][0];
     expect(lastCall).toMatchObject({ week: '3', includeStarted: true });
     expect(screen.getByRole('switch', { name: /Include started games/ })).toBeDisabled();
 });

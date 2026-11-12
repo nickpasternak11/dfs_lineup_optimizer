@@ -72,7 +72,7 @@ def suggested_lineups(year: int, week: int) -> dict[str, dict[str, list[dict]]]:
         try:
             response = post(
                 f"{API_URL}/optimize",
-                {"year": year, "week": week, "projection_source": source, **SAVED_LINEUP_SETTINGS},
+                {"year": year, "week": week, "projection_source": source, "blends": False, **SAVED_LINEUP_SETTINGS},
             )
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code in (400, 404):
@@ -108,6 +108,8 @@ def late_swap_requests(initial: pd.DataFrame, pool: pd.DataFrame, year: int, wee
             "year": year,
             "week": week,
             "projection_source": source,
+            # Only a lineup saved before the blends were dropped needs them.
+            "blends": strategy != STRATEGY,
             "include_started_players": True,
             "included_players": locked,
             "excluded_players": sorted(started - set(locked)),

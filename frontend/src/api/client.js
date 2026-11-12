@@ -18,8 +18,9 @@ export const fetchProjections = async (year, week) => {
     return response.data;
 };
 
-export const fetchLineups = async ({
-    year, week, stackQbCount, avoidTeFlex, avoidDstVsPlayers, includeStarted, excluded, locked,
+// One lineup on `source`'s projection: fantasypros, model or average.
+export const fetchLineup = async ({
+    year, week, source, stackQbCount, avoidTeFlex, avoidDstVsPlayers, includeStarted, excluded, locked,
 }) => {
     const response = await axios.post(`${API_URL}/optimize`, {
         year: toInt(year),
@@ -30,8 +31,10 @@ export const fetchLineups = async ({
         include_started_players: includeStarted,
         excluded_players: excluded,
         included_players: locked,
+        projection_source: source,
+        blends: false,
     });
-    return response.data;
+    return response.data[0];
 };
 
 export const fetchPlayerGameLog = async (gsisId) => {

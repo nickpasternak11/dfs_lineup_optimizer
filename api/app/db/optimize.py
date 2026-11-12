@@ -421,9 +421,12 @@ class DFSLineupOptimizer:
         excluded_players: list[str] = [],
         included_players: list[str] = [],
         projection_source: str = "fantasypros",
+        blends: bool = True,
     ) -> list[dict]:
+        """The lineup on the projection alone, then (with `blends`) on it
+        blended 90/10 and 80/20 with the recent average."""
         lineups = []
-        for weights in [(1, 0), (0.9, 0.1), (0.8, 0.2)]:
+        for weights in [(1, 0), (0.9, 0.1), (0.8, 0.2)] if blends else [(1, 0)]:
             log.info("weights=%s", weights)
             lineup = self.optimize(
                 use_avg_fpts=True if weights[1] > 0 else False,

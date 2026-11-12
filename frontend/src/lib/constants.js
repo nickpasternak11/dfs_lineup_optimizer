@@ -5,12 +5,13 @@ export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'DST'];
 export const FIRST_SEASON = 2018;
 export const WEEKS_PER_SEASON = 18;
 
-// The API returns three lineups, solved on increasingly more of each player's
-// recent average blended into their projection (api/app/db/optimize.py).
-export const LINEUP_STRATEGIES = [
-    { label: 'Projection', detail: 'Optimized on FantasyPros projections alone.' },
-    { label: '90/10 blend', detail: 'Optimized on 90% projection, 10% recent average.' },
-    { label: '80/20 blend', detail: 'Optimized on 80% projection, 20% recent average.' },
+// One suggested lineup per projection source. In a 2018-2026 lineup backtest
+// the three built lineups of about the same quality, and every blend with the
+// recent average built worse ones, so there are none.
+export const LINEUP_SOURCES = [
+    { source: 'fantasypros', label: 'FantasyPros', detail: 'Optimized on FantasyPros projections.' },
+    { source: 'model', label: 'Our model', detail: 'Optimized on our model\'s projections.' },
+    { source: 'average', label: 'FP + model', detail: 'Optimized on the average of FantasyPros and our model.' },
 ];
 
 export const KICKOFF_CUTOFFS = [
