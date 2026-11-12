@@ -22,18 +22,19 @@ def test_each_lineup_player_is_a_row_with_its_sources_own_projection():
         "model_fpts": [11.0] * 9 + [12.5] * 9,
     }).set_index("player")
     suggested = {
-        # The blends report what they were optimized on, not the plain projection.
-        "fantasypros": [lineup("fp", 10.0), lineup("fp", 9.8), lineup("fp", 9.6)],
-        "model": [lineup("m", 12.5), lineup("m", 12.3), lineup("m", 12.1)],
+        "fantasypros": {"projection": lineup("fp", 10.0)},
+        "model": {"projection": lineup("m", 12.5)},
+        "average": {"projection": lineup("m", 10.25)},
     }
     rows = lineups.snapshot_rows(suggested, pool, 2025, 6, NOW)
 
-    assert len(rows) == 2 * 3 * 9
-    blend = rows[(rows.source == "fantasypros") & (rows.strategy == "blend_80_20")].iloc[0]
-    assert (blend.projection, blend.optimized_points) == (10.0, 9.6)
-    model = rows[(rows.source == "model") & (rows.strategy == "projection")]
+    assert len(rows) == 3 * 9 and set(rows.strategy) == {"projection"}
+    assert set(rows[rows.source == "fantasypros"].projection) == {10.0}
+    model = rows[rows.source == "model"]
     assert set(model.projection) == {12.5}
     assert list(model.slot) == list(range(9))
+    # The average's projection is half FantasyPros', half our model's.
+    assert set(rows[rows.source == "average"].projection) == {10.25}
     assert (rows.generated_at == NOW).all() and (rows.week == 6).all()
 
 
@@ -49,10 +50,23 @@ def test_a_source_the_api_cant_optimize_is_skipped(monkeypatch):
     def fake_post(url, payload):
         if payload["projection_source"] == "model":
             raise requests.HTTPError(response=Response(400, {"detail": "Our model hasn't projected"}))
+        if payload["projection_source"] == "average":
+            raise requests.HTTPError(response=Response(400, {"detail": "Our model hasn't projected"}))
         return Response(200, [lineup("fp", 10.0)] * 3)
 
     monkeypatch.setattr(lineups, "post", fake_post)
     assert list(lineups.suggested_lineups(2025, 6)) == ["fantasypros"]
+
+
+def test_only_each_sources_projection_lineup_is_saved(monkeypatch):
+    # The API also returns the 90/10 and 80/20 blends, which aren't saved.
+    def fake_post(url, payload):
+        return Response(200, [lineup("a", 1.0), lineup("b", 2.0), lineup("c", 3.0)])
+
+    monkeypatch.setattr(lineups, "post", fake_post)
+    suggested = lineups.suggested_lineups(2025, 6)
+    assert list(suggested) == ["fantasypros", "model", "average"]
+    assert all(list(s) == ["projection"] and s["projection"][0]["player"] == "a0" for s in suggested.values())
 
 
 def test_every_saved_lineup_stacks_its_qb_and_keeps_its_dst_off_its_players(monkeypatch):
@@ -64,7 +78,7 @@ def test_every_saved_lineup_stacks_its_qb_and_keeps_its_dst_off_its_players(monk
 
     monkeypatch.setattr(lineups, "post", fake_post)
     lineups.suggested_lineups(2025, 6)
-    assert [p["projection_source"] for p in payloads] == ["fantasypros", "model"]
+    assert [p["projection_source"] for p in payloads] == ["fantasypros", "model", "average"]
     assert all(
         (p["stack_qb_count"], p["avoid_dst_vs_players"], p["avoid_te_flex"]) == (1, True, True) for p in payloads
     )
@@ -139,13 +153,14 @@ def test_theres_nothing_to_swap_once_every_game_has_started():
 
 
 def test_each_swapped_lineup_keeps_only_its_own_strategy(monkeypatch):
+    # A week saved before the blends were dropped still swaps its blend lineup.
     def fake_post(url, payload):
         return Response(200, [lineup("a", 1.0), lineup("b", 2.0), lineup("c", 3.0)])
 
     monkeypatch.setattr(lineups, "post", fake_post)
     swapped = lineups.late_swap_lineups([("fantasypros", "blend_90_10", {})])
-    assert swapped["fantasypros"][0] is None and swapped["fantasypros"][2] is None
-    assert swapped["fantasypros"][1][0]["player"] == "b0"
+    assert list(swapped["fantasypros"]) == ["blend_90_10"]
+    assert swapped["fantasypros"]["blend_90_10"][0]["player"] == "b0"
 
     pool = pd.DataFrame({"player": [f"b{i}" for i in range(9)], "proj_fpts": 9.0, "model_fpts": 9.5}).set_index("player")
     rows = lineups.snapshot_rows(swapped, pool, 2025, 6, NOW, phase="late_swap")

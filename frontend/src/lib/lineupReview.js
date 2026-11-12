@@ -1,6 +1,6 @@
 // Names and numbers for the weekly lineup review.
 
-export const SOURCE_LABELS = { fantasypros: 'FantasyPros', model: 'Our model' };
+export const SOURCE_LABELS = { fantasypros: 'FantasyPros', model: 'Our model', average: 'FantasyPros + our model' };
 export const STRATEGY_LABELS = { projection: 'Projection', blend_90_10: '90/10 blend', blend_80_20: '80/20 blend' };
 
 export const lineupLabel = ({ source, strategy }) => (
