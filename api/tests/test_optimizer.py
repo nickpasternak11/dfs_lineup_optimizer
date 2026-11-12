@@ -171,6 +171,18 @@ def test_lineups_can_be_optimized_on_our_models_projections(pool, make_optimizer
     assert lineup.set_index("player").loc["QB C1", "proj_fpts"] == 30.0
 
 
+def test_lineups_can_be_optimized_on_the_average_of_both_projections(pool, make_optimizer):
+    # Our model alone would pick the C players and FantasyPros' its own
+    # favorites; the average uses half of each.
+    pool["model_fpts"] = pool["proj_fpts"]
+    pool.loc[pool["player"] == "QB C1", "model_fpts"] = 100.0
+    lineup = make_optimizer(pool).optimize(projection_source="average")
+
+    assert_valid_roster(lineup)
+    qb = pool.set_index("player").loc["QB C1"]
+    assert lineup.set_index("player").loc["QB C1", "proj_fpts"] == pytest.approx((qb.proj_fpts + 100.0) / 2, abs=0.01)
+
+
 def test_a_week_our_model_hasnt_projected_is_an_error(pool, make_optimizer):
     pool["model_fpts"] = None
     with pytest.raises(ValueError, match="hasn't projected"):

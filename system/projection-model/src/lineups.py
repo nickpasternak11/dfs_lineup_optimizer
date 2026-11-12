@@ -1,8 +1,9 @@
 """Save the optimizer's suggested lineups before the games, for the weekly
-review. The API owns the optimizer, so this asks it for the three lineups on
-each projection source and stores them as a snapshot, never updated. Every
-lineup uses SAVED_LINEUP_SETTINGS: the QB stacked with one of his own
-pass catchers, and no DST facing the lineup's own players.
+review. The API owns the optimizer, so this asks it for one lineup on each
+projection source (FantasyPros, our model, and the two averaged) and stores
+them as a snapshot, never updated. Every lineup uses SAVED_LINEUP_SETTINGS:
+the QB stacked with one of his own pass catchers, no DST facing the lineup's
+own players, and no second TE in FLEX.
 
 They're saved shortly before the week's first kickoff, so they cover the
 whole Thursday-to-Monday slate of a DraftKings classic contest. That's
@@ -26,14 +27,22 @@ from dfs_db import LineupSnapshot, session_scope, upsert_dataframe
 
 from src.configs import API_URL, log
 
-SOURCES = ["fantasypros", "model"]
-# The order the API returns them: the projection alone, then blended 90/10
-# and 80/20 with the recent average.
-STRATEGIES = ["projection", "blend_90_10", "blend_80_20"]
+SOURCES = ["fantasypros", "model", "average"]
+# The API returns three lineups per source: the projection alone, then
+# blended 90/10 and 80/20 with the recent average. Only the projection's is
+# saved: in the 2018-2026 backtest every blend built worse lineups than its
+# plain projection. Weeks saved earlier have blend lineups, which a late
+# swap still re-optimizes with their own strategy.
+STRATEGY = "projection"
+API_INDEX = {"projection": 0, "blend_90_10": 1, "blend_80_20": 2}
 EASTERN = ZoneInfo("America/New_York")
 
-# Each source's own projection in the pool's records.
-SOURCE_COLUMNS = {"fantasypros": "proj_fpts", "model": "model_fpts"}
+
+def source_projection(pool: pd.DataFrame, source: str) -> pd.Series:
+    """Each player's projection on `source`, from the pool's records."""
+    if source == "average":
+        return (pool["proj_fpts"] + pool["model_fpts"]) / 2
+    return pool["model_fpts" if source == "model" else "proj_fpts"]
 
 
 def before_first_kickoff(first_kickoff: datetime | None, now: datetime) -> bool:
@@ -53,9 +62,11 @@ def is_first_game_day(first_kickoff: datetime | None, now: datetime) -> bool:
     return first_kickoff.astimezone(EASTERN).date() == now.astimezone(EASTERN).date()
 
 
-def suggested_lineups(year: int, week: int) -> dict[str, list[list[dict]]]:
-    """The API's lineups on each source, with SAVED_LINEUP_SETTINGS. A source it can't optimize
-    (our model before it has projected the week) is skipped."""
+def suggested_lineups(year: int, week: int) -> dict[str, dict[str, list[dict]]]:
+    """{source: {strategy: lineup}}: the API's projection lineup on each
+    source, with SAVED_LINEUP_SETTINGS. A source it can't optimize (our
+    model, or the average, before the model has projected the week) is
+    skipped."""
     lineups = {}
     for source in SOURCES:
         try:
@@ -68,7 +79,7 @@ def suggested_lineups(year: int, week: int) -> dict[str, list[list[dict]]]:
                 log.warning("No %s lineups for %s week %s: %s", source, year, week, e.response.text)
                 continue
             raise
-        lineups[source] = response.json()
+        lineups[source] = {STRATEGY: response.json()[API_INDEX[STRATEGY]]}
     return lineups
 
 
@@ -105,10 +116,10 @@ def late_swap_requests(initial: pd.DataFrame, pool: pd.DataFrame, year: int, wee
     return requests_
 
 
-def late_swap_lineups(requests_: list[tuple]) -> dict[str, list]:
-    """Each source's swapped lineups, in STRATEGIES order (None where the
-    API couldn't optimize one). The API returns all three strategies per
-    request; only the one being swapped is kept."""
+def late_swap_lineups(requests_: list[tuple]) -> dict[str, dict[str, list[dict]]]:
+    """{source: {strategy: lineup}} for each swapped lineup the API could
+    optimize. The API returns all three strategies per request; only the one
+    being swapped is kept."""
     lineups = {}
     for source, strategy, payload in requests_:
         try:
@@ -118,9 +129,7 @@ def late_swap_lineups(requests_: list[tuple]) -> dict[str, list]:
                 log.warning("No %s %s late swap: %s", source, strategy, e.response.text)
                 continue
             raise
-        lineups.setdefault(source, [None] * len(STRATEGIES))
-        index = STRATEGIES.index(strategy)
-        lineups[source][index] = response.json()[index]
+        lineups.setdefault(source, {})[strategy] = response.json()[API_INDEX[strategy]]
     return lineups
 
 
@@ -129,9 +138,9 @@ def snapshot_rows(
 ) -> pd.DataFrame:
     rows = []
     for source, source_lineups in lineups.items():
-        projections = pool[SOURCE_COLUMNS[source]]
-        for strategy, lineup in zip(STRATEGIES, source_lineups):
-            for slot, player in enumerate(lineup or []):
+        projections = source_projection(pool, source)
+        for strategy, lineup in source_lineups.items():
+            for slot, player in enumerate(lineup):
                 rows.append({
                     "year": year,
                     "week": week,
