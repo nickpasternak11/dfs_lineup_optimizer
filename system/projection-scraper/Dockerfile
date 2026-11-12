@@ -1,5 +1,5 @@
 # Build context is the repo root (see docker-compose.build.yml).
-FROM python:3.10-slim as base
+FROM python:3.12-slim as base
 
 WORKDIR /app
 

@@ -109,7 +109,7 @@ test-db:
 # the network to compare builds, and pass ARGS such as "--concurrency 1 5 --duration 10".
 LOAD_TEST_URL ?= http://dfs-api:8080
 load-test:
-	docker run --rm --network $(NETWORK) -v $(CURDIR)/api/loadtest:/loadtest:ro python:3.10-slim \
+	docker run --rm --network $(NETWORK) -v $(CURDIR)/api/loadtest:/loadtest:ro python:3.12-slim \
 		sh -c 'pip install -q --disable-pip-version-check --root-user-action=ignore \
 			-r /loadtest/requirements.txt && python /loadtest/loadtest.py --base-url $(LOAD_TEST_URL) $(ARGS)'
 

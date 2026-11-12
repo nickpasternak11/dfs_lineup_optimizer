@@ -21,7 +21,7 @@ make load-test ARGS="--concurrency 1 5 --duration 10"       # shorter run
 make load-test LOAD_TEST_URL=http://dfs-api-other:8080      # another container on the network
 ```
 
-The target runs the script in a throwaway `python:3.10-slim` container on `dfs_optimizer_network`, so httpx stays out of the API image. To compare two builds on the same machine and data, build each under its own tag, start it on the network with the stack's `.env`, and point `LOAD_TEST_URL` at it:
+The target runs the script in a throwaway `python:3.12-slim` container on `dfs_optimizer_network`, so httpx stays out of the API image. To compare two builds on the same machine and data, build each under its own tag, start it on the network with the stack's `.env`, and point `LOAD_TEST_URL` at it:
 
 ```bash
 docker build -q --target service -f api/Dockerfile -t dfs-api-candidate .
