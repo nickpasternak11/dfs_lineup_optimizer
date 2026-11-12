@@ -4,7 +4,6 @@ and the best lineup possible in hindsight from the same players."""
 from datetime import datetime
 
 import pandas as pd
-from dfs_common.lineups import SAVED_LINEUP_SETTINGS
 from dfs_db import get_engine
 from sqlalchemy import text
 
@@ -83,10 +82,13 @@ def _solve_best(year: int, week: int, since: datetime) -> pd.DataFrame:
     eligible["actual"] = eligible["actual_dk_points"].fillna(0.0)
     eligible["proj_fpts"] = eligible["actual"]
     optimizer = DFSLineupOptimizer.from_frame(eligible.reset_index(drop=True), year, week)
-    return optimizer.optimize(include_started_players=True, **SAVED_LINEUP_SETTINGS)
+    # No construction rules (stacks, DST, TE in FLEX): the highest score the
+    # salary cap allowed, so it also shows whether the rules cost anything.
+    return optimizer.optimize(include_started_players=True)
 
 
 def best_lineup(year: int, week: int, since: datetime) -> pd.DataFrame:
     """The best lineup in hindsight: optimized on actual points over the
-    players the saved lineups could pick from, with the settings they use."""
+    players the saved lineups could pick from, under the salary cap and
+    roster slots only."""
     return _best_cache.get_or_load((year, week, since), lambda: _solve_best(year, week, since))
