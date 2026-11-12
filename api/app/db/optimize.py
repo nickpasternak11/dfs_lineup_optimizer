@@ -185,16 +185,19 @@ class DFSLineupOptimizer:
     def optimize(
         self,
         use_avg_fpts: bool = False,
-        weights: dict = {},
+        weights: dict | None = None,
         stack_qb_count: int = 0,
         avoid_te_flex: bool = False,
         avoid_dst_vs_players: bool = False,
         include_started_players: bool = False,
-        excluded_players: list[str] = [],
-        included_players: list[str] = [],
+        excluded_players: list[str] | None = None,
+        included_players: list[str] | None = None,
         projection_source: str = "fantasypros",
     ) -> pd.DataFrame:
         # selected_players = []
+        weights = weights or {}
+        excluded_players = excluded_players or []
+        included_players = included_players or []
         budget = 50000
         total_players = 9
         QB_limit, RB_limit, WR_limit, TE_limit, DST_limit, FLEX_limit = 1, 2, 3, 1, 1, 1
@@ -418,8 +421,8 @@ class DFSLineupOptimizer:
         avoid_te_flex: bool = False,
         avoid_dst_vs_players: bool = False,
         include_started_players: bool = False,
-        excluded_players: list[str] = [],
-        included_players: list[str] = [],
+        excluded_players: list[str] | None = None,
+        included_players: list[str] | None = None,
         projection_source: str = "fantasypros",
         blends: bool = True,
     ) -> list[dict]:
