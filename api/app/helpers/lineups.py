@@ -5,7 +5,7 @@ import pandas as pd
 
 from app.db import lineups as lineups_db
 
-SOURCE_ORDER = ["fantasypros", "model"]
+SOURCE_ORDER = ["fantasypros", "model", "average"]
 STRATEGY_ORDER = ["projection", "blend_90_10", "blend_80_20"]
 PHASE_ORDER = ["initial", "late_swap"]
 

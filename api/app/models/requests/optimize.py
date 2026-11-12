@@ -16,7 +16,8 @@ class OptimizeRequest(BaseModel):
     include_started_players: bool = False
     excluded_players: list[str] = []
     included_players: list[str] = []
-    projection_source: Literal["fantasypros", "model"] = Field(
+    projection_source: Literal["fantasypros", "model", "average"] = Field(
         default="fantasypros",
-        description="Optimize on FantasyPros' projection or our model's latest one before kickoff",
+        description="Optimize on FantasyPros' projection, our model's latest one before kickoff, "
+        "or the average of the two",
     )

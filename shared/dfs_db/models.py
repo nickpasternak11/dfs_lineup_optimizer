@@ -286,10 +286,11 @@ class LineupSnapshot(Base):
     year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     week: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
-    # The projection the optimizer ran on: "fantasypros" or "model".
+    # The projection the optimizer ran on: "fantasypros", "model" or
+    # "average" (the two averaged).
     source: Mapped[str] = mapped_column(Text, primary_key=True)
-    # "projection", "blend_90_10" or "blend_80_20" (projection blended with
-    # the recent average).
+    # "projection". Weeks saved before 2026 week 10 also have "blend_90_10"
+    # and "blend_80_20" (the projection blended with the recent average).
     strategy: Mapped[str] = mapped_column(Text, primary_key=True)
     # "initial" (saved before the week's first game) or "late_swap" (Sunday's
     # re-optimization of the players whose games hadn't started).
@@ -301,7 +302,7 @@ class LineupSnapshot(Base):
     team: Mapped[str | None] = mapped_column(Text)
     salary: Mapped[int] = mapped_column(Integer, nullable=False)
     # The source's own projection, and what the lineup was optimized on (the
-    # same for "projection"; blended with the recent average otherwise).
+    # same for "projection"; blended with the recent average for the blends).
     projection: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
     optimized_points: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
 

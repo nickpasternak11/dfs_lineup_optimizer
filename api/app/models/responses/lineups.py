@@ -25,7 +25,7 @@ class ReviewPlayer(_Model):
 class ReviewLineup(_Model):
     phase: str = Field(description="initial (saved before the week's first game) or late_swap (Sunday's swap)")
     source: str = Field(description="fantasypros or model")
-    strategy: str = Field(description="projection, blend_90_10 or blend_80_20")
+    strategy: str = Field(description="projection (blend_90_10 and blend_80_20 in weeks saved before 2026 week 10)")
     projected: float
     actual: float = Field(description="Points scored, a player who didn't play counting zero")
     players: list[ReviewPlayer]

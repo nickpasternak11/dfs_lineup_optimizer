@@ -209,14 +209,19 @@ class DFSLineupOptimizer:
                 f"week={self.current_week}"
             )
 
-        if projection_source == "model":
+        if projection_source in ("model", "average"):
             df = df[df["model_fpts"].notna()].reset_index(drop=True)
             if df.empty:
                 raise ValueError(
                     f"Our model hasn't projected year={self.current_year}, "
                     f"week={self.current_week}"
                 )
-            df["proj_fpts"] = df["model_fpts"]
+            if projection_source == "model":
+                df["proj_fpts"] = df["model_fpts"]
+            else:
+                # Half FantasyPros, half our model: in the 2018-2026 lineup
+                # backtest it built lineups about as good as FantasyPros'.
+                df["proj_fpts"] = ((df["proj_fpts"] + df["model_fpts"]) / 2).round(2)
             df["value"] = (df["proj_fpts"] / (df["salary"] / 1000)).round(2)
 
         # By default, only players whose games have not started are eligible.
