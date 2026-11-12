@@ -156,8 +156,9 @@ backtest-props:
 	$(DOCKER_RUN) -v $(PROPS_DIR):/props:ro dfs-projection-model props $(ARGS)
 
 # Read-only experiments in system/projection-model/experiments (#51):
-# NAME=boom_bust (how predictable boom and bust are) or NAME=lineup_simulation
-# (teammate correlations and simulated lineups). Print results; a few minutes.
+# NAME=boom_bust (how predictable boom and bust are), NAME=lineup_simulation
+# (teammate correlations and simulated lineups) or NAME=lineup_backtest (which
+# projection builds the best lineup). Print results; a few minutes.
 experiment:
 	$(DOCKER_RUN) --entrypoint python dfs-projection-model experiments/$(NAME).py
 
