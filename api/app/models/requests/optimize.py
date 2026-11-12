@@ -21,3 +21,8 @@ class OptimizeRequest(BaseModel):
         description="Optimize on FantasyPros' projection, our model's latest one before kickoff, "
         "or the average of the two",
     )
+    blends: bool = Field(
+        default=True,
+        description="Also return the lineups on the projection blended 90/10 and 80/20 with the "
+        "recent average, after the plain one; false returns the plain lineup alone",
+    )

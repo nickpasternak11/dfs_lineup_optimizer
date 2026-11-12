@@ -49,10 +49,10 @@ export default function usePlayerPool({ pool, lineups, locked, excluded, include
         opponent: uniqueSorted(pool, 'opponent'),
     }), [pool]);
 
-    // Which lineups (by index) each player is in.
+    // Which lineups (by index, one per projection source) each player is in.
     const exposure = useMemo(() => {
         const byPlayer = {};
-        lineups.forEach((lineup, index) => lineup.forEach(({ player }) => {
+        lineups.forEach(({ lineup }, index) => (lineup || []).forEach(({ player }) => {
             (byPlayer[player] = byPlayer[player] || []).push(index);
         }));
         return byPlayer;

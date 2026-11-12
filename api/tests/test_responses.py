@@ -145,6 +145,14 @@ def test_optimize_json_is_three_lineups_of_players(client):
         assert all(list(player) == query_columns() for player in lineup)
 
 
+def test_optimize_without_blends_is_the_plain_lineup_alone(client):
+    body = {"year": 2025, "week": 3, "include_started_players": True}
+    plain = client.post("/optimize", json={**body, "blends": False})
+
+    assert plain.status_code == 200
+    assert plain.json() == client.post("/optimize", json=body).json()[:1]
+
+
 def response_schema(path: str) -> dict:
     operation = application.openapi()["paths"][path]["post"]
     return operation["responses"]["200"]["content"]["application/json"]["schema"]

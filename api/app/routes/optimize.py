@@ -27,6 +27,7 @@ def optimize(data: OptimizeRequest):
             excluded_players=data.excluded_players,
             included_players=data.included_players,
             projection_source=data.projection_source,
+            blends=data.blends,
         ):
             return lineups
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)

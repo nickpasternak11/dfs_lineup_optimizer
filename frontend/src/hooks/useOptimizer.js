@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
-import { errorMessage, fetchCurrentSlate, fetchLineups, fetchProjections } from '../api/client';
+import { errorMessage, fetchCurrentSlate, fetchLineup, fetchProjections } from '../api/client';
+import { LINEUP_SOURCES } from '../lib/constants';
 import { canLockPlayer } from '../lib/rosterRules';
 import { loadExcludedPlayers, saveExcludedPlayers, slateKey } from '../lib/storage';
 
@@ -20,6 +21,21 @@ const useLatest = (load, deps, { onData, onError, onSettled }) => {
             .finally(() => { if (id === latest.current) onSettled(); });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, deps);
+};
+
+// One lineup per projection source, each { ...source, lineup, error }. A
+// source the API can't optimize (our model before it has projected the week)
+// carries its error; only when none can is the whole request an error.
+const fetchLineups = async (request) => {
+    const results = await Promise.allSettled(
+        LINEUP_SOURCES.map(({ source }) => fetchLineup({ ...request, source })),
+    );
+    if (results.every(r => r.status === 'rejected')) throw results[0].reason;
+    return LINEUP_SOURCES.map((source, i) => ({
+        ...source,
+        lineup: results[i].status === 'fulfilled' ? results[i].value : null,
+        error: results[i].status === 'rejected' ? results[i].reason : null,
+    }));
 };
 
 // The slate, optimizer settings, locks and exclusions, plus the player pool

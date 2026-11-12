@@ -59,12 +59,16 @@ def test_a_source_the_api_cant_optimize_is_skipped(monkeypatch):
 
 
 def test_only_each_sources_projection_lineup_is_saved(monkeypatch):
-    # The API also returns the 90/10 and 80/20 blends, which aren't saved.
+    # The blends aren't asked for (or saved).
+    payloads = []
+
     def fake_post(url, payload):
-        return Response(200, [lineup("a", 1.0), lineup("b", 2.0), lineup("c", 3.0)])
+        payloads.append(payload)
+        return Response(200, [lineup("a", 1.0)])
 
     monkeypatch.setattr(lineups, "post", fake_post)
     suggested = lineups.suggested_lineups(2025, 6)
+    assert all(p["blends"] is False for p in payloads)
     assert list(suggested) == ["fantasypros", "model", "average"]
     assert all(list(s) == ["projection"] and s["projection"][0]["player"] == "a0" for s in suggested.values())
 
@@ -137,6 +141,7 @@ def test_a_late_swap_keeps_started_players_and_frees_the_rest():
     ((source, strategy, payload),) = lineups.late_swap_requests(initial, pool, 2025, 6, sunday)
 
     assert (source, strategy, payload["projection_source"]) == ("model", "projection", "model")
+    assert payload["blends"] is False
     assert payload["included_players"] == ["Thursday QB"]
     # Started players who weren't in the lineup can't be swapped in.
     assert payload["excluded_players"] == ["Other Thursday TE", "Thursday WR"]

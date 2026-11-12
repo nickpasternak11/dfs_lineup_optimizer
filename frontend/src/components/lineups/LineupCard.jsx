@@ -31,18 +31,15 @@ const copyToClipboard = async (text) => {
     if (!copied) throw new Error('copy failed');
 };
 
-// `projection` maps player names to their unblended projection, so every
-// lineup is totalled on the same basis; proj_fpts in lineups 2 and 3 is the
-// blended score they were optimized on.
-export default function LineupCard({ lineup, strategy, projection, optimizer }) {
+// Each player's proj_fpts is the projection the lineup was optimized on:
+// FantasyPros', our model's, or the average of the two.
+export default function LineupCard({ lineup, detail, optimizer }) {
     const [copied, setCopied] = useState(false);
     const slots = orderLineup(lineup);
-    const pointsFor = player => projection[player.player] ?? player.proj_fpts;
+    const pointsFor = player => player.proj_fpts;
     const totalPoints = lineup.reduce((sum, p) => sum + (pointsFor(p) || 0), 0);
-    const optimizedScore = lineup.reduce((sum, p) => sum + (p.proj_fpts || 0), 0);
     const salary = lineup.reduce((sum, p) => sum + (p.salary || 0), 0);
     const salaryShare = Math.min(100, (salary / SALARY_CAP) * 100);
-    const isBlend = Math.abs(optimizedScore - totalPoints) >= 0.05;
 
     const copy = () => copyToClipboard(asText(slots))
         .then(() => {
@@ -57,11 +54,6 @@ export default function LineupCard({ lineup, strategy, projection, optimizer }) 
                 <div className="summary-points">
                     <span className="summary-value num">{formatPoints(totalPoints)}</span>
                     <span className="summary-label">projected pts</span>
-                    {isBlend && (
-                        <span className="summary-sub num" title="The blended score this lineup was optimized on">
-                            {formatPoints(optimizedScore)} blended
-                        </span>
-                    )}
                 </div>
                 <div className="summary-salary">
                     <div className="summary-salary-text num">
@@ -76,7 +68,7 @@ export default function LineupCard({ lineup, strategy, projection, optimizer }) 
                     <Icon name={copied ? 'check' : 'copy'} />
                 </button>
             </div>
-            <p className="strategy-detail">{strategy.detail}</p>
+            <p className="strategy-detail">{detail}</p>
 
             <ol className="roster">
                 {slots.map(({ slot, player }) => {

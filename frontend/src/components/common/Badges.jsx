@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatSalaryChange, gradeTone, injuryLabel } from '../../lib/format';
+import { LINEUP_SOURCES } from '../../lib/constants';
 import './badges.css';
 
 export function PositionBadge({ position, label }) {
@@ -36,9 +37,9 @@ export function SalaryChange({ value }) {
 // One pip per lineup, filled for the lineups the player is in.
 export function ExposurePips({ indexes, total }) {
     if (!indexes || !total) return null;
-    const names = indexes.map(i => i + 1).join(', ');
+    const names = indexes.map(i => LINEUP_SOURCES[i]?.label || `Lineup ${i + 1}`).join(', ');
     return (
-        <span className="exposure-pips" title={`In lineup${indexes.length > 1 ? 's' : ''} ${names}`}>
+        <span className="exposure-pips" title={`In the ${names} lineup${indexes.length > 1 ? 's' : ''}`}>
             {Array.from({ length: total }, (_, i) => (
                 <span key={i} className={indexes.includes(i) ? 'pip pip-on' : 'pip'} />
             ))}
